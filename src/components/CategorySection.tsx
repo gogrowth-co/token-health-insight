@@ -22,6 +22,7 @@ interface CategorySectionProps {
     tooltip: string;
     sparklineData?: number[];
     change?: number;
+    trend?: 'up' | 'down' | 'neutral'; // Added trend property
   }[];
 }
 
@@ -66,6 +67,24 @@ export const CategorySection = ({
     return change >= 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`;
   };
   
+  // Get trend icon based on trend property
+  const getTrendIcon = (item: CategorySectionProps['items'][0]) => {
+    // If trend is explicitly defined, use it
+    if (item.trend === 'up') {
+      return <TrendingUp size={12} className="inline mr-1" />;
+    } else if (item.trend === 'down') {
+      return <TrendingDown size={12} className="inline mr-1" />;
+    } 
+    // Fall back to using change value if trend isn't specified
+    else if (item.change !== undefined) {
+      return item.change >= 0 ? 
+        <TrendingUp size={12} className="inline mr-1" /> : 
+        <TrendingDown size={12} className="inline mr-1" />;
+    }
+    
+    return null;
+  };
+  
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -106,10 +125,14 @@ export const CategorySection = ({
                       />
                     )}
                     
-                    {item.change !== undefined && (
-                      <span className={`text-xs ml-1 ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}>
-                        {item.change >= 0 ? <TrendingUp size={12} className="inline mr-1" /> : 
-                                            <TrendingDown size={12} className="inline mr-1" />}
+                    {(item.change !== undefined || item.trend) && (
+                      <span className={`text-xs ml-1 ${
+                        item.trend === 'down' ? "text-red-500" : 
+                        item.trend === 'up' ? "text-green-500" : 
+                        item.change !== undefined ? (item.change >= 0 ? "text-green-500" : "text-red-500") : 
+                        "text-gray-500"
+                      }`}>
+                        {getTrendIcon(item)}
                         {formatChange(item.change)}
                       </span>
                     )}
