@@ -64,11 +64,11 @@ export interface TokenMetrics {
   name: string;
   symbol: string;
   marketCap: string;
-  liquidityLock?: string;
-  topHoldersPercentage?: string;
-  tvl?: string;
-  auditStatus?: string;
-  socialFollowers?: string;
+  liquidityLock: string;
+  topHoldersPercentage: string;
+  tvl: string;
+  auditStatus: string;
+  socialFollowers: string;
   categories: {
     security: { score: number };
     liquidity: { score: number };

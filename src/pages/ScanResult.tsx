@@ -82,6 +82,16 @@ const ScanResult = () => {
     );
   }
 
+  // Ensure all required properties exist on projectData before rendering
+  const keyMetricsData = {
+    marketCap: projectData.marketCap,
+    liquidityLock: projectData.liquidityLock,
+    topHoldersPercentage: projectData.topHoldersPercentage,
+    tvl: projectData.tvl,
+    auditStatus: projectData.auditStatus,
+    socialFollowers: projectData.socialFollowers
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -126,7 +136,7 @@ const ScanResult = () => {
               {/* Key Metrics Section */}
               <section>
                 <h2 className="text-xl font-semibold mb-4">Key Metrics</h2>
-                <KeyMetricsGrid projectData={projectData} />
+                <KeyMetricsGrid projectData={keyMetricsData} />
               </section>
               
               {/* Categories Overview Section */}

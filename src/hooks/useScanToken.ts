@@ -50,10 +50,14 @@ export const useScanToken = () => {
       setProgress(100);
       
       if (result) {
+        // Create a variable for variant that only uses the allowed types
+        const toastVariant: "default" | "destructive" = 
+          result.healthScore >= 80 ? "default" : "destructive";
+        
         toast({
           title: "Scan complete",
           description: `Health score: ${result.healthScore}/100`,
-          variant: result.healthScore >= 80 ? "default" : result.healthScore >= 60 ? "warning" : "destructive",
+          variant: toastVariant,
         });
       } else {
         throw new Error("Failed to retrieve token data");
