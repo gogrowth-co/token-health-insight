@@ -11,6 +11,7 @@ import Signup from "./pages/Signup";
 import SignIn from "./pages/SignIn";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import ScanResult from "./pages/ScanResult";
 import HowItWorks from "./pages/HowItWorks";
 import Docs from "./pages/Docs";
 import Terms from "./pages/Terms";
@@ -31,6 +32,8 @@ const App = () => (
             <Route path="/signin" element={<SignIn />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/scan/:tokenId" element={<ScanResult />} />
+            <Route path="/scan" element={<ScanResult />} />
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/docs" element={<Docs />} />
             <Route path="/terms" element={<Terms />} />
