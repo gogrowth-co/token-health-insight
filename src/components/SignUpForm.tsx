@@ -1,13 +1,12 @@
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface SignUpFormProps {
   redirectToken?: string | null;
@@ -21,7 +20,7 @@ export const SignUpForm = ({ redirectToken }: SignUpFormProps) => {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const { signUp } = useAuth();
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,15 +37,12 @@ export const SignUpForm = ({ redirectToken }: SignUpFormProps) => {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-        },
-      });
+      const { error } = await signUp(
+        email, 
+        password, 
+        redirectToken || undefined, 
+        { full_name: fullName }
+      );
 
       if (error) {
         toast({
@@ -54,6 +50,7 @@ export const SignUpForm = ({ redirectToken }: SignUpFormProps) => {
           description: error.message,
           variant: "destructive",
         });
+        setIsLoading(false);
         return;
       }
 
@@ -62,13 +59,7 @@ export const SignUpForm = ({ redirectToken }: SignUpFormProps) => {
         description: "Welcome to Token Health Scan!",
       });
       
-      // Redirect to scan page if token is provided, otherwise go to dashboard
-      if (redirectToken) {
-        console.log("Redirecting to scan with token:", redirectToken);
-        navigate(`/scan?token=${encodeURIComponent(redirectToken)}`);
-      } else {
-        navigate("/dashboard");
-      }
+      // Navigation is now handled in AuthContext
       
     } catch (error) {
       toast({
@@ -76,7 +67,6 @@ export const SignUpForm = ({ redirectToken }: SignUpFormProps) => {
         description: "Please try again later",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
     }
   };

@@ -13,35 +13,51 @@ import { CategorySection } from "@/components/CategorySection";
 import { RiskFactorsSection } from "@/components/RiskFactorsSection";
 import { formatDistance } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const ScanResult = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { user, isLoading: authLoading } = useAuth();
   
-  // Fix: Change from "tokenId" to "token" parameter
+  console.log("ScanResult: Current URL parameters:", location.search);
+  // Get token from query parameters
   const token = new URLSearchParams(location.search).get("token") || '';
+  console.log("ScanResult: Token parameter value:", token);
+  
   const { scan, isLoading, progress, error } = useScanToken();
   const [projectData, setProjectData] = useState<TokenMetrics | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Redirect to auth if not authenticated
   useEffect(() => {
-    console.log("Current URL parameters:", location.search);
-    console.log("Token parameter value:", token);
+    if (!authLoading && !user) {
+      console.log("ScanResult: User not authenticated, redirecting to auth with token:", token);
+      if (token) {
+        navigate(`/auth?tab=signup&token=${encodeURIComponent(token)}`);
+      } else {
+        navigate('/auth?tab=signin');
+      }
+      return;
+    }
     
-    if (token) {
+    // Only proceed with scan if authenticated and token exists
+    if (!authLoading && user && token) {
+      console.log("ScanResult: User authenticated, starting scan for token:", token);
       startScan(token);
-    } else {
+    } else if (!authLoading && user && !token) {
+      // Notify user that no token was provided
       toast({
         title: "Missing token",
-        description: "No token was provided. Redirecting to home page.",
+        description: "No token was provided. Please enter a token to scan.",
         variant: "destructive",
       });
       
-      // Redirect after a short delay to show the toast
-      setTimeout(() => navigate('/'), 2000);
+      // Redirect to dashboard after a short delay to show the toast
+      setTimeout(() => navigate('/dashboard'), 2000);
     }
-  }, [token, navigate, toast]);
+  }, [token, navigate, toast, user, authLoading]);
 
   const startScan = async (tokenValue: string) => {
     console.log("Starting scan for token:", tokenValue);
@@ -57,6 +73,24 @@ const ScanResult = () => {
     }
     setIsRefreshing(false);
   };
+
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Navbar />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex flex-col items-center justify-center py-16 text-center space-y-8">
+            <Progress value={30} className="w-full max-w-md" />
+            <div className="text-lg font-medium">
+              Checking authentication...
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -78,7 +112,7 @@ const ScanResult = () => {
               <h2 className="text-xl font-semibold text-red-600 mb-2">Scan Error</h2>
               <p className="text-slate-700">{error}</p>
               <Button 
-                onClick={() => navigate('/')} 
+                onClick={() => navigate('/dashboard')} 
                 className="mt-4"
               >
                 Try Another Token
@@ -105,7 +139,7 @@ const ScanResult = () => {
                   </Button>
                 </div>
                 <Button 
-                  onClick={() => navigate('/')} 
+                  onClick={() => navigate('/dashboard')} 
                   variant="ghost" 
                   size="sm"
                 >
@@ -355,7 +389,7 @@ const ScanResult = () => {
               <h2 className="text-xl font-semibold text-gray-800 mb-4">No Data Available</h2>
               <p className="text-slate-600">We couldn't find data for this token. Please try another one.</p>
               <Button 
-                onClick={() => navigate('/')} 
+                onClick={() => navigate('/dashboard')} 
                 className="mt-6"
               >
                 Try Another Token

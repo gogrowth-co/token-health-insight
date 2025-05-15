@@ -1,12 +1,11 @@
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface SignInFormProps {
   redirectToken?: string | null;
@@ -18,17 +17,14 @@ export const SignInForm = ({ redirectToken }: SignInFormProps) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const { signIn } = useAuth();
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error } = await signIn(email, password, redirectToken || undefined);
 
       if (error) {
         toast({
@@ -36,6 +32,7 @@ export const SignInForm = ({ redirectToken }: SignInFormProps) => {
           description: error.message,
           variant: "destructive",
         });
+        setIsLoading(false);
         return;
       }
 
@@ -44,13 +41,7 @@ export const SignInForm = ({ redirectToken }: SignInFormProps) => {
         description: "Welcome back!",
       });
       
-      // Redirect to scan page if token is provided, otherwise go to dashboard
-      if (redirectToken) {
-        console.log("Redirecting to scan with token:", redirectToken);
-        navigate(`/scan?token=${encodeURIComponent(redirectToken)}`);
-      } else {
-        navigate("/dashboard");
-      }
+      // Navigation is now handled in AuthContext
       
     } catch (error) {
       toast({
@@ -58,7 +49,6 @@ export const SignInForm = ({ redirectToken }: SignInFormProps) => {
         description: "Please try again later",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
     }
   };

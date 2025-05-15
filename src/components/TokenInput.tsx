@@ -25,13 +25,16 @@ export const TokenInput = () => {
       return;
     }
     
-    // Update: Use consistent parameter name 'token' instead of 'tokenId'
+    console.log("TokenInput: Submitting token:", tokenInput);
+    console.log("TokenInput: User authenticated:", !!user);
+    
+    // Use consistent parameter name 'token' instead of 'tokenId'
     // Navigate to scan results if authenticated, otherwise to auth signup page with token as URL param
     if (user) {
-      console.log("User logged in, navigating to scan with token:", tokenInput);
+      console.log("TokenInput: User logged in, navigating to scan with token:", tokenInput);
       navigate(`/scan?token=${encodeURIComponent(tokenInput)}`);
     } else {
-      console.log("User not logged in, navigating to auth with token:", tokenInput);
+      console.log("TokenInput: User not logged in, navigating to auth with token:", tokenInput);
       navigate(`/auth?tab=signup&token=${encodeURIComponent(tokenInput)}`);
     }
   };

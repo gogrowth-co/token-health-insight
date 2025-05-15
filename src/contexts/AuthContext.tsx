@@ -1,8 +1,7 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 type AuthContextType = {
   session: Session | null;
@@ -20,16 +19,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     // Set up auth state listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth state changed:", event, session?.user?.email);
       setSession(session);
       setUser(session?.user ?? null);
     });
 
     // Then check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("Initial session check:", session?.user?.email);
       setSession(session);
       setUser(session?.user ?? null);
       setIsLoading(false);
@@ -38,15 +40,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const handlePostAuthNavigation = (token?: string) => {
+    // If there's a token parameter, redirect to scan page
+    if (token) {
+      console.log("Post-auth navigation with token:", token);
+      navigate(`/scan?token=${encodeURIComponent(token)}`);
+    } else {
+      // Otherwise go to dashboard
+      navigate("/dashboard");
+    }
+  };
+
   const signIn = async (email: string, password: string, token?: string) => {
     try {
+      console.log("Signing in with token param:", token);
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (!error) {
-        if (token) {
-          navigate(`/scan?token=${encodeURIComponent(token)}`);
-        } else {
-          navigate("/dashboard");
-        }
+        handlePostAuthNavigation(token);
       }
       return { error };
     } catch (error) {
@@ -56,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, token?: string, metadata?: { full_name?: string, avatar_url?: string }) => {
     try {
+      console.log("Signing up with token param:", token);
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -64,11 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       });
       if (!error) {
-        if (token) {
-          navigate(`/scan?token=${encodeURIComponent(token)}`);
-        } else {
-          navigate("/dashboard");
-        }
+        handlePostAuthNavigation(token);
       }
       return { error };
     } catch (error) {

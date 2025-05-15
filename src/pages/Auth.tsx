@@ -18,6 +18,9 @@ const Auth = () => {
   const tabParam = queryParams.get('tab');
   const tokenParam = queryParams.get('token');
   
+  console.log("Auth: Current URL parameters:", location.search);
+  console.log("Auth: Token parameter value:", tokenParam);
+  
   // Default to signup if there's a token parameter or if tab=signup is explicitly set
   // Otherwise, default to signin
   const defaultTab = tokenParam ? 'signup' : (tabParam === 'signup' ? 'signup' : 'signin');
@@ -25,8 +28,11 @@ const Auth = () => {
   // Effect to redirect to scan page if user is already logged in and has a token
   useEffect(() => {
     if (user && tokenParam) {
-      console.log("User already logged in with token param, redirecting to scan:", tokenParam);
+      console.log("Auth: User already logged in with token param, redirecting to scan:", tokenParam);
       navigate(`/scan?token=${encodeURIComponent(tokenParam)}`);
+    } else if (user && !tokenParam) {
+      console.log("Auth: User already logged in without token, redirecting to dashboard");
+      navigate('/dashboard');
     }
   }, [user, tokenParam, navigate]);
   
