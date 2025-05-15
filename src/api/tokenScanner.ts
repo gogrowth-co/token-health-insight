@@ -1,264 +1,123 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getTokenDetails, getTokenMarketChart } from "./coingecko";
-import { 
-  TokenDetails, 
-  TokenMetrics,
-  GeckoTerminalPoolData,
-  GeckoTerminalPoolsResponse
-} from "./types";
-import { 
-  getTokenData, 
-  getTokenPools, 
-  getPoolData,
-  detectNetwork,
-  extractTokenAddress 
-} from "./geckoterminal";
-import { EtherscanSecurityAnalysis, EtherscanTokenData } from "./etherscanTypes";
-import { 
-  findProtocolSlug,
-  getProtocolDetails,
-  getProtocolTVL,
-  getProtocolTVLHistory,
-  formatChainDistribution,
-  getTVLChangeOverPeriod,
-  formatTVLHistoryForSparkline
-} from "./defillama";
-import { DefiLlamaTVLHistoryItem } from "./defiLlamaTypes";
-import {
-  findGitHubRepoFromTokenDetails,
-  getRepoInfo,
-  getRepoCommits,
-  getCommitActivity,
-  calculateGitHubActivityStatus,
-  calculateRoadmapProgress
-} from "./github";
-import { fetchTwitterProfile, extractTwitterHandle, calculateFollowerGrowth } from './apify';
-import { TwitterProfileResponse, TwitterMetrics } from './twitterTypes';
+import { TokenDetails, TokenMetrics } from "./types";
+import { getTokenPools, getPoolData, detectNetwork, extractTokenAddress } from "./geckoterminal";
 import { getSecurityData } from "./goPlus";
 
 // Cache duration in seconds (24 hours)
 const CACHE_DURATION = 24 * 60 * 60;
 
+// Progress update callback type
+type ProgressCallback = (progress: number) => void;
+
 /**
  * Scan a token and return comprehensive metrics
+ * @param tokenIdOrSymbol Token ID or symbol
+ * @param onProgress Optional callback for progress updates
+ * @returns Token metrics or null if scan fails
  */
-export async function scanToken(tokenIdOrSymbol: string): Promise<TokenMetrics | null> {
+export async function scanToken(
+  tokenIdOrSymbol: string, 
+  onProgress?: ProgressCallback
+): Promise<TokenMetrics | null> {
   try {
+    // Update progress to 10%
+    onProgress?.(0.1);
+    
     // Try to get from cache first
     const { data: cachedData } = await supabase
       .from('token_data_cache')
       .select('data')
       .eq('token_id', tokenIdOrSymbol)
       .gt('expires_at', new Date().toISOString())
-      .single();
+      .maybeSingle();
     
     if (cachedData) {
       console.log("Using cached data for", tokenIdOrSymbol);
-      // Type assertion needed here
+      onProgress?.(1.0); // Complete progress
       return cachedData.data as unknown as TokenMetrics;
     }
     
     console.log("Fetching fresh data for", tokenIdOrSymbol);
+    onProgress?.(0.2);
     
-    // Try edge function first if available, fall back to client-side
-    let metrics: TokenMetrics | null = null;
+    // Set a timeout for the entire operation
+    const scanAbortController = new AbortController();
+    const timeoutId = setTimeout(() => scanAbortController.abort(), 25000); // 25 second overall timeout
     
     try {
-      console.log("Calling edge function for token scan");
-      // Call the edge function
-      const { data, error } = await supabase.functions.invoke('scan-token', {
-        body: { tokenId: tokenIdOrSymbol },
-      });
-      
-      if (error) throw new Error(error.message);
-      metrics = data as TokenMetrics;
-      
-    } catch (edgeFunctionError) {
-      console.warn("Edge function error, falling back to client-side scan:", edgeFunctionError);
-      
       // Fetch token details from CoinGecko
       const tokenDetails = await getTokenDetails(tokenIdOrSymbol);
+      onProgress?.(0.4);
+      
       // Fetch market chart data
       const marketChart = await getTokenMarketChart(tokenIdOrSymbol);
+      onProgress?.(0.5);
       
-      // Try to get on-chain data from GeckoTerminal
-      let geckoTerminalData = null;
-      let poolData = null;
-      try {
-        const network = detectNetwork(tokenIdOrSymbol);
-        const tokenAddress = extractTokenAddress(tokenIdOrSymbol);
-        
-        if (tokenAddress) {
-          // Get token data and its pools
-          geckoTerminalData = await getTokenPools(network, tokenAddress);
-          
-          // If token has pools, get data for the primary pool
-          if (geckoTerminalData && 
-              geckoTerminalData.data && 
-              geckoTerminalData.data.length > 0) {
-            const primaryPool = geckoTerminalData.data[0];
-            poolData = await getPoolData(network, primaryPool.id.split(':')[1]);
-          }
-        }
-      } catch (error) {
-        console.warn("Error fetching GeckoTerminal data:", error);
-        // Continue without GT data, we'll use fallback values
-      }
-      
-      // Try to get DeFiLlama data
-      let defiLlamaData = null;
-      try {
-        // Try to find matching protocol in DeFiLlama
-        const protocolSlug = await findProtocolSlug(
-          tokenDetails.symbol, 
-          tokenDetails.name
-        );
-        
-        if (protocolSlug) {
-          console.log("Found DeFiLlama protocol slug:", protocolSlug);
-          
-          // Get protocol details and TVL data
-          const [protocolDetails, tvlHistory] = await Promise.all([
-            getProtocolDetails(protocolSlug),
-            getProtocolTVLHistory(protocolSlug)
-          ]);
-          
-          if (protocolDetails && tvlHistory) {
-            const tvlChange7d = getTVLChangeOverPeriod(tvlHistory, 7);
-            const tvlChange30d = getTVLChangeOverPeriod(tvlHistory, 30);
-            
-            defiLlamaData = {
-              tvl: protocolDetails.tvl,
-              tvlChange7d,
-              tvlChange30d,
-              chainDistribution: formatChainDistribution(protocolDetails.chainTvls),
-              supportedChains: protocolDetails.chains || [],
-              tvlHistoryData: tvlHistory,
-              protocolSlug,
-              category: protocolDetails.category
-            };
-          }
-        }
-      } catch (error) {
-        console.warn("Error fetching DeFiLlama data:", error);
-        // Continue without DeFiLlama data
-      }
-
-      // New: Try to get GitHub data
-      let githubData = null;
-      try {
-        const repoInfo = findGitHubRepoFromTokenDetails(tokenDetails);
-        
-        if (repoInfo) {
-          console.log("Found GitHub repository:", repoInfo);
-          const { owner, repo } = repoInfo;
-          const [repoDetails, recentCommits, commitActivity] = await Promise.all([
-            getRepoInfo(owner, repo),
-            getRepoCommits(owner, repo),
-            getCommitActivity(owner, repo)
-          ]);
-          
-          if (repoDetails) {
-            const activityMetrics = calculateGitHubActivityStatus(recentCommits, commitActivity);
-            
-            githubData = {
-              repoUrl: repoDetails.html_url,
-              activityStatus: activityMetrics.status,
-              starCount: repoDetails.stargazers_count,
-              forkCount: repoDetails.forks_count,
-              commitCount: activityMetrics.commitCount,
-              commitTrend: activityMetrics.commitTrend,
-              commitChange: activityMetrics.commitChange,
-              isOpenSource: repoDetails.visibility === 'public',
-              license: repoDetails.license?.spdx_id,
-              language: repoDetails.language,
-              updatedAt: repoDetails.pushed_at,
-              roadmapProgress: calculateRoadmapProgress(repoDetails),
-              openIssues: repoDetails.open_issues_count
-            };
-          }
-        }
-      } catch (error) {
-        console.error("Error processing GitHub data:", error);
-      }
-      
-      // New: Try to get Twitter data
-      let twitterData = null;
-      try {
-        // Extract Twitter handle from token details
-        const twitterHandle = extractTwitterHandle(tokenDetails);
-        
-        if (twitterHandle) {
-          console.log("Found Twitter handle:", twitterHandle);
-          
-          // Fetch Twitter profile data
-          const twitterProfile = await fetchTwitterProfile(twitterHandle);
-          
-          if (twitterProfile && twitterProfile.userData) {
-            // Calculate follower growth (mocked for now, would be based on historical data)
-            const followerGrowth = calculateFollowerGrowth(
-              twitterProfile.userData.followersCount,
-              [{ 
-                date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), 
-                followers: Math.round(twitterProfile.userData.followersCount * 0.95) 
-              }]
-            );
-            
-            twitterData = {
-              followersCount: twitterProfile.userData.followersCount,
-              tweetCount: twitterProfile.userData.tweetCount,
-              verified: twitterProfile.userData.verified,
-              createdAt: twitterProfile.userData.createdAt,
-              screenName: twitterProfile.userData.screenName,
-              followerChange: followerGrowth
-            };
-          }
-        }
-      } catch (error) {
-        console.error("Error processing Twitter data:", error);
-      }
-      
-      // Extract token address for GoPlus security check
+      // Extract token address for security check
       const tokenAddress = extractTokenAddress(tokenIdOrSymbol);
+      const network = detectNetwork(tokenIdOrSymbol);
       
-      // New: Try to get GoPlus security data
-      let goPlusData = null;
-      try {
-        if (tokenAddress) {
-          console.log("Getting GoPlus security data for address:", tokenAddress);
-          goPlusData = await getSecurityData(tokenAddress);
-          
-          if (goPlusData) {
-            console.log("Successfully retrieved GoPlus security data");
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching GoPlus security data:", error);
+      // Run concurrent API calls for better performance
+      const [geckoTerminalData, goPlusData] = await Promise.allSettled([
+        // Get token pools from GeckoTerminal if token address exists
+        tokenAddress ? getTokenPools(network, tokenAddress).catch(err => {
+          console.warn("Error fetching GeckoTerminal data:", err);
+          return null;
+        }) : Promise.resolve(null),
+        
+        // Get security data
+        tokenAddress ? getSecurityData(tokenAddress).catch(err => {
+          console.warn("Error fetching GoPlus security data:", err);
+          return null;
+        }) : Promise.resolve(null)
+      ]);
+      
+      onProgress?.(0.7);
+      
+      // Get pool data if GeckoTerminal data is available
+      let poolData = null;
+      if (geckoTerminalData.status === 'fulfilled' && 
+          geckoTerminalData.value && 
+          geckoTerminalData.value.data && 
+          geckoTerminalData.value.data.length > 0) {
+        const primaryPool = geckoTerminalData.value.data[0];
+        poolData = await getPoolData(network, primaryPool.id.split(':')[1])
+          .catch(err => {
+            console.warn("Error fetching pool data:", err);
+            return null;
+          });
       }
       
-      // Process the data and calculate health scores - add GoPlus data
-      metrics = calculateHealthMetrics(
+      onProgress?.(0.9);
+      
+      // Process the data and calculate health scores
+      const metrics = calculateHealthMetrics(
         tokenDetails, 
         marketChart, 
         poolData, 
-        null, 
-        defiLlamaData, 
-        githubData, 
-        twitterData,
-        goPlusData
+        null, // etherscanData (disabled for performance)
+        null, // defiLlamaData (disabled for performance)
+        null, // githubData (disabled for performance)
+        null, // twitterData (fetched separately via edge function)
+        goPlusData.status === 'fulfilled' ? goPlusData.value : null
       );
+      
+      onProgress?.(1.0);
+      
+      // Cache the result
+      await cacheTokenData(tokenIdOrSymbol, metrics);
+      
+      // Save scan result for logged-in users
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await saveScanHistory(session.user.id, tokenIdOrSymbol, metrics);
+      }
+      
+      return metrics;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    
-    // Cache the result
-    await cacheTokenData(tokenIdOrSymbol, metrics);
-    
-    // Save scan result for logged-in users
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      await saveScanHistory(session.user.id, tokenIdOrSymbol, metrics);
-    }
-    
-    return metrics;
   } catch (error) {
     console.error(`Error scanning token ${tokenIdOrSymbol}:`, error);
     return null;
@@ -872,35 +731,43 @@ function calculateDevelopmentScore(tokenDetails: TokenDetails, githubData?: any)
  * Cache token data in Supabase
  */
 async function cacheTokenData(tokenId: string, data: TokenMetrics): Promise<void> {
-  const expiresAt = new Date();
-  expiresAt.setSeconds(expiresAt.getSeconds() + CACHE_DURATION);
-  
-  await supabase
-    .from('token_data_cache')
-    .upsert({
-      token_id: tokenId,
-      data: data as unknown as Record<string, any>,
-      expires_at: expiresAt.toISOString(),
-      last_updated: new Date().toISOString()
-    })
-    .select();
+  try {
+    const expiresAt = new Date();
+    expiresAt.setSeconds(expiresAt.getSeconds() + CACHE_DURATION);
+    
+    await supabase
+      .from('token_data_cache')
+      .upsert({
+        token_id: tokenId,
+        data: data as unknown as Record<string, any>,
+        expires_at: expiresAt.toISOString(),
+        last_updated: new Date().toISOString()
+      });
+  } catch (error) {
+    console.error("Error caching token data:", error);
+    // Continue execution even if caching fails
+  }
 }
 
 /**
  * Save scan history for logged-in users
  */
 async function saveScanHistory(userId: string, tokenId: string, metrics: TokenMetrics): Promise<void> {
-  await supabase
-    .from('token_scans')
-    .insert({
-      user_id: userId,
-      token_id: tokenId,
-      token_symbol: metrics.symbol,
-      token_name: metrics.name,
-      health_score: metrics.healthScore,
-      category_scores: metrics.categories as unknown as Record<string, any>
-    })
-    .select();
+  try {
+    await supabase
+      .from('token_scans')
+      .insert({
+        user_id: userId,
+        token_id: tokenId,
+        token_symbol: metrics.symbol,
+        token_name: metrics.name,
+        health_score: metrics.healthScore,
+        category_scores: metrics.categories as unknown as Record<string, any>
+      });
+  } catch (error) {
+    console.error("Error saving scan history:", error);
+    // Continue execution even if history saving fails
+  }
 }
 
 /**

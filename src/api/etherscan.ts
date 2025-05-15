@@ -1,5 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { fetchJsonWithTimeout } from "@/utils/fetchWithTimeout";
 
 // Base URL for Etherscan API
 const ETHERSCAN_BASE_URL = "https://api.etherscan.io/api";
@@ -11,6 +12,7 @@ const getApiKey = async (): Promise<string | null> => {
   try {
     const { data } = await supabase.functions.invoke('get-secret', {
       body: { secretName: 'ETHERSCAN_API_KEY' },
+      abortSignal: AbortSignal.timeout(5000) // 5 second timeout
     });
     return data?.value || null;
   } catch (error) {
@@ -24,7 +26,8 @@ const getApiKey = async (): Promise<string | null> => {
  */
 async function callEtherscanApi(
   params: Record<string, string>,
-  retries = 3
+  retries = 2,
+  timeoutMs = 8000
 ): Promise<any> {
   const apiKey = await getApiKey();
   
@@ -42,7 +45,7 @@ async function callEtherscanApi(
   const url = `${ETHERSCAN_BASE_URL}?${queryParams.toString()}`;
   
   try {
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url, {}, timeoutMs);
     
     if (!response.ok) {
       throw new Error(`Etherscan API error: ${response.status}`);
@@ -61,7 +64,7 @@ async function callEtherscanApi(
       console.warn(`Retrying Etherscan API call, retries left: ${retries - 1}`);
       // Wait for 1s before retrying
       await new Promise(resolve => setTimeout(resolve, 1000));
-      return callEtherscanApi(params, retries - 1);
+      return callEtherscanApi(params, retries - 1, timeoutMs);
     }
     throw error;
   }

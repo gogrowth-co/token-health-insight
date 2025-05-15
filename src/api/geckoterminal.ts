@@ -1,4 +1,3 @@
-
 /**
  * GeckoTerminal API service for fetching on-chain token and pool data
  * API Documentation: https://apiguide.geckoterminal.com/
@@ -22,16 +21,11 @@ const headers = {
  */
 export async function getTokenData(network: string, tokenAddress: string) {
   try {
-    const response = await fetch(
+    return await fetchJsonWithTimeout(
       `${BASE_URL}/networks/${network}/tokens/${tokenAddress}`,
-      { headers }
+      { headers },
+      8000 // 8 second timeout
     );
-
-    if (!response.ok) {
-      throw new Error(`Error fetching token data: ${response.status}`);
-    }
-
-    return await response.json();
   } catch (error) {
     console.error(`Failed to fetch token data for ${tokenAddress}:`, error);
     throw error;
@@ -45,16 +39,11 @@ export async function getTokenData(network: string, tokenAddress: string) {
  */
 export async function getPoolData(network: string, poolAddress: string) {
   try {
-    const response = await fetch(
+    return await fetchJsonWithTimeout(
       `${BASE_URL}/networks/${network}/pools/${poolAddress}`,
-      { headers }
+      { headers },
+      8000 // 8 second timeout
     );
-
-    if (!response.ok) {
-      throw new Error(`Error fetching pool data: ${response.status}`);
-    }
-
-    return await response.json();
   } catch (error) {
     console.error(`Failed to fetch pool data for ${poolAddress}:`, error);
     throw error;
@@ -68,16 +57,11 @@ export async function getPoolData(network: string, poolAddress: string) {
  */
 export async function getTokenPools(network: string, tokenAddress: string) {
   try {
-    const response = await fetch(
+    return await fetchJsonWithTimeout(
       `${BASE_URL}/networks/${network}/tokens/${tokenAddress}/pools`,
-      { headers }
+      { headers },
+      8000 // 8 second timeout
     );
-
-    if (!response.ok) {
-      throw new Error(`Error fetching token pools: ${response.status}`);
-    }
-
-    return await response.json();
   } catch (error) {
     console.error(`Failed to fetch token pools for ${tokenAddress}:`, error);
     throw error;
@@ -98,16 +82,11 @@ export async function getPoolOhlcv(
   aggregate = '5m'
 ) {
   try {
-    const response = await fetch(
+    return await fetchJsonWithTimeout(
       `${BASE_URL}/networks/${network}/pools/${poolAddress}/ohlcv/${timeframe}?aggregate=${aggregate}&limit=12`,
-      { headers }
+      { headers },
+      8000 // 8 second timeout
     );
-
-    if (!response.ok) {
-      throw new Error(`Error fetching OHLCV data: ${response.status}`);
-    }
-
-    return await response.json();
   } catch (error) {
     console.error(`Failed to fetch OHLCV data for pool ${poolAddress}:`, error);
     throw error;

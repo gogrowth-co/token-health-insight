@@ -1,6 +1,7 @@
 
 import { GoPlusSecurityResponse, SecurityRiskSummary } from "./goPlusTypes";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchJsonWithTimeout } from "@/utils/fetchWithTimeout";
 
 /**
  * Check if a token is supported by GoPlus Security API
@@ -9,9 +10,11 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export async function isTokenSupported(contractAddress: string): Promise<boolean> {
   try {
-    // This is a lightweight call to check if the token is supported
-    const response = await fetch(`https://api.gopluslabs.io/api/v1/supported_chains`);
-    const data = await response.json();
+    const data = await fetchJsonWithTimeout<any>(
+      `https://api.gopluslabs.io/api/v1/supported_chains`,
+      {},
+      5000 // 5 second timeout
+    );
     return data.chains?.includes("1"); // Ethereum chain ID is 1
   } catch (error) {
     console.error("Error checking GoPlus token support:", error);
@@ -31,9 +34,10 @@ export async function getSecurityData(contractAddress: string): Promise<Security
       return null;
     }
     
-    // Call our edge function to fetch GoPlus security data
+    // Call our edge function to fetch GoPlus security data with a timeout
     const { data, error } = await supabase.functions.invoke('fetch-security-data', {
       body: { contractAddress },
+      abortSignal: AbortSignal.timeout(12000) // 12 second timeout
     });
     
     if (error) {
