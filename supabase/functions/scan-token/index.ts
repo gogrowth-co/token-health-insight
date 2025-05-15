@@ -43,6 +43,34 @@ serve(async (req) => {
 
     if (cachedData) {
       console.log(`Using cached data for token: ${tokenId}`);
+      
+      // Get authentication info from request to save scan history
+      const authHeader = req.headers.get('authorization');
+      if (authHeader) {
+        try {
+          // Extract token from Bearer header
+          const token = authHeader.replace('Bearer ', '');
+          const { data: { user } } = await supabaseClient.auth.getUser(token);
+          
+          if (user) {
+            // Save scan history for authenticated user
+            await supabaseClient
+              .from('token_scans')
+              .insert({
+                user_id: user.id,
+                token_id: tokenId,
+                token_symbol: cachedData.data.symbol,
+                token_name: cachedData.data.name,
+                health_score: cachedData.data.healthScore,
+                category_scores: cachedData.data.categories
+              });
+          }
+        } catch (authError) {
+          // Log but don't fail the request if saving history fails
+          console.error(`Error saving scan history: ${authError.message}`);
+        }
+      }
+      
       return new Response(JSON.stringify(cachedData.data), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -80,22 +108,26 @@ serve(async (req) => {
         securityPromise,
         twitterPromise
       ]);
-
-      // Create mock token metrics for testing
-      // In a real implementation, we would process all the API responses
+      
+      // Create real token metrics based on available data
+      // We still use mock values for fields we can't easily get
+      // but include real data from our API calls
       const metrics = {
         name: tokenId,
         symbol: tokenId.toUpperCase(),
-        marketCap: "$10M",
-        liquidityLock: "365 days",
-        topHoldersPercentage: "42%",
-        tvl: "$1.2M",
-        auditStatus: "Verified",
-        socialFollowers: "10K",
-        poolAge: "180 days",
-        volume24h: "$500K",
-        txCount24h: 1200,
-        network: "eth",
+        marketCap: "$10M",  // Mock data
+        liquidityLock: "365 days",  // Mock data
+        topHoldersPercentage: "42%",  // Mock data
+        tvl: "$1.2M",  // Mock data
+        auditStatus: securityResult.status === 'fulfilled' && 
+          securityResult.value.data?.isOpenSource ? "Verified" : "Unverified",
+        socialFollowers: twitterResult.status === 'fulfilled' && 
+          twitterResult.value.data?.followersCount ? 
+          `${Math.floor(twitterResult.value.data.followersCount / 1000)}K` : "10K",
+        poolAge: "180 days",  // Mock data
+        volume24h: "$500K",  // Mock data
+        txCount24h: 1200,  // Mock data
+        network: "eth",  // Default network
         categories: {
           security: { score: 85 },
           liquidity: { score: 75 },
@@ -125,6 +157,33 @@ serve(async (req) => {
           expires_at: expiresAt.toISOString(),
           last_updated: new Date().toISOString()
         });
+        
+      // Get authentication info from request to save scan history
+      const authHeader = req.headers.get('authorization');
+      if (authHeader) {
+        try {
+          // Extract token from Bearer header
+          const token = authHeader.replace('Bearer ', '');
+          const { data: { user } } = await supabaseClient.auth.getUser(token);
+          
+          if (user) {
+            // Save scan history for authenticated user
+            await supabaseClient
+              .from('token_scans')
+              .insert({
+                user_id: user.id,
+                token_id: tokenId,
+                token_symbol: metrics.symbol,
+                token_name: metrics.name,
+                health_score: metrics.healthScore,
+                category_scores: metrics.categories
+              });
+          }
+        } catch (authError) {
+          // Log but don't fail the request if saving history fails
+          console.error(`Error saving scan history: ${authError.message}`);
+        }
+      }
 
       return new Response(JSON.stringify(metrics), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

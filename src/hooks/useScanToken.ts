@@ -42,7 +42,7 @@ export const useScanToken = () => {
         // Call the edge function with timeout
         const { data, error: funcError } = await supabase.functions.invoke('scan-token', {
           body: { tokenId },
-          abortSignal: controller.signal,
+          signal: controller.signal,
         });
         
         if (funcError) throw new Error(funcError.message);

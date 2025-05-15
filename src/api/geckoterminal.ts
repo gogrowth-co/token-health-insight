@@ -4,7 +4,7 @@
  */
 
 // Base URL for the GeckoTerminal API
-const BASE_URL = "https://api.geckoterminal.com/api/v2";
+import { fetchJsonWithTimeout } from "@/utils/fetchWithTimeout";
 
 // API version header
 const API_VERSION = "20230302";

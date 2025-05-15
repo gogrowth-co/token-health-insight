@@ -1,18 +1,18 @@
 
 /**
- * Utility function to execute fetch requests with timeout support
- * @param url The URL to fetch
+ * Fetch with timeout utility
+ * @param url URL to fetch
  * @param options Fetch options
- * @param timeoutMs Timeout in milliseconds
- * @returns Promise with the fetch response
+ * @param timeout Timeout in milliseconds (default: 10000ms)
+ * @returns Promise with fetch response
  */
-export async function fetchWithTimeout(
+export async function fetchWithTimeout<T = any>(
   url: string,
   options: RequestInit = {},
-  timeoutMs: number = 10000
-): Promise<Response> {
+  timeout: number = 10000
+): Promise<T> {
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
+  const id = setTimeout(() => controller.abort(), timeout);
   
   const response = await fetch(url, {
     ...options,
@@ -20,22 +20,15 @@ export async function fetchWithTimeout(
   });
   
   clearTimeout(id);
-  return response;
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! Status: ${response.status}`);
+  }
+  
+  return response.json() as Promise<T>;
 }
 
 /**
- * Utility function to fetch JSON with timeout support
+ * Alias for fetchWithTimeout with JSON response
  */
-export async function fetchJsonWithTimeout<T>(
-  url: string, 
-  options: RequestInit = {}, 
-  timeoutMs: number = 10000
-): Promise<T> {
-  const response = await fetchWithTimeout(url, options, timeoutMs);
-  
-  if (!response.ok) {
-    throw new Error(`Error ${response.status}: ${response.statusText}`);
-  }
-  
-  return await response.json() as T;
-}
+export const fetchJsonWithTimeout = fetchWithTimeout;

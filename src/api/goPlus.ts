@@ -37,7 +37,8 @@ export async function getSecurityData(contractAddress: string): Promise<Security
     // Call our edge function to fetch GoPlus security data with a timeout
     const { data, error } = await supabase.functions.invoke('fetch-security-data', {
       body: { contractAddress },
-      abortSignal: AbortSignal.timeout(12000) // 12 second timeout
+      // Use timeout signal via AbortController
+      signal: AbortSignal.timeout(12000) // 12 second timeout
     });
     
     if (error) {

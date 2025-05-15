@@ -1,4 +1,3 @@
-
 export interface TokenSearchResult {
   id: string;
   symbol: string;
@@ -177,6 +176,106 @@ export interface GeckoTerminalOhlcvData {
 import { DefiLlamaData, SparklineData } from './defiLlamaTypes';
 import { GitHubData } from './githubTypes';
 import { TwitterMetrics } from './twitterTypes';
+
+// Additional type definitions to resolve build errors
+
+// GeckoTerminal Pool Data type
+export interface GeckoTerminalPoolData {
+  data: {
+    id: string;
+    type: string;
+    attributes: {
+      address: string;
+      name: string;
+      reserve_in_usd: string;
+      volume_usd?: {
+        h24: string;
+        h6?: string;
+        m5?: string;
+      };
+      transactions?: {
+        h24: number;
+        h6?: number;
+        m5?: number;
+      };
+      creation_timestamp?: string;
+      creation_block?: number;
+      base_token_price_usd?: string;
+      quote_token_price_usd?: string;
+      base_token_price_native_currency?: string;
+      quote_token_price_native_currency?: string;
+      liquidity_locked?: {
+        is_locked: boolean;
+        locked_until?: string;
+        duration_in_seconds?: number;
+      };
+    };
+    relationships?: {
+      base_token?: {
+        data: { id: string; type: string };
+      };
+      quote_token?: {
+        data: { id: string; type: string };
+      };
+    };
+  };
+  included?: Array<{
+    id: string;
+    type: string;
+    attributes: {
+      address: string;
+      name: string;
+      symbol: string;
+    };
+  }>;
+}
+
+// Etherscan Token Data type
+export interface EtherscanTokenData {
+  topHoldersPercentage?: string;
+  securityAnalysis?: {
+    ownershipRenounced: boolean;
+    canMint: boolean;
+    canBurn: boolean;
+    hasFreeze: boolean;
+    isMultiSig: boolean;
+    isProxy: boolean;
+  };
+  contractSource?: any;
+}
+
+// Twitter Metrics type from twitterTypes.ts
+export interface TwitterMetrics {
+  username: string;
+  displayName: string;
+  followersCount: number;
+  followingCount?: number;
+  verified: boolean;
+  profileImageUrl?: string;
+  createdAt?: string;
+  tweetCount?: number;
+  followerChange?: {
+    trend: 'up' | 'down' | 'neutral';
+    percentage: string;
+  };
+}
+
+// Helper function for formatting TVL history data for sparklines
+export function formatTVLHistoryForSparkline(data: any[], days: number = 7): number[] {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return Array(days).fill(0);
+  }
+  
+  // Get last 'days' entries or pad with zeros if needed
+  const sparklineData = data.slice(-days).map(point => typeof point === 'number' ? point : 0);
+  
+  // Pad with zeros if we don't have enough data points
+  if (sparklineData.length < days) {
+    return [...Array(days - sparklineData.length).fill(0), ...sparklineData];
+  }
+  
+  return sparklineData;
+}
 
 export interface TokenMetrics {
   name: string;
