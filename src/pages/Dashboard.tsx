@@ -5,10 +5,20 @@ import { useAuth } from "@/contexts/AuthContext";
 import { TokenInput } from "@/components/TokenInput";
 import { RecentScans } from "@/components/RecentScans";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams, useNavigate, useEffect } from "react-router-dom";
 
 const Dashboard = () => {
   const { user, isLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const tokenParam = searchParams.get("token");
+  const navigate = useNavigate();
+
+  // Effect to redirect to scan page if token is present
+  useEffect(() => {
+    if (tokenParam && !isLoading) {
+      navigate(`/scan?token=${encodeURIComponent(tokenParam)}`);
+    }
+  }, [tokenParam, isLoading, navigate]);
 
   // Redirect to auth page if not authenticated
   if (!isLoading && !user) {

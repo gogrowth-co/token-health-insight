@@ -8,8 +8,8 @@ type AuthContextType = {
   session: Session | null;
   user: User | null;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{error: Error | null}>;
-  signUp: (email: string, password: string, metadata?: { full_name?: string, avatar_url?: string }) => Promise<{error: Error | null}>;
+  signIn: (email: string, password: string, token?: string) => Promise<{error: Error | null}>;
+  signUp: (email: string, password: string, token?: string, metadata?: { full_name?: string, avatar_url?: string }) => Promise<{error: Error | null}>;
   signOut: () => Promise<void>;
 };
 
@@ -38,11 +38,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, token?: string) => {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (!error) {
-        navigate("/dashboard");
+        if (token) {
+          navigate(`/scan?token=${encodeURIComponent(token)}`);
+        } else {
+          navigate("/dashboard");
+        }
       }
       return { error };
     } catch (error) {
@@ -50,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string, metadata?: { full_name?: string, avatar_url?: string }) => {
+  const signUp = async (email: string, password: string, token?: string, metadata?: { full_name?: string, avatar_url?: string }) => {
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -60,7 +64,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       });
       if (!error) {
-        navigate("/dashboard");
+        if (token) {
+          navigate(`/scan?token=${encodeURIComponent(token)}`);
+        } else {
+          navigate("/dashboard");
+        }
       }
       return { error };
     } catch (error) {

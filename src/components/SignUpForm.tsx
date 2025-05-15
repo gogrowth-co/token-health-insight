@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -49,7 +48,7 @@ export const SignUpForm = () => {
     setIsSubmitting(true);
     
     try {
-      const { error } = await signUp(values.email, values.password);
+      const { error } = await signUp(values.email, values.password, tokenFromQuery);
       
       if (error) {
         toast({
@@ -58,13 +57,6 @@ export const SignUpForm = () => {
           variant: "destructive",
         });
       } else {
-        // If token exists, redirect to dashboard with token
-        if (tokenFromQuery) {
-          navigate(`/dashboard?token=${encodeURIComponent(tokenFromQuery)}`);
-        } else {
-          navigate("/dashboard");
-        }
-        
         toast({
           title: "Account created successfully!",
           description: "Welcome to Token Health Scan",

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -40,7 +39,7 @@ export const SignInForm = () => {
     setIsSubmitting(true);
     
     try {
-      const { error } = await signIn(values.email, values.password);
+      const { error } = await signIn(values.email, values.password, tokenFromQuery);
       
       if (error) {
         toast({
@@ -49,13 +48,6 @@ export const SignInForm = () => {
           variant: "destructive",
         });
       } else {
-        // If token exists, redirect to dashboard with token
-        if (tokenFromQuery) {
-          navigate(`/dashboard?token=${encodeURIComponent(tokenFromQuery)}`);
-        } else {
-          navigate("/dashboard");
-        }
-        
         toast({
           title: "Welcome back!",
           description: "You've successfully signed in.",
