@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
@@ -12,7 +11,11 @@ const Auth = () => {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const tabParam = queryParams.get('tab');
-  const defaultTab = tabParam === 'signup' ? 'signup' : 'signin';
+  const tokenParam = queryParams.get('token');
+  
+  // Default to signup if there's a token parameter or if tab=signup is explicitly set
+  // Otherwise, default to signin
+  const defaultTab = tokenParam ? 'signup' : (tabParam === 'signup' ? 'signup' : 'signin');
   
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-white to-gray-50">
@@ -29,14 +32,14 @@ const Auth = () => {
           {defaultTab === 'signin' ? (
             <div className="text-sm">
               Don't have an account?{" "}
-              <Link to="/auth?tab=signup" className="text-brand-purple font-medium">
+              <Link to={tokenParam ? `/auth?tab=signup&token=${encodeURIComponent(tokenParam)}` : "/auth?tab=signup"} className="text-brand-purple font-medium">
                 Sign Up
               </Link>
             </div>
           ) : (
             <div className="text-sm">
               Already have an account?{" "}
-              <Link to="/auth?tab=signin" className="text-brand-purple font-medium">
+              <Link to={tokenParam ? `/auth?tab=signin&token=${encodeURIComponent(tokenParam)}` : "/auth?tab=signin"} className="text-brand-purple font-medium">
                 Sign In
               </Link>
             </div>
