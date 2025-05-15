@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -13,32 +12,47 @@ import { KeyMetricsGrid } from "@/components/KeyMetricsGrid";
 import { CategorySection } from "@/components/CategorySection";
 import { RiskFactorsSection } from "@/components/RiskFactorsSection";
 import { formatDistance } from 'date-fns';
+import { useToast } from "@/hooks/use-toast";
 
 const ScanResult = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const tokenId = new URLSearchParams(location.search).get("tokenId") || '';
+  const { toast } = useToast();
+  
+  // Fix: Change from "tokenId" to "token" parameter
+  const token = new URLSearchParams(location.search).get("token") || '';
   const { scan, isLoading, progress, error } = useScanToken();
   const [projectData, setProjectData] = useState<TokenMetrics | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    if (tokenId) {
-      startScan(tokenId);
+    console.log("Current URL parameters:", location.search);
+    console.log("Token parameter value:", token);
+    
+    if (token) {
+      startScan(token);
     } else {
-      navigate('/'); // Redirect if no token ID
+      toast({
+        title: "Missing token",
+        description: "No token was provided. Redirecting to home page.",
+        variant: "destructive",
+      });
+      
+      // Redirect after a short delay to show the toast
+      setTimeout(() => navigate('/'), 2000);
     }
-  }, [tokenId, navigate]);
+  }, [token, navigate, toast]);
 
-  const startScan = async (tokenId: string) => {
-    const data = await scan(tokenId);
+  const startScan = async (tokenValue: string) => {
+    console.log("Starting scan for token:", tokenValue);
+    const data = await scan(tokenValue);
     setProjectData(data);
   };
 
   const refreshScan = async () => {
     setIsRefreshing(true);
-    if (tokenId) {
-      const data = await scan(tokenId);
+    if (token) {
+      const data = await scan(token);
       setProjectData(data);
     }
     setIsRefreshing(false);
@@ -101,7 +115,7 @@ const ScanResult = () => {
             </div>
             
             <HealthScoreCard score={projectData.healthScore} />
-            <KeyMetricsGrid projectData={projectData} tokenId={tokenId} onDataUpdate={setProjectData} />
+            <KeyMetricsGrid projectData={projectData} tokenId={token} onDataUpdate={setProjectData} />
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <CategorySection 

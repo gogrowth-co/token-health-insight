@@ -7,19 +7,28 @@ import { RecentScans } from "@/components/RecentScans";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Navigate, useSearchParams, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 const Dashboard = () => {
   const { user, isLoading } = useAuth();
   const [searchParams] = useSearchParams();
   const tokenParam = searchParams.get("token");
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   // Effect to redirect to scan page if token is present
   useEffect(() => {
     if (tokenParam && !isLoading) {
+      console.log("Dashboard detected token parameter, redirecting to scan:", tokenParam);
       navigate(`/scan?token=${encodeURIComponent(tokenParam)}`);
+      
+      // Show a toast to let the user know what's happening
+      toast({
+        title: "Starting Token Scan",
+        description: `Scanning ${tokenParam}...`,
+      });
     }
-  }, [tokenParam, isLoading, navigate]);
+  }, [tokenParam, isLoading, navigate, toast]);
 
   // Redirect to auth page if not authenticated
   if (!isLoading && !user) {

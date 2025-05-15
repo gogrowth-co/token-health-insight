@@ -1,141 +1,139 @@
+
 import { useState } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Eye, EyeOff } from "lucide-react";
 
-// Define the form schema
-const signInSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address" }),
-  password: z.string().min(1, { message: "Password is required" }),
-});
+interface SignInFormProps {
+  redirectToken?: string | null;
+}
 
-type SignInFormValues = z.infer<typeof signInSchema>;
-
-export const SignInForm = () => {
-  const { signIn } = useAuth();
+export const SignInForm = ({ redirectToken }: SignInFormProps) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
   const navigate = useNavigate();
-  const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const tokenFromQuery = queryParams.get('token') || '';
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const form = useForm<SignInFormValues>({
-    resolver: zodResolver(signInSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-  });
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
 
-  const onSubmit = async (values: SignInFormValues) => {
-    setIsSubmitting(true);
-    
     try {
-      const { error } = await signIn(values.email, values.password, tokenFromQuery);
-      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
       if (error) {
         toast({
-          title: "Error signing in",
+          title: "Sign in failed",
           description: error.message,
           variant: "destructive",
         });
-      } else {
-        toast({
-          title: "Welcome back!",
-          description: "You've successfully signed in.",
-        });
+        return;
       }
+
+      toast({
+        title: "Signed in successfully",
+        description: "Welcome back!",
+      });
+      
+      // Redirect to scan page if token is provided, otherwise go to dashboard
+      if (redirectToken) {
+        console.log("Redirecting to scan with token:", redirectToken);
+        navigate(`/scan?token=${encodeURIComponent(redirectToken)}`);
+      } else {
+        navigate("/dashboard");
+      }
+      
     } catch (error) {
       toast({
-        title: "Something went wrong",
+        title: "An error occurred",
         description: "Please try again later",
         variant: "destructive",
       });
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <Card className="w-full shadow-lg border-neutral-100">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold text-center">Sign in to your account</CardTitle>
-        <CardDescription className="text-center">
-          Enter your email and password to access your dashboard
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email Address</FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="name@example.com" 
-                      type="email"
-                      autoComplete="email"
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+    <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
+      <div className="mb-6 text-center">
+        <h1 className="text-2xl font-bold">Sign In</h1>
+        <p className="text-gray-500 mt-1">Welcome back to Token Health Scan</p>
+      </div>
+      
+      <form onSubmit={handleSignIn} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">Password</Label>
+            <a href="#" className="text-sm text-brand-purple hover:underline">
+              Forgot password?
+            </a>
+          </div>
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
             />
-            
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between">
-                    <FormLabel>Password</FormLabel>
-                    <Link to="/forgot-password" className="text-xs text-primary hover:underline">
-                      Forgot password?
-                    </Link>
-                  </div>
-                  <FormControl>
-                    <Input 
-                      placeholder="Enter your password" 
-                      type="password"
-                      autoComplete="current-password"
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <Button 
-              type="submit" 
-              className="w-full" 
-              size="lg"
-              disabled={isSubmitting}
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
             >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
-                  Signing in...
-                </>
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
               ) : (
-                "Sign In"
+                <Eye className="h-4 w-4" />
               )}
-            </Button>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+            </button>
+          </div>
+        </div>
+        
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? "Signing in..." : "Sign In"}
+        </Button>
+      </form>
+      
+      <div className="mt-6">
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-200"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white text-gray-500">Or continue with</span>
+          </div>
+        </div>
+        
+        <div className="mt-4">
+          <Button variant="outline" className="w-full" disabled>
+            Google (Coming Soon)
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 };
