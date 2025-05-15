@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, Clock, CircleDollarSign } from "lucide-react";
+import { TrendingUp, TrendingDown, Clock, CircleDollarSign, Users, ShieldCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Tooltip,
@@ -19,6 +19,15 @@ interface KeyMetricsGridProps {
     tvl: string;
     auditStatus: string;
     socialFollowers: string;
+    etherscan?: {
+      securityAnalysis?: {
+        ownershipRenounced: boolean;
+        canMint: boolean;
+        canBurn: boolean;
+        hasFreeze: boolean;
+        isMultiSig: boolean;
+      };
+    };
   };
   tokenId?: string;
 }
@@ -42,7 +51,8 @@ export const KeyMetricsGrid = ({ projectData, tokenId }: KeyMetricsGridProps) =>
             topHoldersPercentage: updatedData.topHoldersPercentage,
             tvl: updatedData.tvl,
             auditStatus: updatedData.auditStatus,
-            socialFollowers: updatedData.socialFollowers
+            socialFollowers: updatedData.socialFollowers,
+            etherscan: updatedData.etherscan
           });
         }
       } catch (error) {
@@ -61,6 +71,29 @@ export const KeyMetricsGrid = ({ projectData, tokenId }: KeyMetricsGridProps) =>
     // Clean up on unmount
     return () => clearInterval(intervalId);
   }, [tokenId]);
+
+  // Get security metrics from Etherscan data
+  const securityAnalysis = metrics.etherscan?.securityAnalysis;
+  
+  // Get ownership status for tooltip
+  const getOwnershipStatus = () => {
+    if (!securityAnalysis) return "Unknown";
+    return securityAnalysis.ownershipRenounced ? "Yes" : "No";
+  };
+  
+  // Get ownership tooltip
+  const getOwnershipTooltip = () => {
+    if (!securityAnalysis) return "No contract data available";
+    return securityAnalysis.ownershipRenounced 
+      ? "Contract ownership has been renounced, reducing centralization risk" 
+      : "Contract ownership has not been renounced, deployer still has control";
+  };
+  
+  // Get wallet type
+  const getWalletType = () => {
+    if (!securityAnalysis) return "Unknown";
+    return securityAnalysis.isMultiSig ? "Multi-sig" : "EOA";
+  };
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -88,10 +121,12 @@ export const KeyMetricsGrid = ({ projectData, tokenId }: KeyMetricsGridProps) =>
       <MetricTile 
         label="Top 10 Holders" 
         value={metrics.topHoldersPercentage} 
-        trend="down" 
-        change="-3.1%"
+        trend={parseFloat(metrics.topHoldersPercentage) > 70 ? "down" : "up"}
+        change={parseFloat(metrics.topHoldersPercentage) > 70 ? "-3.1%" : "+2.4%"}
         tooltip="Percentage owned by top 10 addresses"
         loading={loading}
+        icon={<Users size={14} />}
+        status={parseFloat(metrics.topHoldersPercentage) > 70 ? "warning" : "default"}
       />
 
       {/* TVL */}
@@ -105,24 +140,23 @@ export const KeyMetricsGrid = ({ projectData, tokenId }: KeyMetricsGridProps) =>
         icon={<CircleDollarSign size={14} />}
       />
 
-      {/* Audit Status */}
+      {/* Ownership Status */}
       <MetricTile 
-        label="Audit Status" 
-        value={metrics.auditStatus} 
-        tooltip="Contract verification status"
+        label="Ownership Renounced" 
+        value={getOwnershipStatus()} 
+        tooltip={getOwnershipTooltip()}
         loading={loading}
-        status={metrics.auditStatus === "Verified" ? "success" : 
-               metrics.auditStatus === "Partial" ? "warning" : "error"}
+        icon={<ShieldCheck size={14} />}
+        status={securityAnalysis?.ownershipRenounced ? "success" : "warning"}
       />
 
-      {/* Social Followers */}
+      {/* Wallet Type */}
       <MetricTile 
-        label="Social Followers" 
-        value={metrics.socialFollowers} 
-        trend="up" 
-        change="+12%"
-        tooltip="Total followers across social platforms"
+        label="Wallet Type" 
+        value={getWalletType()} 
+        tooltip="Multi-signature wallet or standard externally owned account"
         loading={loading}
+        status={securityAnalysis?.isMultiSig ? "success" : "default"}
       />
     </div>
   );

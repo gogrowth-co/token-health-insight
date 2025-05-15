@@ -193,6 +193,18 @@ export interface TokenMetrics {
   };
   network?: string;
   poolAddress?: string;
+  // New fields for Etherscan data
+  etherscan?: {
+    securityAnalysis?: {
+      ownershipRenounced: boolean;
+      canMint: boolean;
+      canBurn: boolean;
+      hasFreeze: boolean;
+      isMultiSig: boolean;
+      isProxy: boolean;
+    };
+    contractAddress?: string;
+  };
   categories: {
     security: { score: number };
     liquidity: { score: number };

@@ -13,6 +13,7 @@ import { CategorySection } from "@/components/CategorySection";
 import { Progress } from "@/components/ui/progress";
 import { useScanToken } from "@/hooks/useScanToken";
 import { TokenMetrics } from "@/api/types";
+import { RiskFactorsSection } from "@/components/RiskFactorsSection";
 
 import { 
   ShieldCheck, 
@@ -63,7 +64,7 @@ const ScanResult = () => {
             <Progress value={progress} className="mb-8" />
             <p className="text-gray-500">
               {progress < 30 ? "Fetching token data..." : 
-               progress < 60 ? "Analyzing metrics..." : 
+               progress < 60 ? "Analyzing on-chain metrics..." : 
                progress < 90 ? "Calculating health scores..." : 
                "Finalizing results..."}
             </p>
@@ -88,8 +89,16 @@ const ScanResult = () => {
     topHoldersPercentage: projectData.topHoldersPercentage,
     tvl: projectData.tvl,
     auditStatus: projectData.auditStatus,
-    socialFollowers: projectData.socialFollowers
+    socialFollowers: projectData.socialFollowers,
+    etherscan: projectData.etherscan
   };
+
+  // Determine security item statuses based on Etherscan data
+  const securityAnalysis = projectData.etherscan?.securityAnalysis;
+  const getOwnershipStatus = () => securityAnalysis?.ownershipRenounced ? "Yes" : "No";
+  const getMintStatus = () => securityAnalysis?.canMint ? "Yes" : "No";
+  const getWalletType = () => securityAnalysis?.isMultiSig ? "Multi-Sig" : "Standard";
+  const getFreezeStatus = () => securityAnalysis?.hasFreeze ? "Yes" : "No";
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -154,10 +163,10 @@ const ScanResult = () => {
                     icon={<ShieldCheck className="text-white" />}
                     description="Contract and protocol security analysis"
                     metrics={[
-                      "Ownership Renounced: Yes",
-                      "Can Mint: No",
-                      "Code Audit: Yes",
-                      "Multi-Sig Wallet: Partial"
+                      `Ownership Renounced: ${getOwnershipStatus()}`,
+                      `Can Mint: ${getMintStatus()}`,
+                      `Code Audit: ${projectData.auditStatus}`,
+                      `Multi-Sig Wallet: ${getWalletType()}`
                     ]}
                     color="bg-green-500"
                     score={projectData.categories.security.score}
@@ -171,7 +180,7 @@ const ScanResult = () => {
                       "Liquidity Lock: " + projectData.liquidityLock,
                       "CEX Listings: 2",
                       "DEX Depth: Good",
-                      "Holder Distribution: Moderate"
+                      "Holder Distribution: " + (parseFloat(projectData.topHoldersPercentage) > 70 ? "Concentrated" : "Moderate")
                     ]}
                     color="bg-blue-500"
                     score={projectData.categories.liquidity.score}
@@ -183,9 +192,9 @@ const ScanResult = () => {
                     description="Supply and distribution analysis"
                     metrics={[
                       "Supply Cap: Yes (100M)",
-                      "Token Distribution: Good",
+                      `Burn Mechanism: ${securityAnalysis?.canBurn ? "Yes" : "No"}`,
                       "Treasury Size: $500K",
-                      "Burn Mechanism: Yes"
+                      `Top Holders: ${projectData.topHoldersPercentage}`
                     ]}
                     color="bg-purple-500"
                     score={projectData.categories.tokenomics.score}
@@ -233,7 +242,7 @@ const ScanResult = () => {
               </div>
             </TabsContent>
             
-            {/* Other Tabs */}
+            {/* Security Tab */}
             <TabsContent value="security">
               <CategorySection 
                 title="Security Analysis" 
@@ -241,17 +250,61 @@ const ScanResult = () => {
                 description="In-depth security audit of smart contracts and protocols"
                 score={projectData.categories.security.score}
                 items={[
-                  { name: "Ownership Renounced", status: "Yes", tooltip: "Contract ownership has been renounced, reducing centralization risk" },
-                  { name: "Can Mint", status: "No", tooltip: "Contract cannot mint new tokens" },
-                  { name: "Code Audit", status: "Yes", tooltip: "Smart contract audited by reputable firm" },
-                  { name: "Freeze / Blacklist Authority", status: "No", tooltip: "No ability to freeze or blacklist accounts" },
-                  { name: "Multi-Sig Wallet", status: "Partial", tooltip: "Some functions require multiple signatures, but not all" },
-                  { name: "Insurance", status: "No", tooltip: "No insurance coverage for smart contract risks" },
-                  { name: "Bug Bounty", status: "Yes", tooltip: "Active bug bounty program to identify vulnerabilities" }
+                  { 
+                    name: "Ownership Renounced", 
+                    status: getOwnershipStatus(), 
+                    tooltip: securityAnalysis?.ownershipRenounced 
+                      ? "Contract ownership has been renounced, reducing centralization risk" 
+                      : "Contract ownership has not been renounced, deployer still has control"
+                  },
+                  { 
+                    name: "Can Mint", 
+                    status: getMintStatus(),
+                    tooltip: securityAnalysis?.canMint
+                      ? "Contract can mint new tokens, potential inflation risk"
+                      : "Contract cannot mint new tokens"
+                  },
+                  { 
+                    name: "Code Audit", 
+                    status: projectData.auditStatus, 
+                    tooltip: "Smart contract verified on Etherscan" 
+                  },
+                  { 
+                    name: "Freeze / Blacklist Authority", 
+                    status: getFreezeStatus(),
+                    tooltip: securityAnalysis?.hasFreeze
+                      ? "Contract has ability to freeze or blacklist accounts"
+                      : "No ability to freeze or blacklist accounts"
+                  },
+                  { 
+                    name: "Multi-Sig Wallet", 
+                    status: getWalletType(),
+                    tooltip: securityAnalysis?.isMultiSig
+                      ? "Multiple signatures required for certain operations, improved security"
+                      : "Single signature wallet, standard security"
+                  },
+                  { 
+                    name: "Insurance", 
+                    status: "No", 
+                    tooltip: "No insurance coverage for smart contract risks" 
+                  },
+                  { 
+                    name: "Bug Bounty", 
+                    status: "Yes", 
+                    tooltip: "Active bug bounty program to identify vulnerabilities" 
+                  }
                 ]}
               />
+              
+              {/* Risk Factors Section - if security score is low */}
+              {projectData.categories.security.score < 60 && (
+                <div className="mt-8">
+                  <RiskFactorsSection />
+                </div>
+              )}
             </TabsContent>
             
+            {/* Other Tabs */}
             <TabsContent value="liquidity">
               <CategorySection 
                 title="Liquidity Analysis" 
@@ -259,11 +312,15 @@ const ScanResult = () => {
                 description="Assessment of market depth, trading volume, and holder distribution"
                 score={projectData.categories.liquidity.score}
                 items={[
-                  { name: "Liquidity Lock", status: projectData.liquidityLock, tooltip: "LP tokens are locked for 1 year" },
+                  { name: "Liquidity Lock", status: projectData.liquidityLock, tooltip: "Duration that LP tokens are locked for" },
                   { name: "CEX Listings", status: "2", tooltip: "Listed on 2 centralized exchanges" },
                   { name: "DEX Depth", status: "Good", tooltip: "Sufficient liquidity depth on decentralized exchanges" },
-                  { name: "Holder Distribution", status: "Moderate", tooltip: "Some concentration among top holders but not concerning" },
-                  { name: "Trading Volume", status: "$243K/24h", tooltip: "24-hour trading volume across all exchanges" }
+                  { 
+                    name: "Holder Distribution", 
+                    status: parseFloat(projectData.topHoldersPercentage) > 70 ? "Concentrated" : "Moderate", 
+                    tooltip: `Top 10 holders own ${projectData.topHoldersPercentage} of the supply` 
+                  },
+                  { name: "Trading Volume", status: projectData.volume24h || "$243K/24h", tooltip: "24-hour trading volume across all exchanges" }
                 ]}
               />
             </TabsContent>
@@ -276,10 +333,18 @@ const ScanResult = () => {
                 score={projectData.categories.tokenomics.score}
                 items={[
                   { name: "Supply Cap", status: "Yes (100M)", tooltip: "Maximum supply is capped at 100 million tokens" },
-                  { name: "Token Distribution", status: "Good", tooltip: "Well-distributed allocation across stakeholders" },
+                  { 
+                    name: "Top 10 Holders", 
+                    status: projectData.topHoldersPercentage,
+                    tooltip: `Top 10 addresses control ${projectData.topHoldersPercentage} of the supply`
+                  },
                   { name: "Treasury Size", status: "$500K", tooltip: "Project treasury holds $500,000 in assets" },
                   { name: "Vesting Schedule", status: "Yes", tooltip: "Team and investor tokens subject to vesting" },
-                  { name: "Burn Mechanism", status: "Yes", tooltip: "Regular token burns from transaction fees" }
+                  { 
+                    name: "Burn Mechanism", 
+                    status: securityAnalysis?.canBurn ? "Yes" : "No", 
+                    tooltip: securityAnalysis?.canBurn ? "Regular token burns from transaction fees" : "No token burning functionality" 
+                  }
                 ]}
               />
             </TabsContent>

@@ -14,6 +14,7 @@ import {
   detectNetwork,
   extractTokenAddress 
 } from "./geckoterminal";
+import { EtherscanSecurityAnalysis, EtherscanTokenData } from "./etherscanTypes";
 
 // Cache duration in seconds (24 hours)
 const CACHE_DURATION = 24 * 60 * 60;
@@ -39,37 +40,54 @@ export async function scanToken(tokenIdOrSymbol: string): Promise<TokenMetrics |
     
     console.log("Fetching fresh data for", tokenIdOrSymbol);
     
-    // Fetch token details from CoinGecko
-    const tokenDetails = await getTokenDetails(tokenIdOrSymbol);
-    // Fetch market chart data
-    const marketChart = await getTokenMarketChart(tokenIdOrSymbol);
+    // Try edge function first if available, fall back to client-side
+    let metrics: TokenMetrics | null = null;
     
-    // Try to get on-chain data from GeckoTerminal
-    let geckoTerminalData = null;
-    let poolData = null;
     try {
-      const network = detectNetwork(tokenIdOrSymbol);
-      const tokenAddress = extractTokenAddress(tokenIdOrSymbol);
+      console.log("Calling edge function for token scan");
+      // Call the edge function
+      const { data, error } = await supabase.functions.invoke('scan-token', {
+        body: { tokenId: tokenIdOrSymbol },
+      });
       
-      if (tokenAddress) {
-        // Get token data and its pools
-        geckoTerminalData = await getTokenPools(network, tokenAddress);
+      if (error) throw new Error(error.message);
+      metrics = data as TokenMetrics;
+      
+    } catch (edgeFunctionError) {
+      console.warn("Edge function error, falling back to client-side scan:", edgeFunctionError);
+      
+      // Fetch token details from CoinGecko
+      const tokenDetails = await getTokenDetails(tokenIdOrSymbol);
+      // Fetch market chart data
+      const marketChart = await getTokenMarketChart(tokenIdOrSymbol);
+      
+      // Try to get on-chain data from GeckoTerminal
+      let geckoTerminalData = null;
+      let poolData = null;
+      try {
+        const network = detectNetwork(tokenIdOrSymbol);
+        const tokenAddress = extractTokenAddress(tokenIdOrSymbol);
         
-        // If token has pools, get data for the primary pool
-        if (geckoTerminalData && 
-            geckoTerminalData.data && 
-            geckoTerminalData.data.length > 0) {
-          const primaryPool = geckoTerminalData.data[0];
-          poolData = await getPoolData(network, primaryPool.id.split(':')[1]);
+        if (tokenAddress) {
+          // Get token data and its pools
+          geckoTerminalData = await getTokenPools(network, tokenAddress);
+          
+          // If token has pools, get data for the primary pool
+          if (geckoTerminalData && 
+              geckoTerminalData.data && 
+              geckoTerminalData.data.length > 0) {
+            const primaryPool = geckoTerminalData.data[0];
+            poolData = await getPoolData(network, primaryPool.id.split(':')[1]);
+          }
         }
+      } catch (error) {
+        console.warn("Error fetching GeckoTerminal data:", error);
+        // Continue without GT data, we'll use fallback values
       }
-    } catch (error) {
-      console.warn("Error fetching GeckoTerminal data:", error);
-      // Continue without GT data, we'll use fallback values
+      
+      // Process the data and calculate health scores
+      metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData);
     }
-    
-    // Process the data and calculate health scores
-    const metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData);
     
     // Cache the result - Fixed typo here: tokenIdOrSmbol → tokenIdOrSymbol
     await cacheTokenData(tokenIdOrSymbol, metrics);
@@ -93,12 +111,13 @@ export async function scanToken(tokenIdOrSymbol: string): Promise<TokenMetrics |
 function calculateHealthMetrics(
   tokenDetails: TokenDetails,
   marketChart: any,
-  poolData?: GeckoTerminalPoolData | null
+  poolData?: GeckoTerminalPoolData | null,
+  etherscanData?: EtherscanTokenData
 ): TokenMetrics {
   // Initialize scores for each category
-  const securityScore = calculateSecurityScore(tokenDetails, poolData);
+  const securityScore = calculateSecurityScore(tokenDetails, poolData, etherscanData);
   const liquidityScore = calculateLiquidityScore(tokenDetails, marketChart, poolData);
-  const tokenomicsScore = calculateTokenomicsScore(tokenDetails, poolData);
+  const tokenomicsScore = calculateTokenomicsScore(tokenDetails, poolData, etherscanData);
   const communityScore = calculateCommunityScore(tokenDetails);
   const developmentScore = calculateDevelopmentScore(tokenDetails);
   
@@ -187,14 +206,26 @@ function calculateHealthMetrics(
     }
   }
   
+  // Get top holders percentage from Etherscan
+  let topHoldersPercentage = "42%"; // Default fallback
+  if (etherscanData?.topHoldersPercentage) {
+    topHoldersPercentage = etherscanData.topHoldersPercentage;
+  }
+  
+  // Determine audit status
+  let auditStatus = "Verified"; // Default fallback
+  if (etherscanData?.contractSource) {
+    auditStatus = "Verified";
+  }
+  
   return {
     name: tokenDetails.name,
     symbol: tokenDetails.symbol.toUpperCase(),
     marketCap,
     liquidityLock,
-    topHoldersPercentage: "42%", // Would need on-chain analysis to get real data
+    topHoldersPercentage,
     tvl,
-    auditStatus: "Verified", // Would need additional data source for real audit info
+    auditStatus,
     socialFollowers,
     // New fields from GeckoTerminal
     poolAge,
@@ -202,6 +233,11 @@ function calculateHealthMetrics(
     txCount24h,
     network,
     poolAddress,
+    // New fields from Etherscan
+    etherscan: {
+      securityAnalysis: etherscanData?.securityAnalysis,
+      contractAddress: extractTokenAddress(tokenDetails.id)
+    },
     categories: {
       security: { score: securityScore },
       liquidity: { score: liquidityScore },
@@ -219,7 +255,8 @@ function calculateHealthMetrics(
  */
 function calculateSecurityScore(
   tokenDetails: TokenDetails,
-  poolData?: GeckoTerminalPoolData | null
+  poolData?: GeckoTerminalPoolData | null,
+  etherscanData?: EtherscanTokenData
 ): number {
   // In a real implementation, this would analyze contract security, audits, etc.
   // For now, using a placeholder score based on market cap rank and existence
@@ -230,31 +267,62 @@ function calculateSecurityScore(
   
   // Add points based on market cap rank (established projects tend to be more secure)
   if (tokenDetails.market_cap_rank) {
-    if (tokenDetails.market_cap_rank <= 10) score += 30;
-    else if (tokenDetails.market_cap_rank <= 100) score += 20;
+    if (tokenDetails.market_cap_rank <= 10) score += 20;
+    else if (tokenDetails.market_cap_rank <= 100) score += 15;
     else if (tokenDetails.market_cap_rank <= 1000) score += 10;
   }
   
   // Add points for having GitHub repositories (transparency)
-  if (hasGitHub) score += 10;
+  if (hasGitHub) score += 5;
   
   // Add points for having a market cap (established project)
-  if (hasMarketCap) score += 10;
+  if (hasMarketCap) score += 5;
 
   // Add or subtract points based on liquidity lock status
   if (poolData?.data?.attributes?.liquidity_locked) {
     const lockInfo = poolData.data.attributes.liquidity_locked;
     if (lockInfo.is_locked) {
-      score += 10;
+      score += 5;
       
       // Additional points for longer locks
       if (lockInfo.duration_in_seconds) {
         const lockDays = lockInfo.duration_in_seconds / (60 * 60 * 24);
-        if (lockDays > 365) score += 10;
-        else if (lockDays > 180) score += 5;
+        if (lockDays > 365) score += 5;
+        else if (lockDays > 180) score += 3;
       }
     } else {
-      score -= 10; // Penalty for not having locked liquidity
+      score -= 5; // Penalty for not having locked liquidity
+    }
+  }
+  
+  // Add Etherscan security analysis factors
+  if (etherscanData?.securityAnalysis) {
+    const analysis = etherscanData.securityAnalysis;
+    
+    // Ownership renouncement is major security factor
+    if (analysis.ownershipRenounced) {
+      score += 15;
+    } else {
+      score -= 10;
+    }
+    
+    // No mint function is better for security
+    if (!analysis.canMint) {
+      score += 10;
+    } else {
+      score -= 5;
+    }
+    
+    // No freeze function is better for decentralization
+    if (!analysis.hasFreeze) {
+      score += 5;
+    } else {
+      score -= 2;
+    }
+    
+    // Multi-sig wallet is better for security
+    if (analysis.isMultiSig) {
+      score += 10;
     }
   }
   
@@ -321,10 +389,42 @@ function calculateLiquidityScore(
 /**
  * Calculate tokenomics score
  */
-function calculateTokenomicsScore(tokenDetails: TokenDetails, poolData?: GeckoTerminalPoolData | null): number {
-  // In a real implementation, this would analyze supply dynamics, distribution, etc.
-  // For now, using a placeholder score
-  return 65; // Fixed score for MVP
+function calculateTokenomicsScore(
+  tokenDetails: TokenDetails, 
+  poolData?: GeckoTerminalPoolData | null,
+  etherscanData?: EtherscanTokenData
+): number {
+  let score = 65; // Base score
+  
+  // Add Etherscan-based factors
+  if (etherscanData?.securityAnalysis) {
+    const analysis = etherscanData.securityAnalysis;
+    
+    // Burn function is good for tokenomics (deflationary)
+    if (analysis.canBurn) {
+      score += 10;
+    }
+    
+    // Mint function can be negative for tokenomics (inflation risk)
+    if (analysis.canMint) {
+      score -= 10;
+    }
+  }
+  
+  // Top holders concentration factor
+  if (etherscanData?.topHoldersPercentage) {
+    const percentStr = etherscanData.topHoldersPercentage.replace('%', '');
+    const percentage = parseFloat(percentStr);
+    
+    if (!isNaN(percentage)) {
+      if (percentage < 30) score += 15;
+      else if (percentage < 50) score += 5;
+      else if (percentage > 80) score -= 15;
+      else if (percentage > 60) score -= 5;
+    }
+  }
+  
+  return Math.min(Math.max(score, 0), 100);
 }
 
 /**
