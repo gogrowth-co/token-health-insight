@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { TokenMetrics } from "@/api/types";
 import { scanToken } from "@/api/tokenScanner";
 import { useToast } from "@/hooks/use-toast";
+import { cleanTokenId } from "@/api/coingecko";
 
 /**
  * Custom hook for scanning a token and tracking the progress
@@ -24,9 +25,12 @@ export const useScanToken = () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second total timeout
       
+      // Clean the token ID to prepare for API calls
+      const cleanedTokenId = tokenId.trim();
+      
       toast({
         title: "Scanning token",
-        description: "Fetching token information...",
+        description: `Fetching data for ${cleanedTokenId}...`,
       });
 
       // Try edge function first, fall back to client if needed
@@ -41,7 +45,7 @@ export const useScanToken = () => {
         
         // Call the edge function with timeout
         const { data, error: funcError } = await supabase.functions.invoke('scan-token', {
-          body: { tokenId }
+          body: { tokenId: cleanedTokenId }
         });
         
         if (funcError) throw new Error(funcError.message);
@@ -67,7 +71,7 @@ export const useScanToken = () => {
           setProgress(40 + Math.floor(progress * 0.4)); // 40% to 80% range
         };
         
-        result = await scanToken(tokenId, scanProgress);
+        result = await scanToken(cleanedTokenId, scanProgress);
       }
       
       clearTimeout(timeoutId);

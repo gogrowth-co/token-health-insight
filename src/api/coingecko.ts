@@ -13,6 +13,15 @@ const getApiParams = (): string => {
 };
 
 /**
+ * Clean token ID for API compatibility
+ * Remove $ and other special characters that may cause issues
+ */
+export function cleanTokenId(tokenId: string): string {
+  // Remove $ symbol which is common in token names but not in CoinGecko IDs
+  return tokenId.replace(/^\$/, '');
+}
+
+/**
  * Search for tokens by query
  */
 export async function searchTokens(
@@ -38,14 +47,18 @@ export async function searchTokens(
 export async function getTokenDetails(
   tokenId: string
 ): Promise<TokenDetails> {
+  // Clean token ID for API compatibility
+  const cleanedTokenId = cleanTokenId(tokenId);
+  console.log(`Getting token details for cleaned ID: ${cleanedTokenId} (original: ${tokenId})`);
+  
   try {
     return await fetchJsonWithTimeout<TokenDetails>(
-      `${BASE_URL}/coins/${tokenId}?localization=false&tickers=false&market_data=true&community_data=true&developer_data=true${getApiParams()}`,
+      `${BASE_URL}/coins/${cleanedTokenId}?localization=false&tickers=false&market_data=true&community_data=true&developer_data=true${getApiParams()}`,
       {},
       12000 // 12 second timeout for detailed data
     );
   } catch (error) {
-    console.error(`Failed to fetch details for token ${tokenId}:`, error);
+    console.error(`Failed to fetch details for token ${cleanedTokenId}:`, error);
     throw error;
   }
 }
@@ -58,14 +71,17 @@ export async function getTokenMarketChart(
   days = 30,
   currency = "usd"
 ): Promise<{ prices: [number, number][]; market_caps: [number, number][]; total_volumes: [number, number][] }> {
+  // Clean token ID for API compatibility
+  const cleanedTokenId = cleanTokenId(tokenId);
+  
   try {
     return await fetchJsonWithTimeout(
-      `${BASE_URL}/coins/${tokenId}/market_chart?vs_currency=${currency}&days=${days}${getApiParams()}`,
+      `${BASE_URL}/coins/${cleanedTokenId}/market_chart?vs_currency=${currency}&days=${days}${getApiParams()}`,
       {},
       8000 // 8 second timeout
     );
   } catch (error) {
-    console.error(`Failed to fetch market chart for ${tokenId}:`, error);
+    console.error(`Failed to fetch market chart for ${cleanedTokenId}:`, error);
     throw error;
   }
 }

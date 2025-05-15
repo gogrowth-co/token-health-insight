@@ -2,14 +2,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { getTokenDetails, getTokenMarketChart } from "./coingecko";
 import { 
   TokenDetails, 
-  TokenMetrics, 
-  GeckoTerminalPoolData, 
-  EtherscanTokenData, 
-  formatTVLHistoryForSparkline 
+  TokenMetrics
 } from "./types";
+import { 
+  GeckoTerminalPoolData, 
+  formatTVLHistoryForSparkline 
+} from "./geckoTerminalTypes";
 import { getTokenPools, getPoolData, detectNetwork, extractTokenAddress } from "./geckoterminal";
 import { getSecurityData } from "./goPlus";
 import { TwitterMetrics } from "./twitterTypes";
+import { EtherscanTokenData } from "./etherscanTypes";
 
 // Cache duration in seconds (24 hours)
 const CACHE_DURATION = 24 * 60 * 60;

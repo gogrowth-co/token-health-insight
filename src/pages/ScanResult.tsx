@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { RefreshCw, ShieldCheck, Droplet, LineChart, UsersRound, Code } from "lucide-react";
+import { RefreshCw, ShieldCheck, Droplet, LineChart, UsersRound, Code, AlertCircle } from "lucide-react";
 import { useScanToken } from "@/hooks/useScanToken";
 import { TokenMetrics } from "@/api/types";
 import { Navbar } from "@/components/Navbar";
@@ -14,6 +14,7 @@ import { RiskFactorsSection } from "@/components/RiskFactorsSection";
 import { formatDistance } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { cleanTokenId } from '@/api/coingecko';
 
 const ScanResult = () => {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ const ScanResult = () => {
   const { scan, isLoading, progress, error } = useScanToken();
   const [projectData, setProjectData] = useState<TokenMetrics | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [scanAttempted, setScanAttempted] = useState(false);
 
   // Redirect to auth if not authenticated
   useEffect(() => {
@@ -46,6 +48,7 @@ const ScanResult = () => {
     if (!authLoading && user && token) {
       console.log("ScanResult: User authenticated, starting scan for token:", token);
       startScan(token);
+      setScanAttempted(true);
     } else if (!authLoading && user && !token) {
       // Notify user that no token was provided
       toast({
@@ -72,6 +75,21 @@ const ScanResult = () => {
       setProjectData(data);
     }
     setIsRefreshing(false);
+  };
+
+  const getSuggestedTokens = () => {
+    // Return some popular tokens that are known to work well
+    return [
+      { id: 'bitcoin', name: 'Bitcoin (BTC)' },
+      { id: 'ethereum', name: 'Ethereum (ETH)' },
+      { id: 'pepe', name: 'Pepe (PEPE)' },
+      { id: 'dogecoin', name: 'Dogecoin (DOGE)' },
+      { id: 'shiba-inu', name: 'Shiba Inu (SHIB)' }
+    ];
+  };
+
+  const tryAnotherToken = (tokenId: string) => {
+    navigate(`/scan?token=${encodeURIComponent(tokenId)}`);
   };
 
   // Show loading while checking authentication
@@ -109,14 +127,39 @@ const ScanResult = () => {
         ) : error ? (
           <div className="py-16 text-center">
             <div className="max-w-md mx-auto bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold text-red-600 mb-2">Scan Error</h2>
-              <p className="text-slate-700">{error}</p>
-              <Button 
-                onClick={() => navigate('/dashboard')} 
-                className="mt-4"
-              >
-                Try Another Token
-              </Button>
+              <div className="flex flex-col items-center mb-6">
+                <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+                <h2 className="text-xl font-semibold text-red-600 mb-2">Scan Error</h2>
+                <p className="text-slate-700 mb-4">{error}</p>
+                <p className="text-slate-600 text-sm">
+                  We couldn't retrieve data for <strong>{token}</strong>. 
+                  Please check the token name or address and try again.
+                </p>
+              </div>
+              
+              <div className="mt-6">
+                <h3 className="text-md font-medium text-slate-800 mb-3">Try one of these popular tokens:</h3>
+                <div className="grid grid-cols-2 gap-2 mb-6">
+                  {getSuggestedTokens().map((suggestedToken) => (
+                    <Button 
+                      key={suggestedToken.id}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => tryAnotherToken(suggestedToken.id)}
+                      className="text-xs"
+                    >
+                      {suggestedToken.name}
+                    </Button>
+                  ))}
+                </div>
+                
+                <Button 
+                  onClick={() => navigate('/dashboard')} 
+                  className="w-full"
+                >
+                  Return to Dashboard
+                </Button>
+              </div>
             </div>
           </div>
         ) : projectData ? (
@@ -385,16 +428,44 @@ const ScanResult = () => {
           </div>
         ) : (
           <div className="py-16 text-center">
-            <div className="max-w-md mx-auto">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">No Data Available</h2>
-              <p className="text-slate-600">We couldn't find data for this token. Please try another one.</p>
-              <Button 
-                onClick={() => navigate('/dashboard')} 
-                className="mt-6"
-              >
-                Try Another Token
-              </Button>
-            </div>
+            {scanAttempted ? (
+              <div className="bg-white rounded-lg shadow p-6">
+                <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">No Data Available</h2>
+                <p className="text-slate-600 mb-6">We couldn't find data for <strong>{token}</strong>. Please try another token.</p>
+                
+                <div className="mb-6">
+                  <h3 className="text-md font-medium text-slate-800 mb-3">Try one of these popular tokens:</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {getSuggestedTokens().map((suggestedToken) => (
+                      <Button 
+                        key={suggestedToken.id}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => tryAnotherToken(suggestedToken.id)}
+                        className="text-xs"
+                      >
+                        {suggestedToken.name}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                
+                <Button 
+                  onClick={() => navigate('/dashboard')} 
+                  className="w-full"
+                >
+                  Return to Dashboard
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center">
+                <Progress value={30} className="w-full max-w-md" />
+                <div className="mt-4 text-lg font-medium">
+                  Initializing scan...
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

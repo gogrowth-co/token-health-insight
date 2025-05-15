@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.32.0";
 
@@ -24,6 +23,16 @@ const GECKO_TERMINAL_HEADERS = {
   'Accept': 'application/json;version=20230302'
 };
 
+/**
+ * Clean token ID for API compatibility
+ * Remove $ and other special characters that may cause issues
+ */
+function cleanTokenId(tokenId: string): string {
+  // Remove $ symbol which is common in token names but not in CoinGecko IDs
+  // Also convert to lowercase for consistency
+  return tokenId.replace(/^\$/, '').toLowerCase();
+}
+
 // Utility functions for API requests
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 10000): Promise<Response> {
   const controller = new AbortController();
@@ -43,10 +52,13 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout 
 
 // CoinGecko API functions
 async function getTokenDetails(tokenId: string) {
-  console.log(`Fetching CoinGecko details for token: ${tokenId}`);
+  // Clean token ID before sending to API
+  const cleanedTokenId = cleanTokenId(tokenId);
+  console.log(`Fetching CoinGecko details for token: ${cleanedTokenId} (original: ${tokenId})`);
+  
   try {
     const response = await fetchWithTimeout(
-      `${COINGECKO_BASE_URL}/coins/${tokenId}?localization=false&tickers=false&market_data=true&community_data=true&developer_data=true`,
+      `${COINGECKO_BASE_URL}/coins/${cleanedTokenId}?localization=false&tickers=false&market_data=true&community_data=true&developer_data=true`,
       {},
       8000
     );
@@ -63,10 +75,13 @@ async function getTokenDetails(tokenId: string) {
 }
 
 async function getTokenMarketChart(tokenId: string, days = 30) {
-  console.log(`Fetching CoinGecko market chart for token: ${tokenId}`);
+  // Clean token ID before sending to API
+  const cleanedTokenId = cleanTokenId(tokenId);
+  console.log(`Fetching CoinGecko market chart for token: ${cleanedTokenId} (original: ${tokenId})`);
+  
   try {
     const response = await fetchWithTimeout(
-      `${COINGECKO_BASE_URL}/coins/${tokenId}/market_chart?vs_currency=usd&days=${days}`,
+      `${COINGECKO_BASE_URL}/coins/${cleanedTokenId}/market_chart?vs_currency=usd&days=${days}`,
       {},
       8000
     );
@@ -451,6 +466,49 @@ function calculateDevelopmentScore(tokenDetails: any): number {
   return Math.min(Math.max(score, 0), 100);
 }
 
+// Try to find the correct CoinGecko ID for the given token
+async function findTokenId(tokenQuery: string): Promise<string | null> {
+  try {
+    // Clean the token ID first
+    const cleanedTokenQuery = cleanTokenId(tokenQuery);
+    
+    // Search for the token
+    const response = await fetchWithTimeout(
+      `${COINGECKO_BASE_URL}/search?query=${encodeURIComponent(cleanedTokenQuery)}`,
+      {},
+      5000
+    );
+    
+    if (!response.ok) {
+      throw new Error(`CoinGecko API returned ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Find the first matching token
+    if (data.coins && data.coins.length > 0) {
+      // Try to find exact match first (case insensitive)
+      const exactMatch = data.coins.find((coin: any) => 
+        coin.symbol.toLowerCase() === cleanedTokenQuery.toLowerCase() ||
+        coin.id.toLowerCase() === cleanedTokenQuery.toLowerCase() ||
+        coin.name.toLowerCase() === cleanedTokenQuery.toLowerCase()
+      );
+      
+      if (exactMatch) {
+        return exactMatch.id;
+      }
+      
+      // Otherwise return the top search result
+      return data.coins[0].id;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`Error searching for token: ${error.message}`);
+    return null;
+  }
+}
+
 // Helper functions
 function formatCurrency(value: number): string {
   if (value >= 1000000000) {
@@ -553,6 +611,14 @@ serve(async (req) => {
 
     console.log(`No cache found for token: ${tokenId}, fetching fresh data`);
 
+    // Try to find the correct token ID if it's not a direct match
+    const possibleCorrectTokenId = await findTokenId(tokenId);
+    const effectiveTokenId = possibleCorrectTokenId || tokenId;
+    
+    if (possibleCorrectTokenId) {
+      console.log(`Found better token ID match: ${possibleCorrectTokenId} for query: ${tokenId}`);
+    }
+    
     // Create a controller to manage the overall timeout for the entire operation
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => {
@@ -564,12 +630,12 @@ serve(async (req) => {
       // Start concurrent API calls
       console.log("Starting concurrent API calls for token data");
       
-      const tokenDetailsPromise = getTokenDetails(tokenId);
-      const marketChartPromise = getTokenMarketChart(tokenId);
+      const tokenDetailsPromise = getTokenDetails(effectiveTokenId);
+      const marketChartPromise = getTokenMarketChart(effectiveTokenId);
       
       // Extract contract address for additional APIs
-      const contractAddress = extractContractAddress(tokenId);
-      const network = detectNetwork(tokenId);
+      const contractAddress = extractContractAddress(effectiveTokenId);
+      const network = detectNetwork(effectiveTokenId);
       
       console.log(`Contract address: ${contractAddress}, Network: ${network}`);
       
@@ -589,9 +655,9 @@ serve(async (req) => {
         });
       }
       
-      // Call Twitter API via edge function
+      // Call Twitter API via edge function using the effective token ID
       const twitterPromise = supabaseClient.functions.invoke('fetch-twitter-profile', {
-        body: { tokenId }
+        body: { tokenId: effectiveTokenId }
       }).catch(err => {
         console.error(`Twitter profile fetch error: ${err.message}`);
         return { data: null };
