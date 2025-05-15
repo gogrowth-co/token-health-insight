@@ -12,12 +12,22 @@ import { getTokenPools, getPoolData, detectNetwork, extractTokenAddress } from "
 import { getSecurityData } from "./goPlus";
 import { TwitterMetrics } from "./twitterTypes";
 import { EtherscanTokenData } from "./etherscanTypes";
+import { toast } from "@/hooks/use-toast";
 
 // Cache duration in seconds (24 hours)
 const CACHE_DURATION = 24 * 60 * 60;
 
 // Progress update callback type
 type ProgressCallback = (progress: number) => void;
+
+/**
+ * Clean token ID for API compatibility
+ * Remove $ and other special characters that may cause issues
+ */
+export function cleanTokenId(tokenId: string): string {
+  // Remove $ symbol and other special characters
+  return tokenId.replace(/^\$/, '').replace(/[^a-z0-9-]/gi, '').toLowerCase();
+}
 
 /**
  * Scan a token and return comprehensive metrics
@@ -32,6 +42,16 @@ export async function scanToken(
   try {
     // Update progress to 10%
     onProgress?.(0.1);
+    
+    // Check for empty input
+    if (!tokenIdOrSymbol || tokenIdOrSymbol.trim() === '') {
+      toast({
+        title: "Invalid Token",
+        description: "Please enter a valid token symbol or contract address",
+        variant: "destructive",
+      });
+      return null;
+    }
     
     // Try to get from cache first
     const { data: cachedData } = await supabase
@@ -55,67 +75,45 @@ export async function scanToken(
     const timeoutId = setTimeout(() => scanAbortController.abort(), 25000); // 25 second overall timeout
     
     try {
-      // Fetch token details from CoinGecko
-      const tokenDetails = await getTokenDetails(tokenIdOrSymbol);
-      onProgress?.(0.4);
+      // Call the scan-token edge function which will handle all API calls
+      onProgress?.(0.3);
+      const { data, error } = await supabase.functions.invoke('scan-token', {
+        body: { tokenId: tokenIdOrSymbol }
+      });
       
-      // Fetch market chart data
-      const marketChart = await getTokenMarketChart(tokenIdOrSymbol);
-      onProgress?.(0.5);
-      
-      // Extract token address for security check
-      const tokenAddress = extractTokenAddress(tokenIdOrSymbol);
-      const network = detectNetwork(tokenIdOrSymbol);
-      
-      // Run concurrent API calls for better performance
-      const [geckoTerminalData, goPlusData] = await Promise.allSettled([
-        // Get token pools from GeckoTerminal if token address exists
-        tokenAddress ? getTokenPools(network, tokenAddress).catch(err => {
-          console.warn("Error fetching GeckoTerminal data:", err);
-          return null;
-        }) : Promise.resolve(null),
-        
-        // Get security data
-        tokenAddress ? getSecurityData(tokenAddress).catch(err => {
-          console.warn("Error fetching GoPlus security data:", err);
-          return null;
-        }) : Promise.resolve(null)
-      ]);
-      
-      onProgress?.(0.7);
-      
-      // Get pool data if GeckoTerminal data is available
-      let poolData = null;
-      if (geckoTerminalData.status === 'fulfilled' && 
-          geckoTerminalData.value && 
-          geckoTerminalData.value.data && 
-          geckoTerminalData.value.data.length > 0) {
-        const primaryPool = geckoTerminalData.value.data[0];
-        poolData = await getPoolData(network, primaryPool.id.split(':')[1])
-          .catch(err => {
-            console.warn("Error fetching pool data:", err);
-            return null;
-          });
+      if (error) {
+        console.error("Error from scan-token function:", error);
+        toast({
+          title: "Scan Error",
+          description: "We couldn't complete the token scan. Please try again later.",
+          variant: "destructive",
+        });
+        return null;
       }
       
       onProgress?.(0.9);
       
-      // Process the data and calculate health scores
-      const metrics = calculateHealthMetrics(
-        tokenDetails, 
-        marketChart, 
-        poolData, 
-        null, // etherscanData (disabled for performance)
-        null, // defiLlamaData (disabled for performance)
-        null, // githubData (disabled for performance)
-        null, // twitterData (fetched separately via edge function)
-        goPlusData.status === 'fulfilled' ? goPlusData.value : null
-      );
+      if (!data) {
+        throw new Error("No data returned from scan-token function");
+      }
+      
+      const metrics = data as TokenMetrics;
+      
+      // Show appropriate toast based on data quality
+      if (metrics.dataQuality === 'complete') {
+        toast({
+          title: "Scan Complete",
+          description: `Full analysis for ${metrics.symbol} completed with health score: ${metrics.healthScore}/100`,
+        });
+      } else {
+        toast({
+          title: "Partial Analysis",
+          description: `Limited data available for ${metrics.symbol}. Health score: ${metrics.healthScore}/100`,
+          variant: "default",
+        });
+      }
       
       onProgress?.(1.0);
-      
-      // Cache the result
-      await cacheTokenData(tokenIdOrSymbol, metrics);
       
       // Save scan result for logged-in users
       const { data: { session } } = await supabase.auth.getSession();
@@ -124,12 +122,119 @@ export async function scanToken(
       }
       
       return metrics;
+    } catch (functionError) {
+      console.error(`Edge function error:`, functionError);
+      
+      // Fall back to client-side scanning if edge function fails
+      toast({
+        title: "Using Fallback Scanner",
+        description: "Our primary scanner is busy. Using alternative scan method...",
+      });
+      
+      // Call direct APIs as fallback
+      return await scanTokenDirectly(tokenIdOrSymbol, onProgress);
     } finally {
       clearTimeout(timeoutId);
     }
   } catch (error) {
     console.error(`Error scanning token ${tokenIdOrSymbol}:`, error);
+    toast({
+      title: "Scan Failed",
+      description: error instanceof Error ? error.message : "Unknown error occurred",
+      variant: "destructive",
+    });
     return null;
+  }
+}
+
+/**
+ * Fallback direct scanning method when edge function fails
+ */
+async function scanTokenDirectly(tokenIdOrSymbol: string, onProgress?: ProgressCallback): Promise<TokenMetrics | null> {
+  try {
+    onProgress?.(0.4);
+    
+    // Fetch token details from CoinGecko
+    const tokenDetails = await getTokenDetails(tokenIdOrSymbol);
+    if (!tokenDetails) {
+      throw new Error("Could not find token details");
+    }
+    
+    onProgress?.(0.5);
+    
+    // Fetch market chart data
+    const marketChart = await getTokenMarketChart(tokenIdOrSymbol);
+    onProgress?.(0.6);
+    
+    // Extract token address for security check
+    let tokenAddress = extractTokenAddress(tokenIdOrSymbol);
+    const network = detectNetwork(tokenIdOrSymbol);
+    
+    // If we have a direct Ethereum address, use it
+    if (!tokenAddress && /^0x[a-fA-F0-9]{40}$/i.test(tokenIdOrSymbol)) {
+      tokenAddress = tokenIdOrSymbol;
+    }
+    
+    // Run concurrent API calls for better performance
+    let geckoTerminalData = null;
+    let goPlusData = null;
+    
+    if (tokenAddress) {
+      try {
+        // Get token pools from GeckoTerminal
+        geckoTerminalData = await getTokenPools(network, tokenAddress);
+      } catch (err) {
+        console.warn("Error fetching GeckoTerminal data:", err);
+      }
+      
+      try {
+        // Get security data
+        goPlusData = await getSecurityData(tokenAddress);
+      } catch (err) {
+        console.warn("Error fetching GoPlus security data:", err);
+      }
+    }
+    
+    onProgress?.(0.7);
+    
+    // Get pool data if GeckoTerminal data is available
+    let poolData = null;
+    if (geckoTerminalData && 
+        geckoTerminalData.data && 
+        geckoTerminalData.data.length > 0) {
+      try {
+        const primaryPool = geckoTerminalData.data[0];
+        poolData = await getPoolData(network, primaryPool.id.split(':')[1]);
+      } catch (err) {
+        console.warn("Error fetching pool data:", err);
+      }
+    }
+    
+    onProgress?.(0.8);
+    
+    // Process the data and calculate health scores
+    const metrics = calculateHealthMetrics(
+      tokenDetails, 
+      marketChart, 
+      poolData, 
+      null, // etherscanData (disabled for performance)
+      null, // defiLlamaData (disabled for performance)
+      null, // githubData (disabled for performance)
+      null, // twitterData (fetched separately via edge function)
+      goPlusData
+    );
+    
+    onProgress?.(0.9);
+    
+    // Cache the result
+    await cacheTokenData(tokenIdOrSymbol, metrics);
+    
+    onProgress?.(1.0);
+    
+    return metrics;
+  } catch (error) {
+    console.error(`Error in fallback scanner:`, error);
+    throw error;
   }
 }
 
@@ -171,16 +276,18 @@ function calculateHealthMetrics(
     : formatNumber(tokenDetails.community_data?.twitter_followers || 0);
   
   // Process GeckoTerminal data
-  let liquidityLock = "365 days"; // Default fallback
-  let tvl = "$1.2M"; // Default fallback
+  let liquidityLock = "Unknown"; // Default fallback
+  let tvl = "Unknown"; // Default fallback
   let volume24h;
   let txCount24h;
   let poolAge;
   let poolAddress;
   let network;
+  let dataQuality = "partial"; // Default to partial quality
   
   // Extract liquidity lock status from pool data if available
   if (poolData) {
+    dataQuality = "complete"; // We have pool data
     const poolAttributes = poolData.data.attributes;
     
     // Get pool creation date and calculate age
@@ -244,6 +351,7 @@ function calculateHealthMetrics(
   let tvlSparkline;
   if (defiLlamaData && defiLlamaData.tvl) {
     tvl = formatCurrency(defiLlamaData.tvl);
+    dataQuality = "complete";
     
     // Create sparkline data if history available
     if (defiLlamaData.tvlHistoryData && defiLlamaData.tvlHistoryData.length > 0) {
@@ -259,20 +367,27 @@ function calculateHealthMetrics(
   }
   
   // Get top holders percentage from Etherscan
-  let topHoldersPercentage = "42%"; // Default fallback
+  let topHoldersPercentage = "Unknown"; // Default fallback
   if (etherscanData?.topHoldersPercentage) {
     topHoldersPercentage = etherscanData.topHoldersPercentage;
+    dataQuality = "complete";
   }
   
   // Determine audit status - enhance with GoPlus data if available
-  let auditStatus = "Verified"; // Default fallback
+  let auditStatus = "Unknown"; // Default fallback
   if (goPlusData?.isOpenSource) {
     auditStatus = "Verified";
+    dataQuality = "complete";
   } else if (goPlusData?.riskLevel === 'High') {
     auditStatus = "High Risk";
+    dataQuality = "complete";
   } else if (etherscanData?.contractSource) {
     auditStatus = "Verified";
+    dataQuality = "complete";
   }
+  
+  // Extract contract address if available
+  const contractAddress = extractTokenAddress(tokenDetails.id);
   
   // Create the metrics object
   const metrics: TokenMetrics = {
@@ -290,10 +405,11 @@ function calculateHealthMetrics(
     txCount24h,
     network,
     poolAddress,
+    dataQuality,
     // New fields from Etherscan
     etherscan: {
       securityAnalysis: etherscanData?.securityAnalysis,
-      contractAddress: extractTokenAddress(tokenDetails.id)
+      contractAddress
     },
     // New fields from DeFiLlama
     defiLlama: defiLlamaData,
@@ -348,9 +464,6 @@ function calculateSecurityScore(
 ): number {
   // In a real implementation, this would analyze contract security, audits, etc.
   // For now, using a placeholder score based on market cap rank and existence
-  const hasMarketCap = !!tokenDetails.market_data?.market_cap?.usd;
-  const hasGitHub = tokenDetails.links?.repos_url?.github?.length > 0;
-  
   let score = 50; // Base score
   
   // Add points based on market cap rank (established projects tend to be more secure)
@@ -361,10 +474,10 @@ function calculateSecurityScore(
   }
   
   // Add points for having GitHub repositories (transparency)
-  if (hasGitHub) score += 5;
+  if (tokenDetails?.links?.repos_url?.github?.length > 0) score += 5;
   
   // Add points for having a market cap (established project)
-  if (hasMarketCap) score += 5;
+  if (tokenDetails?.market_data?.market_cap?.usd) score += 5;
 
   // Add or subtract points based on liquidity lock status
   if (poolData?.data?.attributes?.liquidity_locked) {
@@ -771,7 +884,8 @@ async function saveScanHistory(userId: string, tokenId: string, metrics: TokenMe
         token_symbol: metrics.symbol,
         token_name: metrics.name,
         health_score: metrics.healthScore,
-        category_scores: metrics.categories as unknown as Record<string, any>
+        category_scores: metrics.categories as unknown as Record<string, any>,
+        token_address: metrics.etherscan?.contractAddress || null
       });
   } catch (error) {
     console.error("Error saving scan history:", error);

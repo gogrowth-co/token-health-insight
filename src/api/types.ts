@@ -1,4 +1,3 @@
-
 export interface TokenSearchResult {
   id: string;
   symbol: string;
@@ -233,6 +232,8 @@ export interface TokenMetrics {
   };
   network?: string;
   poolAddress?: string;
+  // Data quality indicator
+  dataQuality?: 'complete' | 'partial';
   // New fields for Etherscan data
   etherscan?: {
     securityAnalysis?: {
