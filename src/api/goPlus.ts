@@ -31,41 +31,20 @@ export async function getSecurityData(contractAddress: string): Promise<Security
       return null;
     }
     
-    // Try to call GoPlus via edge function first (preferred)
-    try {
-      const { data: edgeFunctionData, error } = await supabase.functions.invoke('fetch-security-data', {
-        body: { contractAddress },
-      });
-      
-      if (error) {
-        throw new Error(`Edge function error: ${error.message}`);
-      }
-      
-      if (edgeFunctionData) {
-        return processSecurityData(edgeFunctionData);
-      }
-      
-    } catch (edgeFunctionError) {
-      console.warn("Edge function error, falling back to direct API call:", edgeFunctionError);
+    // Call our edge function to fetch GoPlus security data
+    const { data, error } = await supabase.functions.invoke('fetch-security-data', {
+      body: { contractAddress },
+    });
+    
+    if (error) {
+      throw new Error(`Edge function error: ${error.message}`);
     }
     
-    // Direct API call fallback (not recommended in production)
-    const response = await fetch(
-      `https://api.gopluslabs.io/api/v1/token_security/1?contract_addresses=${contractAddress}`
-    );
-    
-    if (!response.ok) {
-      throw new Error(`GoPlus API returned ${response.status}`);
+    if (data) {
+      return processSecurityData(data as GoPlusSecurityResponse);
     }
     
-    const data: GoPlusSecurityResponse = await response.json();
-    
-    if (data.code !== 1 || !data.result) {
-      console.warn("GoPlus returned error or no data", data);
-      return null;
-    }
-    
-    return processSecurityData(data);
+    return null;
     
   } catch (error) {
     console.error("Error fetching GoPlus security data:", error);
@@ -146,4 +125,3 @@ export function processSecurityData(data: GoPlusSecurityResponse): SecurityRiskS
     return null;
   }
 }
-

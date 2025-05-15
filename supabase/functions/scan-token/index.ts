@@ -493,6 +493,118 @@ function calculateRoadmapProgress(repoDetails: any): string {
   }
 }
 
+// NEW: Function to fetch security data from GoPlus API via our edge function
+async function fetchSecurityData(contractAddress: string) {
+  if (!contractAddress) {
+    console.log("No contract address provided for security check");
+    return null;
+  }
+
+  try {
+    // Calculate the current function URL
+    const url = new URL(Deno.env.get('SUPABASE_URL') || '');
+    const projectRef = url.hostname.split('.')[0];
+    const securityFunctionUrl = `https://${projectRef}.functions.supabase.co/fetch-security-data`;
+    
+    console.log(`Calling security API for address: ${contractAddress}`);
+    
+    // Call our security edge function
+    const response = await fetch(securityFunctionUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contractAddress }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Security API returned ${response.status}: ${await response.text()}`);
+    }
+    
+    const data = await response.json();
+    console.log(`Received security data:`, data);
+    return data;
+    
+  } catch (error) {
+    console.error("Error fetching security data:", error);
+    return null;
+  }
+}
+
+// Process GoPlus security data
+function processGoPlusData(data: any) {
+  if (!data || !data.result) {
+    return null;
+  }
+  
+  try {
+    // Get the first (and usually only) contract from the result
+    const contractAddress = Object.keys(data.result)[0];
+    
+    if (!contractAddress || !data.result[contractAddress]) {
+      return null;
+    }
+    
+    const security = data.result[contractAddress];
+    
+    // Count high and moderate risk factors
+    let highRiskCount = 0;
+    let moderateRiskCount = 0;
+    
+    // Check high risk factors
+    if (security.is_honeypot === 1) highRiskCount++;
+    if (security.can_take_back_ownership === 1) highRiskCount++;
+    if (security.owner_change_balance === 1) highRiskCount++;
+    if (security.selfdestruct === 1) highRiskCount++;
+    if (security.cannot_sell_all === 1) highRiskCount++;
+    
+    // Check moderate risk factors
+    if (security.can_mint === 1) moderateRiskCount++;
+    if (security.is_blacklisted === 1) moderateRiskCount++;
+    if (security.slippage_modifiable === 1) moderateRiskCount++;
+    if (security.is_proxy === 1) moderateRiskCount++;
+    if (security.transfer_pausable === 1) moderateRiskCount++;
+    if (security.external_call === 1) moderateRiskCount++;
+    
+    // Calculate risk level
+    let riskLevel: 'High' | 'Moderate' | 'Low' | 'Unknown' = 'Unknown';
+    
+    if (highRiskCount > 0) {
+      riskLevel = 'High';
+    } else if (moderateRiskCount > 1) {
+      riskLevel = 'Moderate';
+    } else if (moderateRiskCount === 1) {
+      riskLevel = 'Low';
+    } else if (security.is_open_source === 1) {
+      riskLevel = 'Low';
+    }
+    
+    // Format tax values
+    const buyTax = security.buy_tax ? `${security.buy_tax}%` : '0%';
+    const sellTax = security.sell_tax ? `${security.sell_tax}%` : '0%';
+    
+    return {
+      ownershipRenounced: security.can_take_back_ownership !== 1,
+      canMint: security.can_mint === 1,
+      hasBlacklist: security.is_blacklisted === 1,
+      slippageModifiable: security.slippage_modifiable === 1,
+      isHoneypot: security.is_honeypot === 1,
+      ownerCanChangeBalance: security.owner_change_balance === 1,
+      isProxy: security.is_proxy === 1,
+      hasExternalCalls: security.external_call === 1,
+      transferPausable: security.transfer_pausable === 1,
+      isSelfdestructable: security.selfdestruct === 1,
+      isOpenSource: security.is_open_source === 1,
+      buyTax,
+      sellTax,
+      highRiskCount,
+      moderateRiskCount,
+      riskLevel
+    };
+  } catch (error) {
+    console.error("Error processing security data:", error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -682,8 +794,37 @@ serve(async (req) => {
       console.error("Error processing GitHub data:", error);
     }
     
-    // Calculate health metrics with all collected data
-    const metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData, etherscanData, defiLlamaData, githubData);
+    // Extract token address for GoPlus security check
+    const tokenAddress = extractTokenAddress(tokenId);
+    
+    // NEW: Get GoPlus security data using our edge function
+    let goPlusData = null;
+    try {
+      if (tokenAddress) {
+        console.log("Getting GoPlus security data for address:", tokenAddress);
+        const securityResponse = await fetchSecurityData(tokenAddress);
+        
+        if (securityResponse) {
+          goPlusData = processGoPlusData(securityResponse);
+          if (goPlusData) {
+            console.log("Successfully processed GoPlus security data:", goPlusData);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching GoPlus security data:", error);
+    }
+    
+    // Calculate health metrics with all collected data, now including GoPlus data
+    const metrics = calculateHealthMetricsWithGoPlus(
+      tokenDetails,
+      marketChart,
+      poolData,
+      etherscanData,
+      defiLlamaData,
+      githubData,
+      goPlusData
+    );
     
     return new Response(
       JSON.stringify(metrics),
@@ -698,59 +839,15 @@ serve(async (req) => {
   }
 });
 
-// Detect token network from token ID or symbol
-function detectNetwork(tokenIdOrSymbol: string): string {
-  // Extract network from token ID if it contains a colon
-  if (tokenIdOrSymbol.includes(':')) {
-    const parts = tokenIdOrSymbol.split(':');
-    return mapNetworkName(parts[0]);
-  }
-  
-  // Default to Ethereum for CoinGecko IDs without explicit network
-  return 'eth';
-}
-
-// Map network name to GeckoTerminal network identifier
-function mapNetworkName(network: string): string {
-  const networkMap: Record<string, string> = {
-    'ethereum': 'eth',
-    'binance-smart-chain': 'bsc',
-    'polygon-pos': 'polygon',
-    'fantom': 'ftm',
-    'avalanche': 'avax',
-    'arbitrum-one': 'arbitrum',
-    'optimistic-ethereum': 'optimism',
-  };
-  
-  return networkMap[network.toLowerCase()] || 'eth';
-}
-
-// Extract token address from CoinGecko ID
-function extractTokenAddress(tokenIdOrSymbol: string): string | null {
-  // If the token ID contains a colon, it might be in the format 'network:address'
-  if (tokenIdOrSymbol.includes(':')) {
-    const parts = tokenIdOrSymbol.split(':');
-    if (parts.length > 1) {
-      return parts[1];
-    }
-  }
-  
-  // If it looks like an Ethereum address
-  if (/^0x[a-fA-F0-9]{40}$/.test(tokenIdOrSymbol)) {
-    return tokenIdOrSymbol;
-  }
-  
-  return null;
-}
-
-// Simplified calculation function for the edge function
-function calculateHealthMetrics(
+// Enhanced function to calculate metrics with GoPlus data
+function calculateHealthMetricsWithGoPlus(
   tokenDetails: any, 
   marketChart: any, 
   poolData: any,
   etherscanData: any = {},
   defiLlamaData: any = null,
-  githubData: any = null
+  githubData: any = null,
+  goPlusData: any = null
 ): any {
   // Format market cap for display
   const marketCap = formatCurrency(tokenDetails.market_data?.market_cap?.usd || 0);
@@ -758,14 +855,32 @@ function calculateHealthMetrics(
   // Social followers count
   const socialFollowers = formatNumber(tokenDetails.community_data?.twitter_followers || 0);
   
-  // Calculate category scores with Etherscan data
-  const securityScore = calculateSecurityScore(tokenDetails, poolData, etherscanData);
-  const liquidityScore = calculateLiquidityScore(tokenDetails, marketChart, poolData, defiLlamaData);
-  const tokenomicsScore = calculateTokenomicsScore(tokenDetails, poolData, etherscanData);
+  // Calculate category scores with Etherscan and GoPlus data
+  const securityScore = calculateSecurityScoreWithGoPlus(
+    tokenDetails, 
+    poolData, 
+    etherscanData,
+    goPlusData
+  );
+  
+  const liquidityScore = calculateLiquidityScore(
+    tokenDetails, 
+    marketChart, 
+    poolData, 
+    defiLlamaData
+  );
+  
+  const tokenomicsScore = calculateTokenomicsScoreWithGoPlus(
+    tokenDetails, 
+    poolData, 
+    etherscanData,
+    goPlusData
+  );
+  
   const communityScore = calculateCommunityScore(tokenDetails);
   const developmentScore = calculateDevelopmentScore(tokenDetails, githubData);
   
-  // Calculate overall health score
+  // Calculate overall health score with weighted GoPlus factors
   const healthScore = Math.round(
     (securityScore * 0.25) + 
     (liquidityScore * 0.25) + 
@@ -826,7 +941,7 @@ function calculateHealthMetrics(
     }
     
     // Get 24h volume
-    if (poolAttributes.volume_usd && poolAttributes.volume_usd.h24) {
+    if (poolAttributes.volume_usd?.h24) {
       volume24h = formatCurrency(parseFloat(poolAttributes.volume_usd.h24));
     }
     
@@ -842,25 +957,6 @@ function calculateHealthMetrics(
       network = parts[0];
       poolAddress = parts[1];
     }
-  }
-  
-  // Get top holders percentage from Etherscan data
-  const topHoldersPercentage = etherscanData.topHoldersPercentage || "42%"; // Fallback
-  
-  // Get security analysis from Etherscan data
-  const securityAnalysis = etherscanData.securityAnalysis || {
-    ownershipRenounced: false,
-    canMint: false,
-    canBurn: true,
-    hasFreeze: false,
-    isMultiSig: false,
-    isProxy: false
-  };
-  
-  // Determine audit status based on security analysis
-  let auditStatus = "Unverified";
-  if (etherscanData.contractSource) {
-    auditStatus = "Verified";
   }
   
   // Update TVL with DeFiLlama data if available
@@ -881,7 +977,35 @@ function calculateHealthMetrics(
     }
   }
   
-  return {
+  // Get top holders percentage from Etherscan data
+  const topHoldersPercentage = etherscanData.topHoldersPercentage || "42%"; // Fallback
+  
+  // Get security analysis from Etherscan data
+  const securityAnalysis = etherscanData.securityAnalysis || {
+    ownershipRenounced: false,
+    canMint: false,
+    canBurn: true,
+    hasFreeze: false,
+    isMultiSig: false,
+    isProxy: false
+  };
+  
+  // Determine audit status based on security analysis and GoPlus data
+  let auditStatus = "Unverified";
+  
+  if (goPlusData) {
+    if (goPlusData.riskLevel === 'High') {
+      auditStatus = "High Risk";
+    } else if (goPlusData.riskLevel === 'Moderate') {
+      auditStatus = "Moderate Risk"; 
+    } else if (goPlusData.isOpenSource) {
+      auditStatus = "Verified";
+    }
+  } else if (etherscanData.contractSource) {
+    auditStatus = "Verified";
+  }
+  
+  const result = {
     name: tokenDetails.name,
     symbol: tokenDetails.symbol.toUpperCase(),
     marketCap,
@@ -915,55 +1039,157 @@ function calculateHealthMetrics(
     healthScore,
     lastUpdated: Date.now()
   };
+  
+  // Add GoPlus security data if available
+  if (goPlusData) {
+    result.goPlus = {
+      ownershipRenounced: goPlusData.ownershipRenounced,
+      canMint: goPlusData.canMint,
+      hasBlacklist: goPlusData.hasBlacklist,
+      slippageModifiable: goPlusData.slippageModifiable,
+      isHoneypot: goPlusData.isHoneypot,
+      ownerCanChangeBalance: goPlusData.ownerCanChangeBalance,
+      isProxy: goPlusData.isProxy,
+      hasExternalCalls: goPlusData.hasExternalCalls,
+      transferPausable: goPlusData.transferPausable,
+      isSelfdestructable: goPlusData.isSelfdestructable,
+      isOpenSource: goPlusData.isOpenSource,
+      buyTax: goPlusData.buyTax,
+      sellTax: goPlusData.sellTax,
+      riskLevel: goPlusData.riskLevel
+    };
+  }
+  
+  return result;
 }
 
-// Basic security score calculation with Etherscan data
-function calculateSecurityScore(
+// Enhanced security score calculation with GoPlus data
+function calculateSecurityScoreWithGoPlus(
   tokenDetails: any, 
   poolData: any,
-  etherscanData: any = {}
+  etherscanData: any = {},
+  goPlusData: any = null
 ): number {
-  let score = 50;
+  let score = 50; // Base score
   
   // Market cap rank factors
   if (tokenDetails.market_cap_rank) {
-    if (tokenDetails.market_cap_rank <= 10) score += 30;
-    else if (tokenDetails.market_cap_rank <= 100) score += 20;
+    if (tokenDetails.market_cap_rank <= 10) score += 20;
+    else if (tokenDetails.market_cap_rank <= 100) score += 15;
     else if (tokenDetails.market_cap_rank <= 1000) score += 10;
   }
   
-  // Liquidity lock factors
+  // Add points for having GitHub repositories (transparency)
+  if (tokenDetails.links?.repos_url?.github?.length > 0) {
+    score += 5;
+  }
+  
+  // Add points for having a market cap (established project)
+  if (tokenDetails.market_data?.market_cap?.usd) {
+    score += 5;
+  }
+
+  // Add or subtract points based on liquidity lock status
   if (poolData?.data?.attributes?.liquidity_locked) {
-    if (poolData.data.attributes.liquidity_locked.is_locked) {
-      score += 10;
+    const lockInfo = poolData.data.attributes.liquidity_locked;
+    if (lockInfo.is_locked) {
+      score += 5;
+      
+      // Additional points for longer locks
+      if (lockInfo.duration_in_seconds) {
+        const lockDays = lockInfo.duration_in_seconds / (60 * 60 * 24);
+        if (lockDays > 365) score += 5;
+        else if (lockDays > 180) score += 3;
+      }
     } else {
-      score -= 10;
+      score -= 5; // Penalty for not having locked liquidity
     }
   }
   
-  // Etherscan factors
+  // Add Etherscan security analysis factors
   if (etherscanData.securityAnalysis) {
-    if (etherscanData.securityAnalysis.ownershipRenounced) {
-      score += 15;
-    } else {
-      score -= 10;
-    }
+    const analysis = etherscanData.securityAnalysis;
     
-    if (!etherscanData.securityAnalysis.canMint) {
+    // Ownership renouncement is major security factor
+    if (analysis.ownershipRenounced) {
       score += 10;
     } else {
       score -= 5;
     }
     
-    if (!etherscanData.securityAnalysis.hasFreeze) {
+    // No mint function is better for security
+    if (!analysis.canMint) {
       score += 5;
+    } else {
+      score -= 5;
     }
     
-    if (etherscanData.securityAnalysis.isMultiSig) {
+    // No freeze function is better for decentralization
+    if (!analysis.hasFreeze) {
+      score += 5;
+    } else {
+      score -= 2;
+    }
+    
+    // Multi-sig wallet is better for security
+    if (analysis.isMultiSig) {
       score += 10;
     }
   }
   
+  // Add GoPlus security analysis factors if available
+  if (goPlusData) {
+    // Critical risk factors
+    if (goPlusData.isHoneypot) {
+      score -= 40; // Severe penalty for honeypot
+    }
+    
+    if (goPlusData.ownershipRenounced) {
+      score += 15; // Major plus for renounced ownership
+    } else {
+      score -= 10; // Penalty for retained ownership
+    }
+    
+    if (goPlusData.ownerCanChangeBalance) {
+      score -= 20; // Severe penalty for owner balance manipulation
+    }
+    
+    if (goPlusData.isSelfdestructable) {
+      score -= 15; // Severe penalty for self-destruct capability
+    }
+    
+    // Moderate risk factors
+    if (goPlusData.canMint) {
+      score -= 5; // Penalty for mint capability
+    }
+    
+    if (goPlusData.hasBlacklist) {
+      score -= 5; // Penalty for blacklisting capability
+    }
+    
+    if (goPlusData.slippageModifiable) {
+      score -= 5; // Penalty for slippage modification
+    }
+    
+    if (goPlusData.transferPausable) {
+      score -= 5; // Penalty for transfer pause capability
+    }
+    
+    if (goPlusData.isOpenSource) {
+      score += 10; // Bonus for open source code
+    } else {
+      score -= 10; // Penalty for closed source
+    }
+    
+    // Adjust based on overall risk level
+    if (goPlusData.riskLevel === 'High') {
+      score = Math.min(score, 30); // Cap score at 30 for high risk contracts
+    } else if (goPlusData.riskLevel === 'Low') {
+      score = Math.max(score, 60); // Minimum score of 60 for low risk contracts
+    }
+  }
+  
+  // Cap the score at 100
   return Math.min(Math.max(score, 0), 100);
 }
 
@@ -1017,39 +1243,68 @@ function calculateLiquidityScore(
   return Math.min(Math.max(score, 0), 100);
 }
 
-// Enhanced tokenomics score calculation with Etherscan data
-function calculateTokenomicsScore(
+// Enhanced tokenomics score calculation with GoPlus data
+function calculateTokenomicsScoreWithGoPlus(
   tokenDetails: any, 
   poolData: any,
-  etherscanData: any = {}
+  etherscanData: any = {},
+  goPlusData: any = null
 ): number {
   let score = 65; // Base score
   
   if (etherscanData.securityAnalysis) {
-    // Burn mechanism is good for tokenomics
-    if (etherscanData.securityAnalysis.canBurn) {
+    const analysis = etherscanData.securityAnalysis;
+    
+    // Burn function is good for tokenomics
+    if (analysis.canBurn) {
       score += 10;
     }
     
     // Mint function can be negative for tokenomics (inflation risk)
-    if (etherscanData.securityAnalysis.canMint) {
+    if (analysis.canMint) {
       score -= 10;
     }
     
     // No freeze functionality is better for decentralization
-    if (!etherscanData.securityAnalysis.hasFreeze) {
+    if (!analysis.hasFreeze) {
       score += 5;
     }
   }
   
   // Top holders concentration factor
   if (etherscanData.topHoldersPercentage) {
-    const percentage = parseFloat(etherscanData.topHoldersPercentage);
+    const percentStr = etherscanData.topHoldersPercentage.replace('%', '');
+    const percentage = parseFloat(percentStr);
+    
     if (!isNaN(percentage)) {
       if (percentage < 30) score += 15;
       else if (percentage < 50) score += 5;
       else if (percentage > 80) score -= 15;
       else if (percentage > 60) score -= 5;
+    }
+  }
+  
+  // Add GoPlus tokenomics factors
+  if (goPlusData) {
+    // Tax considerations
+    const buyTaxValue = parseFloat(goPlusData.buyTax);
+    const sellTaxValue = parseFloat(goPlusData.sellTax);
+    
+    if (!isNaN(buyTaxValue) && buyTaxValue > 10) {
+      score -= 10; // Heavy penalty for high buy tax
+    } else if (!isNaN(buyTaxValue) && buyTaxValue > 5) {
+      score -= 5; // Penalty for moderate buy tax
+    }
+    
+    if (!isNaN(sellTaxValue) && sellTaxValue > 10) {
+      score -= 15; // Heavy penalty for high sell tax
+    } else if (!isNaN(sellTaxValue) && sellTaxValue > 5) {
+      score -= 10; // Penalty for moderate sell tax
+    }
+    
+    // Honeypot factors
+    if (goPlusData.isHoneypot) {
+      score = Math.min(score, 20); // Cap tokenomics score at 20 for honeypots
     }
   }
   
@@ -1128,4 +1383,49 @@ function formatNumber(value: number): string {
   } else {
     return value.toString();
   }
+}
+
+// Detect token network from token ID or symbol
+function detectNetwork(tokenIdOrSymbol: string): string {
+  // Extract network from token ID if it contains a colon
+  if (tokenIdOrSymbol.includes(':')) {
+    const parts = tokenIdOrSymbol.split(':');
+    return mapNetworkName(parts[0]);
+  }
+  
+  // Default to Ethereum for CoinGecko IDs without explicit network
+  return 'eth';
+}
+
+// Map network name to GeckoTerminal network identifier
+function mapNetworkName(network: string): string {
+  const networkMap: Record<string, string> = {
+    'ethereum': 'eth',
+    'binance-smart-chain': 'bsc',
+    'polygon-pos': 'polygon',
+    'fantom': 'ftm',
+    'avalanche': 'avax',
+    'arbitrum-one': 'arbitrum',
+    'optimistic-ethereum': 'optimism',
+  };
+  
+  return networkMap[network.toLowerCase()] || 'eth';
+}
+
+// Extract token address from CoinGecko ID
+function extractTokenAddress(tokenIdOrSymbol: string): string | null {
+  // If the token ID contains a colon, it might be in the format 'network:address'
+  if (tokenIdOrSymbol.includes(':')) {
+    const parts = tokenIdOrSymbol.split(':');
+    if (parts.length > 1) {
+      return parts[1];
+    }
+  }
+  
+  // If it looks like an Ethereum address
+  if (/^0x[a-fA-F0-9]{40}$/.test(tokenIdOrSymbol)) {
+    return tokenIdOrSymbol;
+  }
+  
+  return null;
 }
