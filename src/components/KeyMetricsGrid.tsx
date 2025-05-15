@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Clock, CircleDollarSign, Users, ShieldCheck, Layers } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -191,7 +190,7 @@ export const KeyMetricsGrid = ({ projectData, tokenId }: KeyMetricsGridProps) =>
 interface MetricTileProps {
   label: string;
   value: string;
-  trend?: "up" | "down";
+  trend?: "up" | "down" | "neutral";  // Updated to include "neutral"
   change?: string;
   tooltip: string;
   loading?: boolean;
@@ -221,6 +220,13 @@ const MetricTile = ({
     error: "text-red-500"
   };
 
+  // Render appropriate trend icon based on the trend value
+  const renderTrendIcon = () => {
+    if (trend === "up") return <TrendingUp size={14} />;
+    if (trend === "down") return <TrendingDown size={14} />;
+    return null; // Return null for "neutral" trend
+  };
+
   return (
     <Card className={`overflow-hidden ${loading ? 'opacity-70' : ''}`}>
       <CardContent className="p-4">
@@ -239,8 +245,8 @@ const MetricTile = ({
           {icon && <span className={statusColors[status]}>{icon}</span>}
           
           {trend && change && (
-            <div className={`flex items-center text-xs ${trend === "up" ? "text-green-500" : "text-red-500"}`}>
-              {trend === "up" ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+            <div className={`flex items-center text-xs ${trend === "up" ? "text-green-500" : trend === "down" ? "text-red-500" : "text-gray-500"}`}>
+              {renderTrendIcon()}
               <span className="ml-1">{change}</span>
             </div>
           )}
