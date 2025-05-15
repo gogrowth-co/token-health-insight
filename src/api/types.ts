@@ -1,4 +1,3 @@
-
 export interface TokenSearchResult {
   id: string;
   symbol: string;
@@ -174,6 +173,8 @@ export interface GeckoTerminalOhlcvData {
   }>;
 }
 
+import { DefiLlamaData, SparklineData } from './defiLlamaTypes';
+
 export interface TokenMetrics {
   name: string;
   symbol: string;
@@ -205,6 +206,10 @@ export interface TokenMetrics {
     };
     contractAddress?: string;
   };
+  // New fields for DeFiLlama data
+  defiLlama?: DefiLlamaData;
+  // TVL sparkline data
+  tvlSparkline?: SparklineData;
   categories: {
     security: { score: number };
     liquidity: { score: number };

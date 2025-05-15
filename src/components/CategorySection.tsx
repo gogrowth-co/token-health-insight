@@ -7,8 +7,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { CircleHelp, CircleCheck, CircleX, CircleDot } from "lucide-react";
+import { CircleHelp, CircleCheck, CircleX, CircleDot, TrendingUp, TrendingDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { SparklineChart } from "./SparklineChart";
 
 interface CategorySectionProps {
   title: string;
@@ -19,6 +20,8 @@ interface CategorySectionProps {
     name: string;
     status: string;
     tooltip: string;
+    sparklineData?: number[];
+    change?: number;
   }[];
 }
 
@@ -56,6 +59,12 @@ export const CategorySection = ({
     }
     return null;
   };
+
+  // Format change percentage
+  const formatChange = (change?: number): string => {
+    if (change === undefined) return "";
+    return change >= 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`;
+  };
   
   return (
     <div className="space-y-6">
@@ -87,6 +96,25 @@ export const CategorySection = ({
                 </div>
                 
                 <div className="flex items-center gap-2">
+                  <div className="flex items-center">
+                    {item.sparklineData && item.sparklineData.length > 1 && (
+                      <SparklineChart 
+                        data={item.sparklineData}
+                        color={item.change && item.change >= 0 ? "#22c55e" : "#ef4444"}
+                        height={16}
+                        width={40}
+                      />
+                    )}
+                    
+                    {item.change !== undefined && (
+                      <span className={`text-xs ml-1 ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}>
+                        {item.change >= 0 ? <TrendingUp size={12} className="inline mr-1" /> : 
+                                            <TrendingDown size={12} className="inline mr-1" />}
+                        {formatChange(item.change)}
+                      </span>
+                    )}
+                  </div>
+                  
                   <Badge variant="outline" className={getStatusColor(item.status)}>
                     {item.status}
                   </Badge>

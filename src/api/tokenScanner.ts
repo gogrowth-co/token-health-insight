@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { getTokenDetails, getTokenMarketChart } from "./coingecko";
 import { 
@@ -15,6 +14,16 @@ import {
   extractTokenAddress 
 } from "./geckoterminal";
 import { EtherscanSecurityAnalysis, EtherscanTokenData } from "./etherscanTypes";
+import { 
+  findProtocolSlug,
+  getProtocolDetails,
+  getProtocolTVL,
+  getProtocolTVLHistory,
+  formatChainDistribution,
+  getTVLChangeOverPeriod,
+  formatTVLHistoryForSparkline
+} from "./defillama";
+import { DefiLlamaTVLHistoryItem } from "./defiLlamaTypes";
 
 // Cache duration in seconds (24 hours)
 const CACHE_DURATION = 24 * 60 * 60;
@@ -85,11 +94,50 @@ export async function scanToken(tokenIdOrSymbol: string): Promise<TokenMetrics |
         // Continue without GT data, we'll use fallback values
       }
       
+      // Try to get DeFiLlama data
+      let defiLlamaData = null;
+      try {
+        // Try to find matching protocol in DeFiLlama
+        const protocolSlug = await findProtocolSlug(
+          tokenDetails.symbol, 
+          tokenDetails.name
+        );
+        
+        if (protocolSlug) {
+          console.log("Found DeFiLlama protocol slug:", protocolSlug);
+          
+          // Get protocol details and TVL data
+          const [protocolDetails, tvlHistory] = await Promise.all([
+            getProtocolDetails(protocolSlug),
+            getProtocolTVLHistory(protocolSlug)
+          ]);
+          
+          if (protocolDetails && tvlHistory) {
+            const tvlChange7d = getTVLChangeOverPeriod(tvlHistory, 7);
+            const tvlChange30d = getTVLChangeOverPeriod(tvlHistory, 30);
+            
+            defiLlamaData = {
+              tvl: protocolDetails.tvl,
+              tvlChange7d,
+              tvlChange30d,
+              chainDistribution: formatChainDistribution(protocolDetails.chainTvls),
+              supportedChains: protocolDetails.chains || [],
+              tvlHistoryData: tvlHistory,
+              protocolSlug,
+              category: protocolDetails.category
+            };
+          }
+        }
+      } catch (error) {
+        console.warn("Error fetching DeFiLlama data:", error);
+        // Continue without DeFiLlama data
+      }
+      
       // Process the data and calculate health scores
-      metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData);
+      metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData, null, defiLlamaData);
     }
     
-    // Cache the result - Fixed typo here: tokenIdOrSmbol → tokenIdOrSymbol
+    // Cache the result
     await cacheTokenData(tokenIdOrSymbol, metrics);
     
     // Save scan result for logged-in users
@@ -112,11 +160,12 @@ function calculateHealthMetrics(
   tokenDetails: TokenDetails,
   marketChart: any,
   poolData?: GeckoTerminalPoolData | null,
-  etherscanData?: EtherscanTokenData
+  etherscanData?: EtherscanTokenData,
+  defiLlamaData?: any
 ): TokenMetrics {
   // Initialize scores for each category
   const securityScore = calculateSecurityScore(tokenDetails, poolData, etherscanData);
-  const liquidityScore = calculateLiquidityScore(tokenDetails, marketChart, poolData);
+  const liquidityScore = calculateLiquidityScore(tokenDetails, marketChart, poolData, defiLlamaData);
   const tokenomicsScore = calculateTokenomicsScore(tokenDetails, poolData, etherscanData);
   const communityScore = calculateCommunityScore(tokenDetails);
   const developmentScore = calculateDevelopmentScore(tokenDetails);
@@ -206,6 +255,24 @@ function calculateHealthMetrics(
     }
   }
   
+  // Update TVL with DeFiLlama data if available
+  let tvlSparkline;
+  if (defiLlamaData && defiLlamaData.tvl) {
+    tvl = formatCurrency(defiLlamaData.tvl);
+    
+    // Create sparkline data if history available
+    if (defiLlamaData.tvlHistoryData && defiLlamaData.tvlHistoryData.length > 0) {
+      const sparklineData = formatTVLHistoryForSparkline(defiLlamaData.tvlHistoryData, 7);
+      const trend = defiLlamaData.tvlChange7d >= 0 ? 'up' : 'down';
+      
+      tvlSparkline = {
+        data: sparklineData,
+        trend,
+        change: defiLlamaData.tvlChange7d
+      };
+    }
+  }
+  
   // Get top holders percentage from Etherscan
   let topHoldersPercentage = "42%"; // Default fallback
   if (etherscanData?.topHoldersPercentage) {
@@ -238,6 +305,9 @@ function calculateHealthMetrics(
       securityAnalysis: etherscanData?.securityAnalysis,
       contractAddress: extractTokenAddress(tokenDetails.id)
     },
+    // New fields from DeFiLlama
+    defiLlama: defiLlamaData,
+    tvlSparkline,
     categories: {
       security: { score: securityScore },
       liquidity: { score: liquidityScore },
@@ -331,12 +401,14 @@ function calculateSecurityScore(
 }
 
 /**
- * Calculate liquidity score
+ * Calculate liquidity score based on various factors
+ * Now enhanced with DeFiLlama TVL data
  */
 function calculateLiquidityScore(
   tokenDetails: TokenDetails, 
   marketChart: any,
-  poolData?: GeckoTerminalPoolData | null
+  poolData?: GeckoTerminalPoolData | null,
+  defiLlamaData?: any
 ): number {
   // Use GeckoTerminal data if available, otherwise fall back to CoinGecko
   const volume = tokenDetails.market_data?.total_volume?.usd || 0;
@@ -379,6 +451,27 @@ function calculateLiquidityScore(
       else if (diffDays > 180) score += 8; // >6 months old
       else if (diffDays > 90) score += 5; // >3 months old
       else if (diffDays > 30) score += 2; // >1 month old
+    }
+  }
+  
+  // DeFiLlama data
+  if (defiLlamaData) {
+    // TVL size factor
+    const tvl = defiLlamaData.tvl || 0;
+    if (tvl > 100000000) score += 20; // >$100M TVL
+    else if (tvl > 10000000) score += 15; // >$10M TVL
+    else if (tvl > 1000000) score += 10; // >$1M TVL
+    
+    // TVL changes factor (positive changes are better)
+    if (defiLlamaData.tvlChange7d > 10) score += 10; // >10% increase in 7 days
+    else if (defiLlamaData.tvlChange7d > 0) score += 5; // Any positive change
+    else if (defiLlamaData.tvlChange7d < -20) score -= 10; // >20% decrease
+    
+    // Multi-chain presence (more chains is better)
+    if (defiLlamaData.supportedChains && defiLlamaData.supportedChains.length > 0) {
+      const chainCount = defiLlamaData.supportedChains.length;
+      if (chainCount > 3) score += 10; // Present on more than 3 chains
+      else if (chainCount > 1) score += 5; // Present on multiple chains
     }
   }
   

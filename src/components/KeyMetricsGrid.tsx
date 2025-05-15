@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, Clock, CircleDollarSign, Users, ShieldCheck } from "lucide-react";
+import { TrendingUp, TrendingDown, Clock, CircleDollarSign, Users, ShieldCheck, Layers } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Tooltip,
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { TokenMetrics } from "@/api/types";
 import { scanToken } from "@/api/tokenScanner";
+import { SparklineChart } from "./SparklineChart";
 
 interface KeyMetricsGridProps {
   projectData: {
@@ -19,6 +20,15 @@ interface KeyMetricsGridProps {
     tvl: string;
     auditStatus: string;
     socialFollowers: string;
+    tvlSparkline?: {
+      data: number[];
+      trend: 'up' | 'down' | 'neutral';
+      change: number;
+    };
+    defiLlama?: {
+      chainDistribution: string;
+      tvlChange7d: number | null;
+    };
     etherscan?: {
       securityAnalysis?: {
         ownershipRenounced: boolean;
@@ -52,6 +62,8 @@ export const KeyMetricsGrid = ({ projectData, tokenId }: KeyMetricsGridProps) =>
             tvl: updatedData.tvl,
             auditStatus: updatedData.auditStatus,
             socialFollowers: updatedData.socialFollowers,
+            tvlSparkline: updatedData.tvlSparkline,
+            defiLlama: updatedData.defiLlama,
             etherscan: updatedData.etherscan
           });
         }
@@ -95,6 +107,18 @@ export const KeyMetricsGrid = ({ projectData, tokenId }: KeyMetricsGridProps) =>
     return securityAnalysis.isMultiSig ? "Multi-sig" : "EOA";
   };
 
+  // Format TVL change percentage
+  const formatTVLChange = () => {
+    if (!metrics.defiLlama?.tvlChange7d) return "+1.8%";
+    const change = metrics.defiLlama.tvlChange7d;
+    return change >= 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`;
+  };
+
+  // Get chain distribution for tooltip
+  const getChainDistribution = () => {
+    return metrics.defiLlama?.chainDistribution || "Ethereum";
+  };
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {/* Market Cap */}
@@ -133,11 +157,13 @@ export const KeyMetricsGrid = ({ projectData, tokenId }: KeyMetricsGridProps) =>
       <MetricTile 
         label="TVL" 
         value={metrics.tvl} 
-        trend="up" 
-        change="+1.8%"
-        tooltip="Total Value Locked in protocol"
+        trend={metrics.tvlSparkline?.trend || "up"} 
+        change={formatTVLChange()}
+        tooltip={`Total Value Locked across ${getChainDistribution()}`}
         loading={loading}
-        icon={<CircleDollarSign size={14} />}
+        icon={<Layers size={14} />}
+        sparklineData={metrics.tvlSparkline?.data}
+        sparklineColor={metrics.tvlSparkline?.trend === 'up' ? "#22c55e" : "#ef4444"}
       />
 
       {/* Ownership Status */}
@@ -171,9 +197,22 @@ interface MetricTileProps {
   loading?: boolean;
   icon?: React.ReactNode;
   status?: "default" | "success" | "warning" | "error";
+  sparklineData?: number[];
+  sparklineColor?: string;
 }
 
-const MetricTile = ({ label, value, trend, change, tooltip, loading, icon, status = "default" }: MetricTileProps) => {
+const MetricTile = ({ 
+  label, 
+  value, 
+  trend, 
+  change, 
+  tooltip, 
+  loading, 
+  icon, 
+  status = "default", 
+  sparklineData,
+  sparklineColor
+}: MetricTileProps) => {
   // Status color mapping
   const statusColors: Record<string, string> = {
     default: "",
@@ -207,7 +246,18 @@ const MetricTile = ({ label, value, trend, change, tooltip, loading, icon, statu
           )}
         </div>
         
-        <h3 className={`text-2xl font-bold mt-1 ${statusColors[status]}`}>{value}</h3>
+        <div className="flex items-center gap-2 mt-1">
+          <h3 className={`text-2xl font-bold ${statusColors[status]}`}>{value}</h3>
+          
+          {sparklineData && sparklineData.length > 1 && (
+            <SparklineChart 
+              data={sparklineData}
+              color={sparklineColor || "#6366F1"}
+              height={20}
+              width={60}
+            />
+          )}
+        </div>
         
         {loading && (
           <div className="mt-2">

@@ -8,6 +8,8 @@ const CG_BASE_URL = "https://api.coingecko.com/api/v3";
 const GT_BASE_URL = "https://api.geckoterminal.com/api/v2";
 // Base URL for Etherscan API
 const ETHERSCAN_BASE_URL = "https://api.etherscan.io/api";
+// Base URL for DeFiLlama API
+const DEFILLAMA_BASE_URL = "https://api.llama.fi";
 // GeckoTerminal API version header
 const GT_API_VERSION = "20230302";
 
@@ -190,6 +192,122 @@ function calculateTopHoldersPercentage(holders: any[]): string {
   return `${percentage.toFixed(2)}%`;
 }
 
+// DeFiLlama API Functions
+async function findProtocolSlug(tokenSymbol: string, tokenName: string): Promise<string | null> {
+  try {
+    // Get all protocols
+    const response = await fetch(`${DEFILLAMA_BASE_URL}/protocols`);
+    if (!response.ok) {
+      throw new Error(`Error fetching protocols: ${response.status}`);
+    }
+
+    const protocols = await response.json();
+    
+    // Clean and normalize the token inputs
+    const normalizedSymbol = tokenSymbol.toLowerCase().trim();
+    const normalizedName = tokenName.toLowerCase().trim();
+    
+    // Try to find exact match by symbol first
+    let match = protocols.find(
+      (protocol: any) => protocol.symbol?.toLowerCase() === normalizedSymbol
+    );
+    
+    // If no exact symbol match, try name match
+    if (!match) {
+      match = protocols.find(
+        (protocol: any) => protocol.name?.toLowerCase() === normalizedName
+      );
+    }
+    
+    // If still no match, try partial matches
+    if (!match) {
+      match = protocols.find(
+        (protocol: any) => 
+          protocol.symbol?.toLowerCase().includes(normalizedSymbol) ||
+          normalizedSymbol.includes(protocol.symbol?.toLowerCase())
+      );
+    }
+    
+    if (!match && normalizedName.length > 3) {
+      match = protocols.find(
+        (protocol: any) => 
+          protocol.name?.toLowerCase().includes(normalizedName) ||
+          normalizedName.includes(protocol.name?.toLowerCase())
+      );
+    }
+    
+    return match ? match.slug : null;
+  } catch (error) {
+    console.error("Error finding protocol slug:", error);
+    return null;
+  }
+}
+
+async function getProtocolDetails(slug: string): Promise<any | null> {
+  try {
+    const response = await fetch(`${DEFILLAMA_BASE_URL}/protocol/${slug}`);
+    if (!response.ok) {
+      throw new Error(`Error fetching protocol details: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching protocol details:", error);
+    return null;
+  }
+}
+
+async function getProtocolTVLHistory(slug: string): Promise<any | null> {
+  try {
+    const response = await fetch(`${DEFILLAMA_BASE_URL}/tvl/${slug}`);
+    if (!response.ok) {
+      throw new Error(`Error fetching TVL history: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching TVL history:", error);
+    return null;
+  }
+}
+
+function formatChainDistribution(chainTvls: Record<string, number>): string {
+  if (!chainTvls) return "N/A";
+  
+  // Get chains sorted by TVL
+  const chains = Object.keys(chainTvls)
+    .filter(chain => !chain.includes("-") && chain !== "tvl") // Filter out staking and special entries
+    .sort((a, b) => chainTvls[b] - chainTvls[a]);
+  
+  if (chains.length === 0) return "N/A";
+  if (chains.length === 1) return chains[0];
+  if (chains.length === 2) return `${chains[0]} + ${chains[1]}`;
+  
+  // If more than 2 chains, show top 2 + count of others
+  return `${chains[0]} + ${chains[1]} + ${chains.length - 2} more`;
+}
+
+function getTVLChangeOverPeriod(tvlHistory: any[], days = 7): number {
+  if (!tvlHistory || tvlHistory.length < days + 1) {
+    return 0;
+  }
+  
+  const currentTVL = tvlHistory[tvlHistory.length - 1].totalLiquidityUSD;
+  const previousTVL = tvlHistory[tvlHistory.length - days - 1].totalLiquidityUSD;
+  
+  return ((currentTVL - previousTVL) / previousTVL) * 100;
+}
+
+function formatTVLHistoryForSparkline(tvlHistory: any[], days = 7): number[] {
+  if (!tvlHistory || tvlHistory.length === 0) {
+    return [];
+  }
+  
+  // Get the last N days of data
+  const recentData = tvlHistory.slice(-days);
+  
+  // Extract just the TVL values
+  return recentData.map((dataPoint: any) => dataPoint.totalLiquidityUSD);
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -302,8 +420,47 @@ serve(async (req) => {
       // Continue without Etherscan data
     }
     
-    // Calculate health metrics
-    const metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData, etherscanData);
+    // Try to get DeFiLlama data
+    let defiLlamaData = null;
+    try {
+      // Try to find matching protocol in DeFiLlama
+      const protocolSlug = await findProtocolSlug(
+        tokenDetails.symbol, 
+        tokenDetails.name
+      );
+      
+      if (protocolSlug) {
+        console.log("Found DeFiLlama protocol slug:", protocolSlug);
+        
+        // Get protocol details and TVL data
+        const [protocolDetails, tvlHistory] = await Promise.all([
+          getProtocolDetails(protocolSlug),
+          getProtocolTVLHistory(protocolSlug)
+        ]);
+        
+        if (protocolDetails && tvlHistory) {
+          const tvlChange7d = getTVLChangeOverPeriod(tvlHistory, 7);
+          const tvlChange30d = getTVLChangeOverPeriod(tvlHistory, 30);
+          
+          defiLlamaData = {
+            tvl: protocolDetails.tvl,
+            tvlChange7d,
+            tvlChange30d,
+            chainDistribution: formatChainDistribution(protocolDetails.chainTvls),
+            supportedChains: protocolDetails.chains || [],
+            tvlHistoryData: tvlHistory,
+            protocolSlug,
+            category: protocolDetails.category
+          };
+        }
+      }
+    } catch (error) {
+      console.warn("Error fetching DeFiLlama data:", error);
+      // Continue without DeFiLlama data
+    }
+    
+    // Calculate health metrics with DeFiLlama data
+    const metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData, etherscanData, defiLlamaData);
     
     return new Response(
       JSON.stringify(metrics),
@@ -368,7 +525,8 @@ function calculateHealthMetrics(
   tokenDetails: any, 
   marketChart: any, 
   poolData: any,
-  etherscanData: any = {}
+  etherscanData: any = {},
+  defiLlamaData: any = null
 ): any {
   // Format market cap for display
   const marketCap = formatCurrency(tokenDetails.market_data?.market_cap?.usd || 0);
@@ -378,7 +536,7 @@ function calculateHealthMetrics(
   
   // Calculate category scores with Etherscan data
   const securityScore = calculateSecurityScore(tokenDetails, poolData, etherscanData);
-  const liquidityScore = calculateLiquidityScore(tokenDetails, marketChart, poolData);
+  const liquidityScore = calculateLiquidityScore(tokenDetails, marketChart, poolData, defiLlamaData);
   const tokenomicsScore = calculateTokenomicsScore(tokenDetails, poolData, etherscanData);
   const communityScore = calculateCommunityScore(tokenDetails);
   const developmentScore = calculateDevelopmentScore(tokenDetails);
@@ -481,6 +639,24 @@ function calculateHealthMetrics(
     auditStatus = "Verified";
   }
   
+  // Update TVL with DeFiLlama data if available
+  let tvlSparkline;
+  if (defiLlamaData && defiLlamaData.tvl) {
+    tvl = formatCurrency(defiLlamaData.tvl);
+    
+    // Create sparkline data if history available
+    if (defiLlamaData.tvlHistoryData && defiLlamaData.tvlHistoryData.length > 0) {
+      const sparklineData = formatTVLHistoryForSparkline(defiLlamaData.tvlHistoryData, 7);
+      const trend = defiLlamaData.tvlChange7d >= 0 ? 'up' : 'down';
+      
+      tvlSparkline = {
+        data: sparklineData,
+        trend,
+        change: defiLlamaData.tvlChange7d
+      };
+    }
+  }
+  
   return {
     name: tokenDetails.name,
     symbol: tokenDetails.symbol.toUpperCase(),
@@ -500,6 +676,9 @@ function calculateHealthMetrics(
       securityAnalysis,
       contractAddress: extractTokenAddress(tokenDetails.id)
     },
+    // Add DeFiLlama-specific data
+    defiLlama: defiLlamaData,
+    tvlSparkline,
     categories: {
       security: { score: securityScore },
       liquidity: { score: liquidityScore },
@@ -566,7 +745,8 @@ function calculateSecurityScore(
 function calculateLiquidityScore(
   tokenDetails: any, 
   marketChart: any, 
-  poolData: any
+  poolData: any,
+  defiLlamaData: any = null
 ): number {
   let score = 60;
   
@@ -584,6 +764,27 @@ function calculateLiquidityScore(
       const volume = parseFloat(attrs.volume_usd.h24);
       if (volume > 100000) score += 20;
       else if (volume > 10000) score += 10;
+    }
+  }
+  
+  // DeFiLlama data
+  if (defiLlamaData) {
+    // TVL size factor
+    const tvl = defiLlamaData.tvl || 0;
+    if (tvl > 100000000) score += 20; // >$100M TVL
+    else if (tvl > 10000000) score += 15; // >$10M TVL
+    else if (tvl > 1000000) score += 10; // >$1M TVL
+    
+    // TVL changes factor (positive changes are better)
+    if (defiLlamaData.tvlChange7d > 10) score += 10; // >10% increase in 7 days
+    else if (defiLlamaData.tvlChange7d > 0) score += 5; // Any positive change
+    else if (defiLlamaData.tvlChange7d < -20) score -= 10; // >20% decrease
+    
+    // Multi-chain presence (more chains is better)
+    if (defiLlamaData.supportedChains && defiLlamaData.supportedChains.length > 0) {
+      const chainCount = defiLlamaData.supportedChains.length;
+      if (chainCount > 3) score += 10; // Present on more than 3 chains
+      else if (chainCount > 1) score += 5; // Present on multiple chains
     }
   }
   

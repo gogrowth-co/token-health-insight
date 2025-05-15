@@ -21,6 +21,7 @@ import {
   CircleDot, 
   Users,
   FileCode,
+  Layers,
 } from "lucide-react";
 
 const ScanResult = () => {
@@ -304,7 +305,7 @@ const ScanResult = () => {
               )}
             </TabsContent>
             
-            {/* Other Tabs */}
+            {/* Liquidity Tab */}
             <TabsContent value="liquidity">
               <CategorySection 
                 title="Liquidity Analysis" 
@@ -312,19 +313,40 @@ const ScanResult = () => {
                 description="Assessment of market depth, trading volume, and holder distribution"
                 score={projectData.categories.liquidity.score}
                 items={[
-                  { name: "Liquidity Lock", status: projectData.liquidityLock, tooltip: "Duration that LP tokens are locked for" },
-                  { name: "CEX Listings", status: "2", tooltip: "Listed on 2 centralized exchanges" },
-                  { name: "DEX Depth", status: "Good", tooltip: "Sufficient liquidity depth on decentralized exchanges" },
+                  { 
+                    name: "Liquidity Lock", 
+                    status: projectData.liquidityLock, 
+                    tooltip: "Duration that LP tokens are locked for" 
+                  },
+                  { 
+                    name: "TVL", 
+                    status: projectData.tvl, 
+                    tooltip: projectData.defiLlama?.chainDistribution 
+                      ? `Total Value Locked across ${projectData.defiLlama.chainDistribution}` 
+                      : "Total Value Locked in protocol",
+                    sparklineData: projectData.tvlSparkline?.data,
+                    change: projectData.defiLlama?.tvlChange7d || undefined
+                  },
+                  { 
+                    name: "Chain Distribution", 
+                    status: projectData.defiLlama?.chainDistribution || "Ethereum", 
+                    tooltip: "Blockchains where protocol is deployed" 
+                  },
                   { 
                     name: "Holder Distribution", 
                     status: parseFloat(projectData.topHoldersPercentage) > 70 ? "Concentrated" : "Moderate", 
                     tooltip: `Top 10 holders own ${projectData.topHoldersPercentage} of the supply` 
                   },
-                  { name: "Trading Volume", status: projectData.volume24h || "$243K/24h", tooltip: "24-hour trading volume across all exchanges" }
+                  { 
+                    name: "Trading Volume", 
+                    status: projectData.volume24h || "$243K/24h", 
+                    tooltip: "24-hour trading volume across all exchanges" 
+                  }
                 ]}
               />
             </TabsContent>
             
+            {/* Other Tabs */}
             <TabsContent value="tokenomics">
               <CategorySection 
                 title="Tokenomics Analysis" 
