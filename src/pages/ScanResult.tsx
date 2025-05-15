@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ShieldCheck, Droplet, LineChart, UsersRound, Code } from "lucide-react";
 import { useScanToken } from "@/hooks/useScanToken";
 import { TokenMetrics } from "@/api/types";
 import { Navbar } from "@/components/Navbar";
@@ -99,108 +100,174 @@ const ScanResult = () => {
               </div>
             </div>
             
-            <HealthScoreCard healthScore={projectData.healthScore} />
+            <HealthScoreCard score={projectData.healthScore} />
             <KeyMetricsGrid projectData={projectData} tokenId={tokenId} onDataUpdate={setProjectData} />
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <CategorySection 
                 title="Security" 
+                icon={<ShieldCheck className="h-5 w-5" />}
                 score={projectData.categories.security.score}
                 description="Evaluates contract safety, ownership, and audit status" 
                 items={[
                   { 
-                    label: 'Contract Verified', 
-                    value: projectData.auditStatus || 'Unknown',
-                    valueClass: projectData.auditStatus === 'Verified' ? 'text-green-600' : 
-                               projectData.auditStatus === 'High Risk' ? 'text-red-600' : 'text-yellow-600' 
+                    name: 'Contract Verified', 
+                    status: projectData.auditStatus || 'Unknown',
+                    tooltip: 'Indicates whether the contract code has been verified and is publicly visible'
                   },
                   { 
-                    label: 'Ownership Renounced', 
-                    value: projectData.goPlus?.ownershipRenounced ? 'Yes' : 'No',
-                    valueClass: projectData.goPlus?.ownershipRenounced ? 'text-green-600' : 'text-red-600'
+                    name: 'Ownership Renounced', 
+                    status: projectData.goPlus?.ownershipRenounced ? 'Yes' : 'No',
+                    tooltip: 'When ownership is renounced, no one can modify the contract',
+                    trend: projectData.goPlus?.ownershipRenounced ? 'up' : 'down'
                   },
                   { 
-                    label: 'Honeypot Risk', 
-                    value: projectData.goPlus?.isHoneypot ? 'High' : 'Low',
-                    valueClass: projectData.goPlus?.isHoneypot ? 'text-red-600' : 'text-green-600'
+                    name: 'Honeypot Risk', 
+                    status: projectData.goPlus?.isHoneypot ? 'High' : 'Low',
+                    tooltip: 'Detects if the token contract prevents selling (honeypot)',
+                    trend: projectData.goPlus?.isHoneypot ? 'down' : 'up'
                   },
                   { 
-                    label: 'Can Mint New Tokens', 
-                    value: projectData.goPlus?.canMint ? 'Yes' : 'No',
-                    valueClass: projectData.goPlus?.canMint ? 'text-red-600' : 'text-green-600'
+                    name: 'Can Mint New Tokens', 
+                    status: projectData.goPlus?.canMint ? 'Yes' : 'No',
+                    tooltip: 'If enabled, the contract owner can create new tokens at will',
+                    trend: projectData.goPlus?.canMint ? 'down' : 'up'
                   },
                   { 
-                    label: 'Open Source', 
-                    value: projectData.goPlus?.isOpenSource ? 'Yes' : 'No',
-                    valueClass: projectData.goPlus?.isOpenSource ? 'text-green-600' : 'text-red-600'
+                    name: 'Open Source', 
+                    status: projectData.goPlus?.isOpenSource ? 'Yes' : 'No',
+                    tooltip: 'Indicates if the contract source code is publicly available',
+                    trend: projectData.goPlus?.isOpenSource ? 'up' : 'down'
                   },
                   { 
-                    label: 'External Calls', 
-                    value: projectData.goPlus?.hasExternalCalls ? 'Yes' : 'No',
-                    valueClass: projectData.goPlus?.hasExternalCalls ? 'text-yellow-600' : 'text-green-600'
+                    name: 'External Calls', 
+                    status: projectData.goPlus?.hasExternalCalls ? 'Yes' : 'No',
+                    tooltip: 'Contract may call external contracts which could be malicious',
+                    trend: projectData.goPlus?.hasExternalCalls ? 'down' : 'neutral'
                   }
                 ]}
               />
               
               <CategorySection 
                 title="Liquidity" 
+                icon={<Droplet className="h-5 w-5" />}
                 score={projectData.categories.liquidity.score}
                 description="Evaluates pool size, locked liquidity, and trading volume" 
                 items={[
-                  { label: 'Total Value Locked', value: projectData.tvl || 'Unknown' },
-                  { label: 'Liquidity Lock', value: projectData.liquidityLock || 'Unknown' },
-                  { label: '24h Volume', value: projectData.volume24h || 'Unknown' },
-                  { label: '24h Transactions', value: projectData.txCount24h?.toString() || 'Unknown' },
-                  { label: 'Pool Age', value: projectData.poolAge || 'Unknown' },
                   { 
-                    label: 'DEX', 
-                    value: projectData.network ? projectData.network.toUpperCase() : 'Unknown'
+                    name: 'Total Value Locked', 
+                    status: projectData.tvl || 'Unknown',
+                    tooltip: 'The total amount of funds locked in liquidity pools'
+                  },
+                  { 
+                    name: 'Liquidity Lock', 
+                    status: projectData.liquidityLock || 'Unknown',
+                    tooltip: 'Indicates if and how long the liquidity is locked'
+                  },
+                  { 
+                    name: '24h Volume', 
+                    status: projectData.volume24h || 'Unknown',
+                    tooltip: 'Trading volume in the last 24 hours'
+                  },
+                  { 
+                    name: '24h Transactions', 
+                    status: projectData.txCount24h?.toString() || 'Unknown',
+                    tooltip: 'Number of transactions in the last 24 hours'
+                  },
+                  { 
+                    name: 'Pool Age', 
+                    status: projectData.poolAge || 'Unknown',
+                    tooltip: 'How long the trading pool has been active'
+                  },
+                  { 
+                    name: 'DEX', 
+                    status: projectData.network ? projectData.network.toUpperCase() : 'Unknown',
+                    tooltip: 'The decentralized exchange where this token is traded'
                   }
                 ]}
               />
               
               <CategorySection 
                 title="Tokenomics" 
+                icon={<LineChart className="h-5 w-5" />}
                 score={projectData.categories.tokenomics.score}
                 description="Evaluates distribution, supply, and taxation" 
                 items={[
-                  { label: 'Market Cap', value: projectData.marketCap || 'Unknown' },
-                  { label: 'Top Holders', value: projectData.topHoldersPercentage || 'Unknown' },
                   { 
-                    label: 'Buy Tax', 
-                    value: projectData.goPlus?.buyTax || '0%',
-                    valueClass: projectData.goPlus?.buyTax === '0%' ? 'text-green-600' : 'text-yellow-600'
+                    name: 'Market Cap', 
+                    status: projectData.marketCap || 'Unknown',
+                    tooltip: 'Total market value of the circulating supply'
                   },
                   { 
-                    label: 'Sell Tax', 
-                    value: projectData.goPlus?.sellTax || '0%',
-                    valueClass: projectData.goPlus?.sellTax === '0%' ? 'text-green-600' : 'text-yellow-600'
+                    name: 'Top Holders', 
+                    status: projectData.topHoldersPercentage || 'Unknown',
+                    tooltip: 'Percentage owned by the top wallet holders'
                   },
                   { 
-                    label: 'Can Change Balance', 
-                    value: projectData.goPlus?.ownerCanChangeBalance ? 'Yes' : 'No',
-                    valueClass: projectData.goPlus?.ownerCanChangeBalance ? 'text-red-600' : 'text-green-600'
+                    name: 'Buy Tax', 
+                    status: projectData.goPlus?.buyTax || '0%',
+                    tooltip: 'Fee applied when buying this token',
+                    trend: projectData.goPlus?.buyTax === '0%' ? 'up' : 'down'
                   },
                   { 
-                    label: 'Risk Level', 
-                    value: projectData.goPlus?.riskLevel || 'Unknown',
-                    valueClass: projectData.goPlus?.riskLevel === 'Low' ? 'text-green-600' : 
-                               projectData.goPlus?.riskLevel === 'High' ? 'text-red-600' : 'text-yellow-600'
+                    name: 'Sell Tax', 
+                    status: projectData.goPlus?.sellTax || '0%',
+                    tooltip: 'Fee applied when selling this token',
+                    trend: projectData.goPlus?.sellTax === '0%' ? 'up' : 'down'
+                  },
+                  { 
+                    name: 'Can Change Balance', 
+                    status: projectData.goPlus?.ownerCanChangeBalance ? 'Yes' : 'No',
+                    tooltip: 'Owner can modify balances without user consent',
+                    trend: projectData.goPlus?.ownerCanChangeBalance ? 'down' : 'up'
+                  },
+                  { 
+                    name: 'Risk Level', 
+                    status: projectData.goPlus?.riskLevel || 'Unknown',
+                    tooltip: 'Overall contract risk level based on multiple factors',
+                    trend: projectData.goPlus?.riskLevel === 'Low' ? 'up' : 
+                           projectData.goPlus?.riskLevel === 'High' ? 'down' : 'neutral'
                   }
                 ]}
               />
               
               <CategorySection 
                 title="Community" 
+                icon={<UsersRound className="h-5 w-5" />}
                 score={projectData.categories.community.score}
                 description="Evaluates social media presence and engagement" 
                 items={[
-                  { label: 'Social Followers', value: projectData.socialFollowers || '0' },
-                  { label: 'Twitter Account', value: projectData.twitter?.verified ? 'Verified' : 'Standard' },
-                  { label: 'Community Growth', value: projectData.twitter?.followerChange?.percentage || 'Unknown' },
-                  { label: 'Account Age', value: projectData.twitter?.createdAt ? formatDistance(new Date(projectData.twitter.createdAt), new Date(), { addSuffix: true }) : 'Unknown' },
-                  { label: 'Tweet Count', value: projectData.twitter?.tweetCount?.toString() || 'Unknown' },
-                  { label: 'Twitter Handle', value: projectData.twitter?.screenName || 'Unknown' }
+                  { 
+                    name: 'Social Followers', 
+                    status: projectData.socialFollowers || '0',
+                    tooltip: 'Total followers across all social platforms'
+                  },
+                  { 
+                    name: 'Twitter Account', 
+                    status: projectData.twitter?.verified ? 'Verified' : 'Standard',
+                    tooltip: 'Twitter verification status'
+                  },
+                  { 
+                    name: 'Community Growth', 
+                    status: projectData.twitter?.followerChange?.percentage || 'Unknown',
+                    tooltip: 'Follower growth rate in recent period',
+                    change: projectData.twitter?.followerChange?.value
+                  },
+                  { 
+                    name: 'Account Age', 
+                    status: projectData.twitter?.createdAt ? formatDistance(new Date(projectData.twitter.createdAt), new Date(), { addSuffix: true }) : 'Unknown',
+                    tooltip: 'How long the Twitter account has existed'
+                  },
+                  { 
+                    name: 'Tweet Count', 
+                    status: projectData.twitter?.tweetCount?.toString() || 'Unknown',
+                    tooltip: 'Total number of tweets from this account'
+                  },
+                  { 
+                    name: 'Twitter Handle', 
+                    status: projectData.twitter?.screenName || 'Unknown',
+                    tooltip: 'The Twitter username'
+                  }
                 ]}
               />
             </div>
@@ -208,23 +275,64 @@ const ScanResult = () => {
             <div className="grid grid-cols-1 gap-6">
               <CategorySection 
                 title="Development" 
+                icon={<Code className="h-5 w-5" />}
                 score={projectData.categories.development.score}
                 description="Evaluates code activity and repository health" 
                 items={[
-                  { label: 'GitHub Repository', value: projectData.github ? 'Available' : 'Not Found' },
-                  { label: 'Activity Status', value: projectData.github?.activityStatus || 'Unknown' },
-                  { label: 'Recent Commits', value: projectData.github?.commitCount?.toString() || 'Unknown' },
-                  { label: 'Stars', value: projectData.github?.starCount?.toString() || 'Unknown' },
-                  { label: 'Forks', value: projectData.github?.forkCount?.toString() || 'Unknown' },
-                  { label: 'License', value: projectData.github?.license || 'Unknown' },
-                  { label: 'Primary Language', value: projectData.github?.language || 'Unknown' },
-                  { label: 'Last Update', value: projectData.github?.updatedAt ? formatDistance(new Date(projectData.github.updatedAt), new Date(), { addSuffix: true }) : 'Unknown' },
-                  { label: 'Roadmap Progress', value: projectData.github?.roadmapProgress || 'Unknown' },
-                  { label: 'Open Issues', value: projectData.github?.openIssues?.toString() || 'Unknown' }
+                  { 
+                    name: 'GitHub Repository', 
+                    status: projectData.github ? 'Available' : 'Not Found',
+                    tooltip: 'Indicates if a GitHub repository exists for this project'
+                  },
+                  { 
+                    name: 'Activity Status', 
+                    status: projectData.github?.activityStatus || 'Unknown',
+                    tooltip: 'Level of recent development activity'
+                  },
+                  { 
+                    name: 'Recent Commits', 
+                    status: projectData.github?.commitCount?.toString() || 'Unknown',
+                    tooltip: 'Number of code commits in recent period'
+                  },
+                  { 
+                    name: 'Stars', 
+                    status: projectData.github?.starCount?.toString() || 'Unknown',
+                    tooltip: 'Number of GitHub stars, indicating popularity'
+                  },
+                  { 
+                    name: 'Forks', 
+                    status: projectData.github?.forkCount?.toString() || 'Unknown',
+                    tooltip: 'Number of GitHub forks of this repository'
+                  },
+                  { 
+                    name: 'License', 
+                    status: projectData.github?.license || 'Unknown',
+                    tooltip: 'Type of open source license used'
+                  },
+                  { 
+                    name: 'Primary Language', 
+                    status: projectData.github?.language || 'Unknown',
+                    tooltip: 'Main programming language used in the repository' 
+                  },
+                  { 
+                    name: 'Last Update', 
+                    status: projectData.github?.updatedAt ? formatDistance(new Date(projectData.github.updatedAt), new Date(), { addSuffix: true }) : 'Unknown',
+                    tooltip: 'Time since the last update to the repository' 
+                  },
+                  { 
+                    name: 'Roadmap Progress', 
+                    status: projectData.github?.roadmapProgress || 'Unknown',
+                    tooltip: 'Progress against published roadmap if available' 
+                  },
+                  { 
+                    name: 'Open Issues', 
+                    status: projectData.github?.openIssues?.toString() || 'Unknown',
+                    tooltip: 'Number of unresolved issues in the repository' 
+                  }
                 ]}
               />
               
-              <RiskFactorsSection goPlus={projectData.goPlus} />
+              <RiskFactorsSection projectData={projectData} />
             </div>
           </div>
         ) : (

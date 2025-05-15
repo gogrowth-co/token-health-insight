@@ -79,10 +79,10 @@ export const RiskFactorsSection: React.FC<RiskFactorsSectionProps> = ({
     if (!projectData) return defaultRiskFactors;
     
     const riskFactors = [];
-    const securityAnalysis = projectData.etherscan?.securityAnalysis;
+    const goPlus = projectData.goPlus;
     
     // Check for ownership risks
-    if (securityAnalysis && !securityAnalysis.ownershipRenounced) {
+    if (goPlus && !goPlus.ownershipRenounced) {
       riskFactors.push({
         icon: <ShieldAlert className="h-6 w-6" />,
         title: "Ownership not renounced",
@@ -92,7 +92,7 @@ export const RiskFactorsSection: React.FC<RiskFactorsSectionProps> = ({
     }
     
     // Check for minting risks
-    if (securityAnalysis && securityAnalysis.canMint) {
+    if (goPlus && goPlus.canMint) {
       riskFactors.push({
         icon: <AlertCircle className="h-6 w-6" />,
         title: "Can mint tokens",
@@ -112,13 +112,13 @@ export const RiskFactorsSection: React.FC<RiskFactorsSectionProps> = ({
       });
     }
     
-    // Check for freeze functionality
-    if (securityAnalysis && securityAnalysis.hasFreeze) {
+    // Check for balance modification risks
+    if (goPlus && goPlus.ownerCanChangeBalance) {
       riskFactors.push({
         icon: <Share2 className="h-6 w-6" />,
-        title: "Can freeze accounts",
-        description: "Censorship risk",
-        tooltipText: "When a contract can freeze accounts, the team has power to block transactions and potentially censor token holders."
+        title: "Can modify balances",
+        description: "Ownership risk",
+        tooltipText: "When a contract owner can modify balances, they can potentially take tokens from holders without permission."
       });
     }
     
