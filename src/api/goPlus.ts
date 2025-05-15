@@ -146,3 +146,4 @@ export function processSecurityData(data: GoPlusSecurityResponse): SecurityRiskS
     return null;
   }
 }
+

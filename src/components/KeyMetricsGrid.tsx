@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +11,15 @@ import {
 import { CircleHelp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-export const KeyMetricsGrid = ({ projectData, tokenId }: { projectData: any, tokenId: string }) => {
+export const KeyMetricsGrid = ({ 
+  projectData, 
+  tokenId, 
+  onDataUpdate 
+}: { 
+  projectData: any, 
+  tokenId: string,
+  onDataUpdate?: (updatedData: any) => void
+}) => {
   const [refreshingData, setRefreshingData] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   
@@ -28,13 +37,13 @@ export const KeyMetricsGrid = ({ projectData, tokenId }: { projectData: any, tok
         body: { tokenId },
       });
       
-      if (data) {
+      if (data && onDataUpdate) {
         setRefreshError(null);
         setRefreshingData(false);
         const updatedData = data as any; // Type assertion here
         
-        // Update the metrics with the latest data
-        setProjectData({
+        // Update the metrics with the latest data using the callback
+        onDataUpdate({
           ...projectData,
           marketCap: updatedData.marketCap,
           topHoldersPercentage: updatedData.topHoldersPercentage,
@@ -209,3 +218,4 @@ export const KeyMetricsGrid = ({ projectData, tokenId }: { projectData: any, tok
     </div>
   );
 };
+

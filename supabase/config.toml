@@ -6,3 +6,4 @@ verify_jwt = false
 
 [functions.fetch-security-data]
 verify_jwt = false
+

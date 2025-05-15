@@ -74,3 +74,4 @@ export interface SecurityRiskSummary {
   moderateRiskCount: number;
   riskLevel: 'High' | 'Moderate' | 'Low' | 'Unknown';
 }
+
