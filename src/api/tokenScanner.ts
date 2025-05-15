@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { getTokenDetails, getTokenMarketChart } from "./coingecko";
 import { 
@@ -70,8 +71,8 @@ export async function scanToken(tokenIdOrSymbol: string): Promise<TokenMetrics |
     // Process the data and calculate health scores
     const metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData);
     
-    // Cache the result
-    await cacheTokenData(tokenIdOrSmbol, metrics);
+    // Cache the result - Fixed typo here: tokenIdOrSmbol → tokenIdOrSymbol
+    await cacheTokenData(tokenIdOrSymbol, metrics);
     
     // Save scan result for logged-in users
     const { data: { session } } = await supabase.auth.getSession();
