@@ -10,7 +10,7 @@ interface MetricCardProps {
   color: string;
 }
 
-export const MetricCard = ({ title, icon, description, metrics, color }: MetricCardProps) => {
+export const MetricCard = ({ title, icon, description, metrics = [], color }: MetricCardProps) => {
   return (
     <Card className="overflow-hidden card-gradient transition-all duration-300 hover:shadow-md">
       <CardHeader className="space-y-1 pb-2">
@@ -22,7 +22,7 @@ export const MetricCard = ({ title, icon, description, metrics, color }: MetricC
       <CardContent>
         <p className="text-gray-600 text-sm">{description}</p>
         <ul className="mt-4 space-y-2">
-          {metrics.map((metric, index) => (
+          {metrics && metrics.map((metric, index) => (
             <li key={index} className="flex items-center space-x-2 text-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-brand-purple"></span>
               <span>{metric}</span>

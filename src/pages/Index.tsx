@@ -7,6 +7,7 @@ import { StepCard } from "@/components/StepCard";
 import { MetricCard } from "@/components/MetricCard";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { Shield, TrendingUp, Users } from "lucide-react";
 
 const Index = () => {
   const { user } = useAuth();
@@ -44,18 +45,24 @@ const Index = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16">
               <MetricCard 
                 title="Security Score" 
-                icon="shield-check" 
+                icon={<Shield className="w-6 h-6 text-white" />}
                 description="Identify vulnerabilities and security risks in your contract" 
+                metrics={["Contract Audit Status", "Ownership Verification", "Risk Assessment"]}
+                color="bg-red-500"
               />
               <MetricCard 
                 title="Liquidity Health" 
-                icon="trending-up" 
+                icon={<TrendingUp className="w-6 h-6 text-white" />}
                 description="Analyze token distribution and liquidity stability" 
+                metrics={["LP Distribution", "Market Depth", "Price Stability"]}
+                color="bg-blue-500"
               />
               <MetricCard 
                 title="Community Growth" 
-                icon="users" 
+                icon={<Users className="w-6 h-6 text-white" />}
                 description="Evaluate social sentiment and community engagement" 
+                metrics={["Social Media Growth", "Engagement Metrics", "Developer Activity"]}
+                color="bg-green-500"
               />
             </div>
           </div>
@@ -76,16 +83,19 @@ const Index = () => {
                 number={1}
                 title="Enter Your Token"
                 description="Enter your token ticker or contract address to begin the scan"
+                icon={<Shield className="w-6 h-6" />}
               />
               <StepCard 
                 number={2}
                 title="Analyze Results"
                 description="Review key metrics across security, liquidity, and community"
+                icon={<TrendingUp className="w-6 h-6" />}
               />
               <StepCard 
                 number={3}
                 title="Take Action"
                 description="Follow our recommendations to improve your project's health"
+                icon={<Users className="w-6 h-6" />}
               />
             </div>
           </div>
