@@ -1,6 +1,18 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getTokenDetails, getTokenMarketChart } from "./coingecko";
-import { TokenDetails, TokenMetrics } from "./types";
+import { 
+  TokenDetails, 
+  TokenMetrics,
+  GeckoTerminalPoolData,
+  GeckoTerminalPoolsResponse
+} from "./types";
+import { 
+  getTokenData, 
+  getTokenPools, 
+  getPoolData,
+  detectNetwork,
+  extractTokenAddress 
+} from "./geckoterminal";
 
 // Cache duration in seconds (24 hours)
 const CACHE_DURATION = 24 * 60 * 60;
@@ -26,16 +38,40 @@ export async function scanToken(tokenIdOrSymbol: string): Promise<TokenMetrics |
     
     console.log("Fetching fresh data for", tokenIdOrSymbol);
     
-    // Fetch token details
+    // Fetch token details from CoinGecko
     const tokenDetails = await getTokenDetails(tokenIdOrSymbol);
     // Fetch market chart data
     const marketChart = await getTokenMarketChart(tokenIdOrSymbol);
     
+    // Try to get on-chain data from GeckoTerminal
+    let geckoTerminalData = null;
+    let poolData = null;
+    try {
+      const network = detectNetwork(tokenIdOrSymbol);
+      const tokenAddress = extractTokenAddress(tokenIdOrSymbol);
+      
+      if (tokenAddress) {
+        // Get token data and its pools
+        geckoTerminalData = await getTokenPools(network, tokenAddress);
+        
+        // If token has pools, get data for the primary pool
+        if (geckoTerminalData && 
+            geckoTerminalData.data && 
+            geckoTerminalData.data.length > 0) {
+          const primaryPool = geckoTerminalData.data[0];
+          poolData = await getPoolData(network, primaryPool.id.split(':')[1]);
+        }
+      }
+    } catch (error) {
+      console.warn("Error fetching GeckoTerminal data:", error);
+      // Continue without GT data, we'll use fallback values
+    }
+    
     // Process the data and calculate health scores
-    const metrics = calculateHealthMetrics(tokenDetails, marketChart);
+    const metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData);
     
     // Cache the result
-    await cacheTokenData(tokenIdOrSymbol, metrics);
+    await cacheTokenData(tokenIdOrSmbol, metrics);
     
     // Save scan result for logged-in users
     const { data: { session } } = await supabase.auth.getSession();
@@ -55,12 +91,13 @@ export async function scanToken(tokenIdOrSymbol: string): Promise<TokenMetrics |
  */
 function calculateHealthMetrics(
   tokenDetails: TokenDetails,
-  marketChart: any
+  marketChart: any,
+  poolData?: GeckoTerminalPoolData | null
 ): TokenMetrics {
   // Initialize scores for each category
-  const securityScore = calculateSecurityScore(tokenDetails);
-  const liquidityScore = calculateLiquidityScore(tokenDetails, marketChart);
-  const tokenomicsScore = calculateTokenomicsScore(tokenDetails);
+  const securityScore = calculateSecurityScore(tokenDetails, poolData);
+  const liquidityScore = calculateLiquidityScore(tokenDetails, marketChart, poolData);
+  const tokenomicsScore = calculateTokenomicsScore(tokenDetails, poolData);
   const communityScore = calculateCommunityScore(tokenDetails);
   const developmentScore = calculateDevelopmentScore(tokenDetails);
   
@@ -79,15 +116,91 @@ function calculateHealthMetrics(
   // Social followers count
   const socialFollowers = formatNumber(tokenDetails.community_data?.twitter_followers || 0);
   
+  // Process GeckoTerminal data
+  let liquidityLock = "365 days"; // Default fallback
+  let tvl = "$1.2M"; // Default fallback
+  let volume24h;
+  let txCount24h;
+  let poolAge;
+  let poolAddress;
+  let network;
+  
+  // Extract liquidity lock status from pool data if available
+  if (poolData) {
+    const poolAttributes = poolData.data.attributes;
+    
+    // Get pool creation date and calculate age
+    if (poolAttributes.creation_timestamp) {
+      const creationDate = new Date(poolAttributes.creation_timestamp);
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - creationDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      poolAge = diffDays === 1 ? '1 day' : `${diffDays} days`;
+    }
+    
+    // Get liquidity lock info
+    if (poolAttributes.liquidity_locked) {
+      if (poolAttributes.liquidity_locked.is_locked) {
+        if (poolAttributes.liquidity_locked.locked_until) {
+          const lockDate = new Date(poolAttributes.liquidity_locked.locked_until);
+          const now = new Date();
+          if (lockDate > now) {
+            // Calculate days left
+            const diffTime = Math.abs(lockDate.getTime() - now.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            liquidityLock = diffDays === 1 ? '1 day' : `${diffDays} days`;
+          } else {
+            liquidityLock = "Expired";
+          }
+        } else if (poolAttributes.liquidity_locked.duration_in_seconds) {
+          // Convert seconds to days
+          const days = Math.ceil(poolAttributes.liquidity_locked.duration_in_seconds / (60 * 60 * 24));
+          liquidityLock = days === 1 ? '1 day' : `${days} days`;
+        }
+      } else {
+        liquidityLock = "Not locked";
+      }
+    }
+    
+    // Get TVL (reserve_in_usd)
+    if (poolAttributes.reserve_in_usd) {
+      tvl = formatCurrency(parseFloat(poolAttributes.reserve_in_usd));
+    }
+    
+    // Get 24h volume
+    if (poolAttributes.volume_usd && poolAttributes.volume_usd.h24) {
+      volume24h = formatCurrency(parseFloat(poolAttributes.volume_usd.h24));
+    }
+    
+    // Get 24h transaction count
+    if (poolAttributes.transactions && poolAttributes.transactions.h24) {
+      txCount24h = poolAttributes.transactions.h24;
+    }
+    
+    // Store pool address and network
+    poolAddress = poolData.data.id;
+    if (poolAddress.includes(':')) {
+      const parts = poolAddress.split(':');
+      network = parts[0];
+      poolAddress = parts[1];
+    }
+  }
+  
   return {
     name: tokenDetails.name,
     symbol: tokenDetails.symbol.toUpperCase(),
     marketCap,
-    liquidityLock: "365 days",
-    topHoldersPercentage: "42%",
-    tvl: "$1.2M",
-    auditStatus: "Verified",
+    liquidityLock,
+    topHoldersPercentage: "42%", // Would need on-chain analysis to get real data
+    tvl,
+    auditStatus: "Verified", // Would need additional data source for real audit info
     socialFollowers,
+    // New fields from GeckoTerminal
+    poolAge,
+    volume24h,
+    txCount24h,
+    network,
+    poolAddress,
     categories: {
       security: { score: securityScore },
       liquidity: { score: liquidityScore },
@@ -95,14 +208,18 @@ function calculateHealthMetrics(
       community: { score: communityScore },
       development: { score: developmentScore }
     },
-    healthScore
+    healthScore,
+    lastUpdated: Date.now()
   };
 }
 
 /**
  * Calculate security score based on various factors
  */
-function calculateSecurityScore(tokenDetails: TokenDetails): number {
+function calculateSecurityScore(
+  tokenDetails: TokenDetails,
+  poolData?: GeckoTerminalPoolData | null
+): number {
   // In a real implementation, this would analyze contract security, audits, etc.
   // For now, using a placeholder score based on market cap rank and existence
   const hasMarketCap = !!tokenDetails.market_data?.market_cap?.usd;
@@ -122,6 +239,23 @@ function calculateSecurityScore(tokenDetails: TokenDetails): number {
   
   // Add points for having a market cap (established project)
   if (hasMarketCap) score += 10;
+
+  // Add or subtract points based on liquidity lock status
+  if (poolData?.data?.attributes?.liquidity_locked) {
+    const lockInfo = poolData.data.attributes.liquidity_locked;
+    if (lockInfo.is_locked) {
+      score += 10;
+      
+      // Additional points for longer locks
+      if (lockInfo.duration_in_seconds) {
+        const lockDays = lockInfo.duration_in_seconds / (60 * 60 * 24);
+        if (lockDays > 365) score += 10;
+        else if (lockDays > 180) score += 5;
+      }
+    } else {
+      score -= 10; // Penalty for not having locked liquidity
+    }
+  }
   
   // Cap the score at 100
   return Math.min(Math.max(score, 0), 100);
@@ -130,9 +264,12 @@ function calculateSecurityScore(tokenDetails: TokenDetails): number {
 /**
  * Calculate liquidity score
  */
-function calculateLiquidityScore(tokenDetails: TokenDetails, marketChart: any): number {
-  // In a real implementation, this would analyze liquidity depth, trading volume, etc.
-  // For now, using volume and market cap as proxies for liquidity
+function calculateLiquidityScore(
+  tokenDetails: TokenDetails, 
+  marketChart: any,
+  poolData?: GeckoTerminalPoolData | null
+): number {
+  // Use GeckoTerminal data if available, otherwise fall back to CoinGecko
   const volume = tokenDetails.market_data?.total_volume?.usd || 0;
   const marketCap = tokenDetails.market_data?.market_cap?.usd || 0;
   
@@ -150,6 +287,31 @@ function calculateLiquidityScore(tokenDetails: TokenDetails, marketChart: any): 
   if (volume > 10000000) score += 20; // >$10M daily volume
   else if (volume > 1000000) score += 15; // >$1M daily volume
   else if (volume > 100000) score += 10; // >$100K daily volume
+
+  // Pool data from GeckoTerminal
+  if (poolData) {
+    // Check pool reserve (TVL)
+    const reserve = parseFloat(poolData.data.attributes.reserve_in_usd || '0');
+    if (reserve > 1000000) score += 10; // >$1M TVL
+    else if (reserve > 100000) score += 5; // >$100K TVL
+    
+    // Check 24h transaction count
+    const tx24h = poolData.data.attributes.transactions?.h24 || 0;
+    if (tx24h > 1000) score += 10; // >1000 daily transactions
+    else if (tx24h > 100) score += 5; // >100 daily transactions
+    
+    // Check pool age
+    if (poolData.data.attributes.creation_timestamp) {
+      const creationDate = new Date(poolData.data.attributes.creation_timestamp);
+      const now = new Date();
+      const diffDays = Math.ceil(Math.abs(now.getTime() - creationDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays > 365) score += 10; // >1 year old
+      else if (diffDays > 180) score += 8; // >6 months old
+      else if (diffDays > 90) score += 5; // >3 months old
+      else if (diffDays > 30) score += 2; // >1 month old
+    }
+  }
   
   // Cap the score at 100
   return Math.min(Math.max(score, 0), 100);
@@ -158,7 +320,7 @@ function calculateLiquidityScore(tokenDetails: TokenDetails, marketChart: any): 
 /**
  * Calculate tokenomics score
  */
-function calculateTokenomicsScore(tokenDetails: TokenDetails): number {
+function calculateTokenomicsScore(tokenDetails: TokenDetails, poolData?: GeckoTerminalPoolData | null): number {
   // In a real implementation, this would analyze supply dynamics, distribution, etc.
   // For now, using a placeholder score
   return 65; // Fixed score for MVP

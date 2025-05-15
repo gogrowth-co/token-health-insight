@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -109,6 +108,13 @@ const ScanResult = () => {
               <HealthScoreCard score={projectData.healthScore} />
             </div>
             
+            {/* Last updated timestamp */}
+            {projectData.lastUpdated && (
+              <p className="text-xs text-gray-500 mt-2">
+                Last updated: {new Date(projectData.lastUpdated).toLocaleTimeString()}
+              </p>
+            )}
+            
             {/* Tabs Navigation */}
             <Tabs 
               value={activeTab} 
@@ -136,7 +142,7 @@ const ScanResult = () => {
               {/* Key Metrics Section */}
               <section>
                 <h2 className="text-xl font-semibold mb-4">Key Metrics</h2>
-                <KeyMetricsGrid projectData={keyMetricsData} />
+                <KeyMetricsGrid projectData={keyMetricsData} tokenId={token} />
               </section>
               
               {/* Categories Overview Section */}
