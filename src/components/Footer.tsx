@@ -12,8 +12,8 @@ export const Footer = () => {
             </p>
           </div>
           <div className="flex space-x-6">
-            <Link to="#" className="text-gray-600 hover:text-gray-900 text-sm">
-              Twitter
+            <Link to="#faq" className="text-gray-600 hover:text-gray-900 text-sm">
+              FAQ
             </Link>
             <Link to="/docs" className="text-gray-600 hover:text-gray-900 text-sm">
               Docs
@@ -21,9 +21,14 @@ export const Footer = () => {
             <Link to="/terms" className="text-gray-600 hover:text-gray-900 text-sm">
               Terms
             </Link>
-            <Link to="/privacy" className="text-gray-600 hover:text-gray-900 text-sm">
-              Privacy
-            </Link>
+            <a 
+              href="https://twitter.com" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-gray-600 hover:text-gray-900 text-sm"
+            >
+              Twitter
+            </a>
           </div>
         </div>
       </div>

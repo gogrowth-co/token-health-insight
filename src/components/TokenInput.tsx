@@ -34,10 +34,10 @@ export const TokenInput = () => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-3xl">
+    <form onSubmit={handleSubmit} className="w-full max-w-3xl mx-auto">
       <div className="flex flex-col space-y-2">
-        <label htmlFor="token" className="text-sm font-medium text-gray-700">
-          Enter your token (e.g. $TOKEN or contract address)
+        <label htmlFor="token" className="text-sm font-medium text-gray-700 text-left">
+          Enter a token (e.g. $PEPE or 0x1234...)
         </label>
         <div className="flex w-full flex-col sm:flex-row gap-2">
           <Input

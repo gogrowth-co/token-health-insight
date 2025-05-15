@@ -1,13 +1,18 @@
 
+import React from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { TokenInput } from "@/components/TokenInput";
 import { Button } from "@/components/ui/button";
-import { StepCard } from "@/components/StepCard";
-import { MetricCard } from "@/components/MetricCard";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Shield, TrendingUp, Users } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { RiskFactorsSection } from "@/components/RiskFactorsSection";
+import { SampleReportSection } from "@/components/SampleReportSection";
+import { TrustedSourcesSection } from "@/components/TrustedSourcesSection";
+import { ScoringProcessSection } from "@/components/ScoringProcessSection";
+import { FAQSection } from "@/components/FAQSection";
+import { FinalCTASection } from "@/components/FinalCTASection";
 
 const Index = () => {
   const { user } = useAuth();
@@ -16,109 +21,57 @@ const Index = () => {
     <div className="flex flex-col min-h-screen">
       <Navbar />
       <main className="flex-1">
-        {/* Hero section */}
-        <section className="bg-gradient-to-b from-white to-gray-100 py-20 px-4">
+        {/* Hero Section */}
+        <section className="bg-gradient-to-br from-white to-gray-50 pt-20 pb-16 px-4">
           <div className="container mx-auto max-w-6xl">
-            <div className="text-center mb-12">
-              <h1 className="text-4xl md:text-6xl font-bold mb-6">
-                Improve Your Crypto Project's Health
+            <div className="text-center mb-12 max-w-4xl mx-auto">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
+                Find Hidden Risks Before You Dive In
               </h1>
               <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-                Uncover what's holding your crypto project back — from security risks to social traction with our comprehensive analysis
+                Scan any project and uncover critical risks — from contract flaws to liquidity traps — in seconds.
               </p>
               
-              {user ? (
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <Button asChild size="lg" className="text-lg px-8">
-                    <Link to="/dashboard">Go to Dashboard</Link>
-                  </Button>
-                  <Button asChild size="lg" variant="outline" className="text-lg px-8">
-                    <Link to="/how-it-works">Learn How It Works</Link>
-                  </Button>
-                </div>
-              ) : (
-                <TokenInput />
-              )}
-            </div>
-            
-            {/* Feature highlights */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16">
-              <MetricCard 
-                title="Security Score" 
-                icon={<Shield className="w-6 h-6 text-white" />}
-                description="Identify vulnerabilities and security risks in your contract" 
-                metrics={["Contract Audit Status", "Ownership Verification", "Risk Assessment"]}
-                color="bg-red-500"
-              />
-              <MetricCard 
-                title="Liquidity Health" 
-                icon={<TrendingUp className="w-6 h-6 text-white" />}
-                description="Analyze token distribution and liquidity stability" 
-                metrics={["LP Distribution", "Market Depth", "Price Stability"]}
-                color="bg-blue-500"
-              />
-              <MetricCard 
-                title="Community Growth" 
-                icon={<Users className="w-6 h-6 text-white" />}
-                description="Evaluate social sentiment and community engagement" 
-                metrics={["Social Media Growth", "Engagement Metrics", "Developer Activity"]}
-                color="bg-green-500"
-              />
+              <div className="max-w-xl mx-auto">
+                {user ? (
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <Button asChild size="lg" className="text-lg px-8">
+                      <Link to="/dashboard">Go to Dashboard</Link>
+                    </Button>
+                    <Button asChild size="lg" variant="outline" className="text-lg px-8">
+                      <Link to="/how-it-works">Learn How It Works</Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="w-full">
+                    <TokenInput />
+                    <p className="text-sm text-gray-500 mt-3">
+                      No wallet needed · Free to use
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </section>
         
-        {/* How it works */}
-        <section className="py-16 px-4 bg-white">
-          <div className="container mx-auto max-w-6xl">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold mb-4">How It Works</h2>
-              <p className="text-gray-600 max-w-2xl mx-auto">
-                Get a comprehensive health check for your crypto project in minutes
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
-              <StepCard 
-                number={1}
-                title="Enter Your Token"
-                description="Enter your token ticker or contract address to begin the scan"
-                icon={<Shield className="w-6 h-6" />}
-              />
-              <StepCard 
-                number={2}
-                title="Analyze Results"
-                description="Review key metrics across security, liquidity, and community"
-                icon={<TrendingUp className="w-6 h-6" />}
-              />
-              <StepCard 
-                number={3}
-                title="Take Action"
-                description="Follow our recommendations to improve your project's health"
-                icon={<Users className="w-6 h-6" />}
-              />
-            </div>
-          </div>
-        </section>
+        {/* Risk Factors Section */}
+        <RiskFactorsSection />
         
-        {/* CTA section */}
-        <section className="bg-indigo-600 py-16 px-4 text-white">
-          <div className="container mx-auto max-w-6xl text-center">
-            <h2 className="text-3xl font-bold mb-4">Ready to Improve Your Token's Health?</h2>
-            <p className="text-xl mb-8 max-w-2xl mx-auto opacity-90">
-              Get started with a free health scan and receive actionable insights
-            </p>
-            {user ? (
-              <Button asChild size="lg" variant="secondary" className="text-lg px-8">
-                <Link to="/dashboard">Go to Dashboard</Link>
-              </Button>
-            ) : (
-              <Button asChild size="lg" variant="secondary" className="text-lg px-8">
-                <Link to="/auth">Create Free Account</Link>
-              </Button>
-            )}
-          </div>
-        </section>
+        {/* Sample Report Section */}
+        <SampleReportSection />
+        
+        {/* Trusted Sources Section */}
+        <TrustedSourcesSection />
+        
+        {/* Scoring Process Section */}
+        <ScoringProcessSection />
+        
+        {/* FAQ Section */}
+        <FAQSection />
+        
+        {/* Final CTA Section */}
+        <FinalCTASection />
       </main>
       <Footer />
     </div>
