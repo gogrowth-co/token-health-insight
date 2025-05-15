@@ -93,6 +93,30 @@ export type Database = {
         }
         Relationships: []
       }
+      twitter_profile_cache: {
+        Row: {
+          fetched_at: string
+          id: string
+          profile_data: Json
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          fetched_at?: string
+          id?: string
+          profile_data: Json
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          fetched_at?: string
+          id?: string
+          profile_data?: Json
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

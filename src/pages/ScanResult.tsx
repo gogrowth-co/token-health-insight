@@ -157,6 +157,14 @@ const ScanResult = () => {
     return projectData.twitter.followerChange.trend;
   };
 
+  // Fix: Add the missing getVerificationTooltip function
+  const getVerificationTooltip = () => {
+    if (!projectData.twitter) return "Twitter account verification status unknown";
+    return projectData.twitter.verified 
+      ? "Twitter account is verified" 
+      : "Twitter account is not verified";
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />

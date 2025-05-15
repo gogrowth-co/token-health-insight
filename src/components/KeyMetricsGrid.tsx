@@ -76,7 +76,8 @@ export const KeyMetricsGrid = ({ projectData, tokenId }: KeyMetricsGridProps) =>
             socialFollowers: updatedData.socialFollowers,
             tvlSparkline: updatedData.tvlSparkline,
             defiLlama: updatedData.defiLlama,
-            etherscan: updatedData.etherscan
+            etherscan: updatedData.etherscan,
+            twitter: updatedData.twitter
           });
         }
       } catch (error) {
