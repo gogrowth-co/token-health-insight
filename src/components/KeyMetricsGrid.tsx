@@ -8,8 +8,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { CircleHelp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CircleHelp, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { MetricQualityBadge } from "@/components/MetricQualityBadge";
 
 export const KeyMetricsGrid = ({ 
   projectData, 
@@ -56,7 +58,8 @@ export const KeyMetricsGrid = ({
           defiLlama: updatedData.defiLlama,
           etherscan: updatedData.etherscan,
           twitter: updatedData.twitter,
-          goPlus: updatedData.goPlus
+          goPlus: updatedData.goPlus,
+          dataQuality: updatedData.dataQuality
         });
       }
     } catch (error) {
@@ -65,157 +68,140 @@ export const KeyMetricsGrid = ({
       console.error("Error refreshing data:", error);
     }
   };
+
+  const MetricCard = ({ 
+    title, 
+    value, 
+    tooltip,
+    isHighValue = false
+  }: { 
+    title: string; 
+    value: string | number | undefined;
+    tooltip: string;
+    isHighValue?: boolean;
+  }) => {
+    const formattedValue = formatValue(value);
+    
+    return (
+      <Card className="border border-gray-200 h-full">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="font-medium text-sm text-gray-600">{title}</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="text-gray-400 hover:text-gray-600">
+                    <CircleHelp size={14} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs max-w-xs">{tooltip}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <div className={`font-bold mt-2 ${isHighValue ? 'text-xl' : 'text-lg'}`}>
+            {formattedValue}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
   
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {/* Market Cap */}
-      <Card className="border border-gray-200">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <span className="font-medium">Market Cap</span>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button className="text-gray-400 hover:text-gray-600">
-                    <CircleHelp size={14} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-xs max-w-xs">
-                    Total market value of the token in circulation.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <div className="text-2xl font-bold mt-2">{formatValue(projectData.marketCap)}</div>
-        </CardContent>
-      </Card>
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-semibold">Key Metrics</h3>
+          <MetricQualityBadge quality={projectData.dataQuality || "partial"} />
+        </div>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={refreshingData}
+        >
+          {refreshingData ? (
+            <>Updating<span className="loading">...</span></>
+          ) : (
+            <>Update Metrics <RefreshCw size={14} className="ml-1" /></>
+          )}
+        </Button>
+      </div>
       
-      {/* Liquidity Lock */}
-      <Card className="border border-gray-200">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <span className="font-medium">Liquidity Lock</span>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button className="text-gray-400 hover:text-gray-600">
-                    <CircleHelp size={14} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-xs max-w-xs">
-                    Duration for which the token's liquidity is locked in a pool.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <div className="text-2xl font-bold mt-2">{formatValue(projectData.liquidityLock)}</div>
-        </CardContent>
-      </Card>
+      {refreshError && (
+        <div className="bg-red-50 text-red-700 px-3 py-2 rounded mb-3 text-sm">
+          {refreshError}
+        </div>
+      )}
       
-      {/* Top Holders */}
-      <Card className="border border-gray-200">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <span className="font-medium">Top Holders</span>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button className="text-gray-400 hover:text-gray-600">
-                    <CircleHelp size={14} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-xs max-w-xs">
-                    Percentage of tokens held by the top holders.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <div className="text-2xl font-bold mt-2">{formatValue(projectData.topHoldersPercentage)}</div>
-        </CardContent>
-      </Card>
-      
-      {/* TVL */}
-      <Card className="border border-gray-200">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <span className="font-medium">TVL</span>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button className="text-gray-400 hover:text-gray-600">
-                    <CircleHelp size={14} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-xs max-w-xs">
-                    Total Value Locked in the protocol.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <div className="text-2xl font-bold mt-2">{formatValue(projectData.tvl)}</div>
-        </CardContent>
-      </Card>
-      
-      {/* Audit Status */}
-      <Card className="border border-gray-200">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <span className="font-medium">Audit Status</span>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button className="text-gray-400 hover:text-gray-600">
-                    <CircleHelp size={14} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-xs max-w-xs">
-                    Status of the security audit for the token's smart contract.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <div className="mt-2">
-            <Badge variant="outline" className="text-sm font-medium">
-              {projectData.auditStatus}
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
-      
-      {/* Social Followers */}
-      <Card className="border border-gray-200">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <span className="font-medium">Social Followers</span>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button className="text-gray-400 hover:text-gray-600">
-                    <CircleHelp size={14} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-xs max-w-xs">
-                    Number of followers across social media platforms.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <div className="text-2xl font-bold mt-2">{formatValue(projectData.socialFollowers)}</div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Market Cap */}
+        <MetricCard 
+          title="Market Cap" 
+          value={projectData.marketCap} 
+          tooltip="Total market value of the token in circulation."
+          isHighValue={true}
+        />
+        
+        {/* Liquidity Lock */}
+        <MetricCard 
+          title="Liquidity Lock" 
+          value={projectData.liquidityLock} 
+          tooltip="Duration for which the token's liquidity is locked in a pool."
+        />
+        
+        {/* Top Holders */}
+        <MetricCard 
+          title="Top Holders" 
+          value={projectData.topHoldersPercentage} 
+          tooltip="Percentage of tokens held by the top wallet holders."
+        />
+        
+        {/* TVL */}
+        <MetricCard 
+          title="TVL" 
+          value={projectData.tvl} 
+          tooltip="Total Value Locked in the protocol."
+          isHighValue={true}
+        />
+        
+        {/* Audit Status */}
+        <div className="border border-gray-200 rounded-md">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-sm text-gray-600">Audit Status</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="text-gray-400 hover:text-gray-600">
+                      <CircleHelp size={14} />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs max-w-xs">
+                      Status of the security audit for the token's smart contract.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="mt-2">
+              <Badge variant="outline" className="text-sm font-medium">
+                {projectData.auditStatus || 'Unknown'}
+              </Badge>
+            </div>
+          </CardContent>
+        </div>
+        
+        {/* Social Followers */}
+        <MetricCard 
+          title="Social Followers" 
+          value={projectData.socialFollowers} 
+          tooltip="Number of followers across social media platforms."
+        />
+      </div>
     </div>
   );
 };
-
