@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,55 +11,76 @@ import { HealthScoreCard } from "@/components/HealthScoreCard";
 import { KeyMetricsGrid } from "@/components/KeyMetricsGrid";
 import { CategoryCard } from "@/components/CategoryCard";
 import { CategorySection } from "@/components/CategorySection";
+import { Progress } from "@/components/ui/progress";
+import { useScanToken } from "@/hooks/useScanToken";
+import { TokenMetrics } from "@/api/types";
 
 import { 
   ShieldCheck, 
-  CircleCheck, 
-  CircleDot, 
-  CircleX, 
-  CircleHelp,
   TrendingUp,
-  FileCode,
+  CircleDot, 
   Users,
-  Calendar
+  FileCode,
 } from "lucide-react";
 
 const ScanResult = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { tokenId } = useParams();
   const [searchParams] = useSearchParams();
   const tokenFromQuery = searchParams.get("token");
-  const token = tokenId || tokenFromQuery || "ZEN";
+  const token = tokenId || tokenFromQuery || "";
   const [activeTab, setActiveTab] = useState("overview");
+  
+  const [projectData, setProjectData] = useState<TokenMetrics | null>(null);
+  const { scan, isLoading, progress, error } = useScanToken();
+
+  useEffect(() => {
+    if (token && !isLoading && !authLoading) {
+      scan(token).then(result => {
+        if (result) {
+          setProjectData(result);
+        }
+      });
+    }
+  }, [token, authLoading]);
 
   // Redirect to auth page if not authenticated
-  if (!isLoading && !user) {
+  if (!authLoading && !user) {
     return <Navigate to={`/auth?token=${encodeURIComponent(token)}`} />;
   }
-
-  // Sample project data (in a real app this would come from an API)
-  const projectData = {
-    name: "ZenoFi Protocol",
-    symbol: token,
-    healthScore: 78,
-    marketCap: "$4,532,000",
-    liquidityLock: "365 days",
-    topHoldersPercentage: "42%",
-    tvl: "$1.2M",
-    auditStatus: "Verified",
-    socialFollowers: "12.4K",
-    categories: {
-      security: { score: 72 },
-      liquidity: { score: 82 },
-      tokenomics: { score: 65 },
-      community: { score: 85 },
-      development: { score: 70 }
-    }
-  };
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
   };
+  
+  // Show loading state
+  if (isLoading || !projectData) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Navbar />
+        <main className="flex-1 bg-gray-50 flex items-center justify-center">
+          <div className="container max-w-xl mx-auto px-4 py-12 text-center">
+            <h2 className="text-2xl font-bold mb-4">Scanning {token}</h2>
+            <Progress value={progress} className="mb-8" />
+            <p className="text-gray-500">
+              {progress < 30 ? "Fetching token data..." : 
+               progress < 60 ? "Analyzing metrics..." : 
+               progress < 90 ? "Calculating health scores..." : 
+               "Finalizing results..."}
+            </p>
+            
+            {error && (
+              <div className="mt-8 p-4 bg-red-50 text-red-700 rounded-md">
+                <p className="font-medium">Error scanning token</p>
+                <p className="text-sm">{error}</p>
+              </div>
+            )}
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -130,7 +152,7 @@ const ScanResult = () => {
                     icon={<TrendingUp className="text-white" />}
                     description="Market depth and trading analysis"
                     metrics={[
-                      "Liquidity Lock: 365 days",
+                      "Liquidity Lock: " + projectData.liquidityLock,
                       "CEX Listings: 2",
                       "DEX Depth: Good",
                       "Holder Distribution: Moderate"
@@ -158,7 +180,7 @@ const ScanResult = () => {
                     icon={<Users className="text-white" />}
                     description="Social and community engagement"
                     metrics={[
-                      "Twitter Followers: 12.4K",
+                      "Twitter Followers: " + projectData.socialFollowers,
                       "Verified Account: Yes",
                       "Growth Rate (30d): +18%",
                       "Active Channels: 4"
@@ -221,7 +243,7 @@ const ScanResult = () => {
                 description="Assessment of market depth, trading volume, and holder distribution"
                 score={projectData.categories.liquidity.score}
                 items={[
-                  { name: "Liquidity Lock", status: "Yes (365 days)", tooltip: "LP tokens are locked for 1 year" },
+                  { name: "Liquidity Lock", status: projectData.liquidityLock, tooltip: "LP tokens are locked for 1 year" },
                   { name: "CEX Listings", status: "2", tooltip: "Listed on 2 centralized exchanges" },
                   { name: "DEX Depth", status: "Good", tooltip: "Sufficient liquidity depth on decentralized exchanges" },
                   { name: "Holder Distribution", status: "Moderate", tooltip: "Some concentration among top holders but not concerning" },
@@ -253,7 +275,7 @@ const ScanResult = () => {
                 description="Social engagement and growth metrics"
                 score={projectData.categories.community.score}
                 items={[
-                  { name: "Twitter Followers", status: "12.4K", tooltip: "Total Twitter/X followers" },
+                  { name: "Twitter Followers", status: projectData.socialFollowers, tooltip: "Total Twitter/X followers" },
                   { name: "Verified Account", status: "Yes", tooltip: "Official account is verified" },
                   { name: "Growth Rate (30d)", status: "+18%", tooltip: "Follower growth in the last 30 days" },
                   { name: "Active Channels", status: "4", tooltip: "Number of active community channels" },

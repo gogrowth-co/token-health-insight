@@ -1,34 +1,11 @@
 
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
-
-// Sample data for recent scans
-// In a real app, this would come from a database
-const sampleRecentScans = [
-  {
-    id: 1,
-    token: "ZEN",
-    projectName: "ZenoFi Protocol",
-    scanDate: "2025-05-12T14:23:12Z",
-    healthScore: 78,
-  },
-  {
-    id: 2,
-    token: "LUNA",
-    projectName: "Luna Classic",
-    scanDate: "2025-05-10T09:15:45Z",
-    healthScore: 62,
-  },
-  {
-    id: 3,
-    token: "PEPE",
-    projectName: "Pepe Token",
-    scanDate: "2025-05-08T18:30:22Z",
-    healthScore: 71,
-  }
-];
+import { supabase } from "@/integrations/supabase/client";
+import { TokenScanHistoryItem } from "@/api/types";
 
 interface RecentScansProps {
   userId?: string;
@@ -36,8 +13,50 @@ interface RecentScansProps {
 }
 
 export const RecentScans = ({ userId, limit = 5 }: RecentScansProps) => {
-  // In a real app, we would fetch the recent scans from an API
-  const recentScans = sampleRecentScans.slice(0, limit);
+  const [recentScans, setRecentScans] = useState<TokenScanHistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const fetchRecentScans = async () => {
+      try {
+        setLoading(true);
+        
+        let query = supabase
+          .from('token_scans')
+          .select('id, token_id, token_symbol, token_name, created_at, health_score')
+          .order('created_at', { ascending: false })
+          .limit(limit);
+          
+        // If userId is provided, get only that user's scans
+        if (userId) {
+          query = query.eq('user_id', userId);
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) {
+          throw error;
+        }
+        
+        // Transform the data to match our component's expected format
+        const formattedScans: TokenScanHistoryItem[] = data.map(scan => ({
+          id: scan.id,
+          token: scan.token_symbol,
+          projectName: scan.token_name || scan.token_symbol,
+          scanDate: scan.created_at,
+          healthScore: scan.health_score || 0
+        }));
+        
+        setRecentScans(formattedScans);
+      } catch (error) {
+        console.error("Error fetching recent scans:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchRecentScans();
+  }, [userId, limit]);
   
   const getScoreColor = (score: number) => {
     if (score >= 80) return "bg-green-500 text-white";
@@ -54,6 +73,16 @@ export const RecentScans = ({ userId, limit = 5 }: RecentScansProps) => {
       minute: 'numeric'
     }).format(date);
   };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <p className="text-gray-500">Loading recent scans...</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (recentScans.length === 0) {
     return (
