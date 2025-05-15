@@ -2,9 +2,11 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user, signOut } = useAuth();
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -29,12 +31,26 @@ export const Navbar = () => {
           <Link to="/docs" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
             Docs
           </Link>
-          <Link to="/signin" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
-            Sign In
-          </Link>
-          <Button asChild>
-            <Link to="/signup">Get Started Free</Link>
-          </Button>
+          
+          {user ? (
+            <>
+              <Link to="/dashboard" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
+                Dashboard
+              </Link>
+              <Button variant="outline" onClick={() => signOut()}>
+                Sign Out
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link to="/auth" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
+                Sign In
+              </Link>
+              <Button asChild>
+                <Link to="/auth?tab=signup">Get Started Free</Link>
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Mobile Menu Button */}
@@ -77,18 +93,43 @@ export const Navbar = () => {
             >
               Docs
             </Link>
-            <Link
-              to="/signin"
-              className="block text-gray-600 hover:text-gray-900 text-base font-medium"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Sign In
-            </Link>
-            <Button asChild className="w-full">
-              <Link to="/signup" onClick={() => setIsMobileMenuOpen(false)}>
-                Get Started Free
-              </Link>
-            </Button>
+            
+            {user ? (
+              <>
+                <Link
+                  to="/dashboard"
+                  className="block text-gray-600 hover:text-gray-900 text-base font-medium"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Dashboard
+                </Link>
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => {
+                    signOut();
+                    setIsMobileMenuOpen(false);
+                  }}
+                >
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/auth"
+                  className="block text-gray-600 hover:text-gray-900 text-base font-medium"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Sign In
+                </Link>
+                <Button asChild className="w-full">
+                  <Link to="/auth?tab=signup" onClick={() => setIsMobileMenuOpen(false)}>
+                    Get Started Free
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}

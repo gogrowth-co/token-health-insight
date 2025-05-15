@@ -5,11 +5,13 @@ import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowRight } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const TokenInput = () => {
   const [tokenInput, setTokenInput] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,8 +25,12 @@ export const TokenInput = () => {
       return;
     }
     
-    // Navigate to signup with token as URL param
-    navigate(`/signup?token=${encodeURIComponent(tokenInput)}`);
+    // Navigate to dashboard if authenticated, otherwise to signup with token as URL param
+    if (user) {
+      navigate(`/dashboard?token=${encodeURIComponent(tokenInput)}`);
+    } else {
+      navigate(`/auth?token=${encodeURIComponent(tokenInput)}`);
+    }
   };
 
   return (
