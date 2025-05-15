@@ -5,7 +5,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { TokenInput } from "@/components/TokenInput";
 import { RecentScans } from "@/components/RecentScans";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Navigate, useSearchParams, useNavigate, useEffect } from "react-router-dom";
+import { Navigate, useSearchParams, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 
 const Dashboard = () => {
   const { user, isLoading } = useAuth();
