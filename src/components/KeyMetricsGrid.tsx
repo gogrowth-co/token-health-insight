@@ -1,6 +1,5 @@
-
-import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, Clock, CircleDollarSign, Users, ShieldCheck, Layers, Twitter } from "lucide-react";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Tooltip,
@@ -8,308 +7,205 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { TokenMetrics } from "@/api/types";
-import { scanToken } from "@/api/tokenScanner";
-import { SparklineChart } from "./SparklineChart";
+import { CircleHelp } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-interface KeyMetricsGridProps {
-  projectData: {
-    marketCap: string;
-    liquidityLock: string;
-    topHoldersPercentage: string;
-    tvl: string;
-    auditStatus: string;
-    socialFollowers: string;
-    tvlSparkline?: {
-      data: number[];
-      trend: 'up' | 'down' | 'neutral';
-      change: number;
-    };
-    defiLlama?: {
-      chainDistribution: string;
-      tvlChange7d: number | null;
-    };
-    etherscan?: {
-      securityAnalysis?: {
-        ownershipRenounced: boolean;
-        canMint: boolean;
-        canBurn: boolean;
-        hasFreeze: boolean;
-        isMultiSig: boolean;
-      };
-    };
-    twitter?: {
-      followersCount: number;
-      tweetCount: number;
-      verified: boolean;
-      createdAt: string;
-      screenName: string;
-      followerChange?: {
-        trend: 'up' | 'down' | 'neutral';
-        value: number;
-        percentage: string;
-      };
-    };
+export const KeyMetricsGrid = ({ projectData, tokenId }: { projectData: any, tokenId: string }) => {
+  const [refreshingData, setRefreshingData] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  
+  const formatValue = (value: string | number | undefined) => {
+    if (value === undefined) return "N/A";
+    return typeof value === 'number' ? value.toLocaleString() : value;
   };
-  tokenId?: string;
-}
-
-export const KeyMetricsGrid = ({ projectData, tokenId }: KeyMetricsGridProps) => {
-  const [metrics, setMetrics] = useState(projectData);
-  const [loading, setLoading] = useState(false);
-
-  // Auto refresh data every 60 seconds if a tokenId is provided
-  useEffect(() => {
-    if (!tokenId) return;
-
-    const refreshData = async () => {
-      try {
-        setLoading(true);
-        const updatedData = await scanToken(tokenId);
-        if (updatedData) {
-          setMetrics({
-            marketCap: updatedData.marketCap,
-            liquidityLock: updatedData.liquidityLock,
-            topHoldersPercentage: updatedData.topHoldersPercentage,
-            tvl: updatedData.tvl,
-            auditStatus: updatedData.auditStatus,
-            socialFollowers: updatedData.socialFollowers,
-            tvlSparkline: updatedData.tvlSparkline,
-            defiLlama: updatedData.defiLlama,
-            etherscan: updatedData.etherscan,
-            twitter: updatedData.twitter
-          });
-        }
-      } catch (error) {
-        console.error("Error refreshing metrics:", error);
-      } finally {
-        setLoading(false);
+  
+  const handleRefresh = async () => {
+    setRefreshingData(true);
+    setRefreshError(null);
+    
+    try {
+      const { data } = await supabase.functions.invoke('scan-token', {
+        body: { tokenId },
+      });
+      
+      if (data) {
+        setRefreshError(null);
+        setRefreshingData(false);
+        const updatedData = data as any; // Type assertion here
+        
+        // Update the metrics with the latest data
+        setProjectData({
+          ...projectData,
+          marketCap: updatedData.marketCap,
+          topHoldersPercentage: updatedData.topHoldersPercentage,
+          tvl: updatedData.tvl,
+          auditStatus: updatedData.auditStatus,
+          categories: updatedData.categories,
+          healthScore: updatedData.healthScore,
+          socialFollowers: updatedData.socialFollowers,
+          tvlSparkline: updatedData.tvlSparkline,
+          defiLlama: updatedData.defiLlama,
+          etherscan: updatedData.etherscan,
+          twitter: updatedData.twitter,
+          goPlus: updatedData.goPlus
+        });
       }
-    };
-
-    // Initial refresh
-    refreshData();
-
-    // Set up interval for auto-refresh (60 seconds)
-    const intervalId = setInterval(refreshData, 60000);
-
-    // Clean up on unmount
-    return () => clearInterval(intervalId);
-  }, [tokenId]);
-
-  // Get security metrics from Etherscan data
-  const securityAnalysis = metrics.etherscan?.securityAnalysis;
-  
-  // Get ownership status for tooltip
-  const getOwnershipStatus = () => {
-    if (!securityAnalysis) return "Unknown";
-    return securityAnalysis.ownershipRenounced ? "Yes" : "No";
+    } catch (error) {
+      setRefreshingData(false);
+      setRefreshError("Failed to refresh data. Please try again.");
+      console.error("Error refreshing data:", error);
+    }
   };
   
-  // Get ownership tooltip
-  const getOwnershipTooltip = () => {
-    if (!securityAnalysis) return "No contract data available";
-    return securityAnalysis.ownershipRenounced 
-      ? "Contract ownership has been renounced, reducing centralization risk" 
-      : "Contract ownership has not been renounced, deployer still has control";
-  };
-  
-  // Get wallet type
-  const getWalletType = () => {
-    if (!securityAnalysis) return "Unknown";
-    return securityAnalysis.isMultiSig ? "Multi-sig" : "EOA";
-  };
-
-  // Format TVL change percentage
-  const formatTVLChange = () => {
-    if (!metrics.defiLlama?.tvlChange7d) return "+1.8%";
-    const change = metrics.defiLlama.tvlChange7d;
-    return change >= 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`;
-  };
-
-  // Get chain distribution for tooltip
-  const getChainDistribution = () => {
-    return metrics.defiLlama?.chainDistribution || "Ethereum";
-  };
-
-  // Get Twitter follower change percentage
-  const getFollowerChangePercent = () => {
-    if (!metrics.twitter?.followerChange) return "+3.2%";
-    return metrics.twitter.followerChange.percentage;
-  };
-
-  // Get Twitter follower change trend
-  const getFollowerChangeTrend = () => {
-    if (!metrics.twitter?.followerChange) return "up";
-    return metrics.twitter.followerChange.trend;
-  };
-
-  // Get Twitter verification status for tooltip
-  const getVerificationTooltip = () => {
-    if (!metrics.twitter) return "Twitter account verification status unknown";
-    return metrics.twitter.verified 
-      ? "Twitter account is verified" 
-      : "Twitter account is not verified";
-  };
-
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {/* Market Cap */}
-      <MetricTile 
-        label="Market Cap" 
-        value={metrics.marketCap} 
-        trend="up" 
-        change="+5.2%"
-        tooltip="Total market value of circulating supply"
-        loading={loading}
-      />
-
-      {/* Liquidity Lock */}
-      <MetricTile 
-        label="Liquidity Lock" 
-        value={metrics.liquidityLock}
-        tooltip="Duration that liquidity is locked for"
-        loading={loading}
-        icon={<Clock size={14} />}
-        status={metrics.liquidityLock === "Not locked" ? "warning" : "default"}
-      />
-
-      {/* Top Holders % */}
-      <MetricTile 
-        label="Top 10 Holders" 
-        value={metrics.topHoldersPercentage} 
-        trend={parseFloat(metrics.topHoldersPercentage) > 70 ? "down" : "up"}
-        change={parseFloat(metrics.topHoldersPercentage) > 70 ? "-3.1%" : "+2.4%"}
-        tooltip="Percentage owned by top 10 addresses"
-        loading={loading}
-        icon={<Users size={14} />}
-        status={parseFloat(metrics.topHoldersPercentage) > 70 ? "warning" : "default"}
-      />
-
-      {/* TVL */}
-      <MetricTile 
-        label="TVL" 
-        value={metrics.tvl} 
-        trend={metrics.tvlSparkline?.trend || "up"} 
-        change={formatTVLChange()}
-        tooltip={`Total Value Locked across ${getChainDistribution()}`}
-        loading={loading}
-        icon={<Layers size={14} />}
-        sparklineData={metrics.tvlSparkline?.data}
-        sparklineColor={metrics.tvlSparkline?.trend === 'up' ? "#22c55e" : "#ef4444"}
-      />
-
-      {/* Social Followers (Twitter) */}
-      <MetricTile 
-        label="Social Followers" 
-        value={metrics.socialFollowers}
-        trend={getFollowerChangeTrend()}
-        change={getFollowerChangePercent()}
-        tooltip={metrics.twitter ? `Twitter followers @${metrics.twitter.screenName}` : "Twitter followers"}
-        loading={loading}
-        icon={<Twitter size={14} />}
-        status={metrics.twitter?.verified ? "success" : "default"}
-      />
-
-      {/* Ownership Status */}
-      <MetricTile 
-        label="Ownership Renounced" 
-        value={getOwnershipStatus()} 
-        tooltip={getOwnershipTooltip()}
-        loading={loading}
-        icon={<ShieldCheck size={14} />}
-        status={securityAnalysis?.ownershipRenounced ? "success" : "warning"}
-      />
-    </div>
-  );
-};
-
-interface MetricTileProps {
-  label: string;
-  value: string;
-  trend?: "up" | "down" | "neutral";  // Updated to include "neutral"
-  change?: string;
-  tooltip: string;
-  loading?: boolean;
-  icon?: React.ReactNode;
-  status?: "default" | "success" | "warning" | "error";
-  sparklineData?: number[];
-  sparklineColor?: string;
-}
-
-const MetricTile = ({ 
-  label, 
-  value, 
-  trend, 
-  change, 
-  tooltip, 
-  loading, 
-  icon, 
-  status = "default", 
-  sparklineData,
-  sparklineColor
-}: MetricTileProps) => {
-  // Status color mapping
-  const statusColors: Record<string, string> = {
-    default: "",
-    success: "text-green-500",
-    warning: "text-yellow-500",
-    error: "text-red-500"
-  };
-
-  // Render appropriate trend icon based on the trend value
-  const renderTrendIcon = () => {
-    if (trend === "up") return <TrendingUp size={14} />;
-    if (trend === "down") return <TrendingDown size={14} />;
-    return null; // Return null for "neutral" trend
-  };
-
-  return (
-    <Card className={`overflow-hidden ${loading ? 'opacity-70' : ''}`}>
-      <CardContent className="p-4">
-        <div className="flex justify-between items-start">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <p className="text-sm text-gray-500 cursor-help">{label}</p>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-xs">{tooltip}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
-          {icon && <span className={statusColors[status]}>{icon}</span>}
-          
-          {trend && change && (
-            <div className={`flex items-center text-xs ${trend === "up" ? "text-green-500" : trend === "down" ? "text-red-500" : "text-gray-500"}`}>
-              {renderTrendIcon()}
-              <span className="ml-1">{change}</span>
-            </div>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-2 mt-1">
-          <h3 className={`text-2xl font-bold ${statusColors[status]}`}>{value}</h3>
-          
-          {sparklineData && sparklineData.length > 1 && (
-            <SparklineChart 
-              data={sparklineData}
-              color={sparklineColor || "#6366F1"}
-              height={20}
-              width={60}
-            />
-          )}
-        </div>
-        
-        {loading && (
-          <div className="mt-2">
-            <div className="h-1 bg-gray-200 rounded overflow-hidden">
-              <div className="h-1 bg-blue-500 animate-pulse rounded" style={{ width: '60%' }}></div>
-            </div>
+      <Card className="border border-gray-200">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="font-medium">Market Cap</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="text-gray-400 hover:text-gray-600">
+                    <CircleHelp size={14} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs max-w-xs">
+                    Total market value of the token in circulation.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
-        )}
-      </CardContent>
-    </Card>
+          <div className="text-2xl font-bold mt-2">{formatValue(projectData.marketCap)}</div>
+        </CardContent>
+      </Card>
+      
+      {/* Liquidity Lock */}
+      <Card className="border border-gray-200">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="font-medium">Liquidity Lock</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="text-gray-400 hover:text-gray-600">
+                    <CircleHelp size={14} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs max-w-xs">
+                    Duration for which the token's liquidity is locked in a pool.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <div className="text-2xl font-bold mt-2">{formatValue(projectData.liquidityLock)}</div>
+        </CardContent>
+      </Card>
+      
+      {/* Top Holders */}
+      <Card className="border border-gray-200">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="font-medium">Top Holders</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="text-gray-400 hover:text-gray-600">
+                    <CircleHelp size={14} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs max-w-xs">
+                    Percentage of tokens held by the top holders.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <div className="text-2xl font-bold mt-2">{formatValue(projectData.topHoldersPercentage)}</div>
+        </CardContent>
+      </Card>
+      
+      {/* TVL */}
+      <Card className="border border-gray-200">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="font-medium">TVL</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="text-gray-400 hover:text-gray-600">
+                    <CircleHelp size={14} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs max-w-xs">
+                    Total Value Locked in the protocol.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <div className="text-2xl font-bold mt-2">{formatValue(projectData.tvl)}</div>
+        </CardContent>
+      </Card>
+      
+      {/* Audit Status */}
+      <Card className="border border-gray-200">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="font-medium">Audit Status</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="text-gray-400 hover:text-gray-600">
+                    <CircleHelp size={14} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs max-w-xs">
+                    Status of the security audit for the token's smart contract.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <div className="mt-2">
+            <Badge variant="outline" className="text-sm font-medium">
+              {projectData.auditStatus}
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Social Followers */}
+      <Card className="border border-gray-200">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="font-medium">Social Followers</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="text-gray-400 hover:text-gray-600">
+                    <CircleHelp size={14} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs max-w-xs">
+                    Number of followers across social media platforms.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <div className="text-2xl font-bold mt-2">{formatValue(projectData.socialFollowers)}</div>
+        </CardContent>
+      </Card>
+    </div>
   );
 };

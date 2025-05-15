@@ -95,12 +95,52 @@ const ScanResult = () => {
     twitter: projectData.twitter
   };
 
-  // Determine security item statuses based on Etherscan data
+  // Determine security item statuses based on Etherscan and GoPlus data
   const securityAnalysis = projectData.etherscan?.securityAnalysis;
-  const getOwnershipStatus = () => securityAnalysis?.ownershipRenounced ? "Yes" : "No";
-  const getMintStatus = () => securityAnalysis?.canMint ? "Yes" : "No";
+  const getOwnershipStatus = () => {
+    // Prioritize GoPlus data if available
+    if (projectData.goPlus !== undefined) {
+      return projectData.goPlus.ownershipRenounced ? "Yes" : "No";
+    }
+    // Fall back to Etherscan data
+    return securityAnalysis?.ownershipRenounced ? "Yes" : "No";
+  };
+  
+  const getMintStatus = () => {
+    // Prioritize GoPlus data if available
+    if (projectData.goPlus !== undefined) {
+      return projectData.goPlus.canMint ? "Yes" : "No";
+    }
+    // Fall back to Etherscan data
+    return securityAnalysis?.canMint ? "Yes" : "No";
+  };
+  
   const getWalletType = () => securityAnalysis?.isMultiSig ? "Multi-Sig" : "Standard";
   const getFreezeStatus = () => securityAnalysis?.hasFreeze ? "Yes" : "No";
+
+  // New: Get honeypot status from GoPlus data
+  const getHoneypotStatus = () => {
+    if (projectData.goPlus !== undefined) {
+      return projectData.goPlus.isHoneypot ? "Yes" : "No";
+    }
+    return "Unknown";
+  };
+
+  // New: Get tax information from GoPlus data
+  const getTaxInfo = () => {
+    if (projectData.goPlus !== undefined) {
+      return `Buy: ${projectData.goPlus.buyTax}, Sell: ${projectData.goPlus.sellTax}`;
+    }
+    return "Unknown";
+  };
+
+  // New: Get risk level from GoPlus data
+  const getRiskLevel = () => {
+    if (projectData.goPlus !== undefined) {
+      return projectData.goPlus.riskLevel;
+    }
+    return "Unknown";
+  };
 
   // Format date for GitHub data
   const formatGitHubDate = (dateString?: string): string => {
@@ -318,26 +358,28 @@ const ScanResult = () => {
                   { 
                     name: "Ownership Renounced", 
                     status: getOwnershipStatus(), 
-                    tooltip: securityAnalysis?.ownershipRenounced 
+                    tooltip: projectData.goPlus?.ownershipRenounced 
                       ? "Contract ownership has been renounced, reducing centralization risk" 
                       : "Contract ownership has not been renounced, deployer still has control"
                   },
                   { 
                     name: "Can Mint", 
                     status: getMintStatus(),
-                    tooltip: securityAnalysis?.canMint
+                    tooltip: projectData.goPlus?.canMint || securityAnalysis?.canMint
                       ? "Contract can mint new tokens, potential inflation risk"
                       : "Contract cannot mint new tokens"
                   },
                   { 
                     name: "Code Audit", 
                     status: projectData.auditStatus, 
-                    tooltip: "Smart contract verified on Etherscan" 
+                    tooltip: projectData.goPlus?.isOpenSource 
+                      ? "Contract source code is verified and publicly available" 
+                      : "Smart contract verified on Etherscan"
                   },
                   { 
                     name: "Freeze / Blacklist Authority", 
-                    status: getFreezeStatus(),
-                    tooltip: securityAnalysis?.hasFreeze
+                    status: projectData.goPlus?.hasBlacklist ? "Yes" : getFreezeStatus(),
+                    tooltip: projectData.goPlus?.hasBlacklist || securityAnalysis?.hasFreeze
                       ? "Contract has ability to freeze or blacklist accounts"
                       : "No ability to freeze or blacklist accounts"
                   },
@@ -349,20 +391,34 @@ const ScanResult = () => {
                       : "Single signature wallet, standard security"
                   },
                   { 
-                    name: "Insurance", 
-                    status: "No", 
-                    tooltip: "No insurance coverage for smart contract risks" 
+                    name: "Honeypot Risk", 
+                    status: getHoneypotStatus(),
+                    tooltip: projectData.goPlus?.isHoneypot
+                      ? "WARNING: Contract identified as a potential honeypot (unable to sell tokens)"
+                      : "No honeypot indicators detected"
                   },
                   { 
-                    name: "Bug Bounty", 
-                    status: "Yes", 
-                    tooltip: "Active bug bounty program to identify vulnerabilities" 
+                    name: "Risk Level", 
+                    status: getRiskLevel(),
+                    tooltip: `Overall smart contract risk assessment: ${getRiskLevel()}`
+                  },
+                  { 
+                    name: "Tax Structure", 
+                    status: getTaxInfo(),
+                    tooltip: "Buy and sell taxes applied to token transactions"
+                  },
+                  { 
+                    name: "Modifiable Parameters", 
+                    status: projectData.goPlus?.slippageModifiable ? "Yes" : "No",
+                    tooltip: projectData.goPlus?.slippageModifiable
+                      ? "Contract owner can modify slippage parameters, potential risk" 
+                      : "Slippage parameters cannot be modified by contract owner"
                   }
                 ]}
               />
               
               {/* Risk Factors Section - if security score is low */}
-              {projectData.categories.security.score < 60 && (
+              {(projectData.categories.security.score < 60 || projectData.goPlus?.riskLevel === 'High') && (
                 <div className="mt-8">
                   <RiskFactorsSection />
                 </div>

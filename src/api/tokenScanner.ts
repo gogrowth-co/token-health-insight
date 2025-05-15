@@ -34,6 +34,7 @@ import {
 } from "./github";
 import { fetchTwitterProfile, extractTwitterHandle, calculateFollowerGrowth } from './apify';
 import { TwitterProfileResponse, TwitterMetrics } from './twitterTypes';
+import { getSecurityData } from "./goPlus";
 
 // Cache duration in seconds (24 hours)
 const CACHE_DURATION = 24 * 60 * 60;
@@ -217,8 +218,35 @@ export async function scanToken(tokenIdOrSymbol: string): Promise<TokenMetrics |
         console.error("Error processing Twitter data:", error);
       }
       
-      // Process the data and calculate health scores
-      metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData, null, defiLlamaData, githubData, twitterData);
+      // Extract token address for GoPlus security check
+      const tokenAddress = extractTokenAddress(tokenIdOrSymbol);
+      
+      // New: Try to get GoPlus security data
+      let goPlusData = null;
+      try {
+        if (tokenAddress) {
+          console.log("Getting GoPlus security data for address:", tokenAddress);
+          goPlusData = await getSecurityData(tokenAddress);
+          
+          if (goPlusData) {
+            console.log("Successfully retrieved GoPlus security data");
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching GoPlus security data:", error);
+      }
+      
+      // Process the data and calculate health scores - add GoPlus data
+      metrics = calculateHealthMetrics(
+        tokenDetails, 
+        marketChart, 
+        poolData, 
+        null, 
+        defiLlamaData, 
+        githubData, 
+        twitterData,
+        goPlusData
+      );
     }
     
     // Cache the result
@@ -247,12 +275,13 @@ function calculateHealthMetrics(
   etherscanData?: EtherscanTokenData,
   defiLlamaData?: any,
   githubData?: any,
-  twitterData?: TwitterMetrics
+  twitterData?: TwitterMetrics,
+  goPlusData?: any
 ): TokenMetrics {
   // Initialize scores for each category
-  const securityScore = calculateSecurityScore(tokenDetails, poolData, etherscanData);
+  const securityScore = calculateSecurityScore(tokenDetails, poolData, etherscanData, goPlusData);
   const liquidityScore = calculateLiquidityScore(tokenDetails, marketChart, poolData, defiLlamaData);
-  const tokenomicsScore = calculateTokenomicsScore(tokenDetails, poolData, etherscanData);
+  const tokenomicsScore = calculateTokenomicsScore(tokenDetails, poolData, etherscanData, goPlusData);
   const communityScore = calculateCommunityScore(tokenDetails, twitterData);
   const developmentScore = calculateDevelopmentScore(tokenDetails, githubData);
   
@@ -367,13 +396,18 @@ function calculateHealthMetrics(
     topHoldersPercentage = etherscanData.topHoldersPercentage;
   }
   
-  // Determine audit status
+  // Determine audit status - enhance with GoPlus data if available
   let auditStatus = "Verified"; // Default fallback
-  if (etherscanData?.contractSource) {
+  if (goPlusData?.isOpenSource) {
+    auditStatus = "Verified";
+  } else if (goPlusData?.riskLevel === 'High') {
+    auditStatus = "High Risk";
+  } else if (etherscanData?.contractSource) {
     auditStatus = "Verified";
   }
   
-  return {
+  // Create the metrics object
+  const metrics: TokenMetrics = {
     name: tokenDetails.name,
     symbol: tokenDetails.symbol.toUpperCase(),
     marketCap,
@@ -410,15 +444,39 @@ function calculateHealthMetrics(
     healthScore,
     lastUpdated: Date.now()
   };
+  
+  // Add GoPlus security data if available
+  if (goPlusData) {
+    metrics.goPlus = {
+      ownershipRenounced: goPlusData.ownershipRenounced,
+      canMint: goPlusData.canMint,
+      hasBlacklist: goPlusData.hasBlacklist,
+      slippageModifiable: goPlusData.slippageModifiable,
+      isHoneypot: goPlusData.isHoneypot,
+      ownerCanChangeBalance: goPlusData.ownerCanChangeBalance,
+      isProxy: goPlusData.isProxy,
+      hasExternalCalls: goPlusData.hasExternalCalls,
+      transferPausable: goPlusData.transferPausable,
+      isSelfdestructable: goPlusData.isSelfdestructable,
+      isOpenSource: goPlusData.isOpenSource,
+      buyTax: goPlusData.buyTax,
+      sellTax: goPlusData.sellTax,
+      riskLevel: goPlusData.riskLevel
+    };
+  }
+  
+  return metrics;
 }
 
 /**
  * Calculate security score based on various factors
+ * Enhanced with GoPlus security data
  */
 function calculateSecurityScore(
   tokenDetails: TokenDetails,
   poolData?: GeckoTerminalPoolData | null,
-  etherscanData?: EtherscanTokenData
+  etherscanData?: EtherscanTokenData,
+  goPlusData?: any
 ): number {
   // In a real implementation, this would analyze contract security, audits, etc.
   // For now, using a placeholder score based on market cap rank and existence
@@ -485,6 +543,58 @@ function calculateSecurityScore(
     // Multi-sig wallet is better for security
     if (analysis.isMultiSig) {
       score += 10;
+    }
+  }
+  
+  // Add GoPlus security analysis factors if available
+  if (goPlusData) {
+    // Critical risk factors
+    if (goPlusData.isHoneypot) {
+      score -= 40; // Severe penalty for honeypot
+    }
+    
+    if (goPlusData.ownershipRenounced) {
+      score += 15; // Major plus for renounced ownership
+    } else {
+      score -= 10; // Penalty for retained ownership
+    }
+    
+    if (goPlusData.ownerCanChangeBalance) {
+      score -= 20; // Severe penalty for owner balance manipulation
+    }
+    
+    if (goPlusData.isSelfdestructable) {
+      score -= 15; // Severe penalty for self-destruct capability
+    }
+    
+    // Moderate risk factors
+    if (goPlusData.canMint) {
+      score -= 5; // Penalty for mint capability
+    }
+    
+    if (goPlusData.hasBlacklist) {
+      score -= 5; // Penalty for blacklisting capability
+    }
+    
+    if (goPlusData.slippageModifiable) {
+      score -= 5; // Penalty for slippage modification
+    }
+    
+    if (goPlusData.transferPausable) {
+      score -= 5; // Penalty for transfer pause capability
+    }
+    
+    if (goPlusData.isOpenSource) {
+      score += 10; // Bonus for open source code
+    } else {
+      score -= 10; // Penalty for closed source
+    }
+    
+    // Adjust based on overall risk level
+    if (goPlusData.riskLevel === 'High') {
+      score = Math.min(score, 30); // Cap score at 30 for high risk contracts
+    } else if (goPlusData.riskLevel === 'Low') {
+      score = Math.max(score, 60); // Minimum score of 60 for low risk contracts
     }
   }
   
@@ -573,11 +683,13 @@ function calculateLiquidityScore(
 
 /**
  * Calculate tokenomics score
+ * Enhanced with GoPlus security data
  */
 function calculateTokenomicsScore(
   tokenDetails: TokenDetails, 
   poolData?: GeckoTerminalPoolData | null,
-  etherscanData?: EtherscanTokenData
+  etherscanData?: EtherscanTokenData,
+  goPlusData?: any
 ): number {
   let score = 65; // Base score
   
@@ -606,6 +718,30 @@ function calculateTokenomicsScore(
       else if (percentage < 50) score += 5;
       else if (percentage > 80) score -= 15;
       else if (percentage > 60) score -= 5;
+    }
+  }
+  
+  // Add GoPlus tokenomics factors
+  if (goPlusData) {
+    // Tax considerations
+    const buyTaxValue = parseFloat(goPlusData.buyTax);
+    const sellTaxValue = parseFloat(goPlusData.sellTax);
+    
+    if (!isNaN(buyTaxValue) && buyTaxValue > 10) {
+      score -= 10; // Heavy penalty for high buy tax
+    } else if (!isNaN(buyTaxValue) && buyTaxValue > 5) {
+      score -= 5; // Penalty for moderate buy tax
+    }
+    
+    if (!isNaN(sellTaxValue) && sellTaxValue > 10) {
+      score -= 15; // Heavy penalty for high sell tax
+    } else if (!isNaN(sellTaxValue) && sellTaxValue > 5) {
+      score -= 10; // Penalty for moderate sell tax
+    }
+    
+    // Honeypot factors
+    if (goPlusData.isHoneypot) {
+      score = Math.min(score, 20); // Cap tokenomics score at 20 for honeypots
     }
   }
   

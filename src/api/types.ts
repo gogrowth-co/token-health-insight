@@ -217,6 +217,23 @@ export interface TokenMetrics {
   github?: GitHubData;
   // New field for Twitter data
   twitter?: TwitterMetrics;
+  // New field for GoPlus security data
+  goPlus?: {
+    ownershipRenounced: boolean;
+    canMint: boolean;
+    hasBlacklist: boolean;
+    slippageModifiable: boolean;
+    isHoneypot: boolean;
+    ownerCanChangeBalance: boolean;
+    isProxy: boolean;
+    hasExternalCalls: boolean;
+    transferPausable: boolean;
+    isSelfdestructable: boolean;
+    isOpenSource: boolean;
+    buyTax: string;
+    sellTax: string;
+    riskLevel: 'High' | 'Moderate' | 'Low' | 'Unknown';
+  };
   categories: {
     security: { score: number };
     liquidity: { score: number };
