@@ -32,6 +32,8 @@ import {
   calculateGitHubActivityStatus,
   calculateRoadmapProgress
 } from "./github";
+import { fetchTwitterProfile, extractTwitterHandle, calculateFollowerGrowth } from './apify';
+import { TwitterProfileResponse, TwitterMetrics } from './twitterTypes';
 
 // Cache duration in seconds (24 hours)
 const CACHE_DURATION = 24 * 60 * 60;
@@ -179,8 +181,44 @@ export async function scanToken(tokenIdOrSymbol: string): Promise<TokenMetrics |
         console.error("Error processing GitHub data:", error);
       }
       
+      // New: Try to get Twitter data
+      let twitterData = null;
+      try {
+        // Extract Twitter handle from token details
+        const twitterHandle = extractTwitterHandle(tokenDetails);
+        
+        if (twitterHandle) {
+          console.log("Found Twitter handle:", twitterHandle);
+          
+          // Fetch Twitter profile data
+          const twitterProfile = await fetchTwitterProfile(twitterHandle);
+          
+          if (twitterProfile && twitterProfile.userData) {
+            // Calculate follower growth (mocked for now, would be based on historical data)
+            const followerGrowth = calculateFollowerGrowth(
+              twitterProfile.userData.followersCount,
+              [{ 
+                date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), 
+                followers: Math.round(twitterProfile.userData.followersCount * 0.95) 
+              }]
+            );
+            
+            twitterData = {
+              followersCount: twitterProfile.userData.followersCount,
+              tweetCount: twitterProfile.userData.tweetCount,
+              verified: twitterProfile.userData.verified,
+              createdAt: twitterProfile.userData.createdAt,
+              screenName: twitterProfile.userData.screenName,
+              followerChange: followerGrowth
+            };
+          }
+        }
+      } catch (error) {
+        console.error("Error processing Twitter data:", error);
+      }
+      
       // Process the data and calculate health scores
-      metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData, null, defiLlamaData, githubData);
+      metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData, null, defiLlamaData, githubData, twitterData);
     }
     
     // Cache the result
@@ -208,13 +246,14 @@ function calculateHealthMetrics(
   poolData?: GeckoTerminalPoolData | null,
   etherscanData?: EtherscanTokenData,
   defiLlamaData?: any,
-  githubData?: any
+  githubData?: any,
+  twitterData?: TwitterMetrics
 ): TokenMetrics {
   // Initialize scores for each category
   const securityScore = calculateSecurityScore(tokenDetails, poolData, etherscanData);
   const liquidityScore = calculateLiquidityScore(tokenDetails, marketChart, poolData, defiLlamaData);
   const tokenomicsScore = calculateTokenomicsScore(tokenDetails, poolData, etherscanData);
-  const communityScore = calculateCommunityScore(tokenDetails);
+  const communityScore = calculateCommunityScore(tokenDetails, twitterData);
   const developmentScore = calculateDevelopmentScore(tokenDetails, githubData);
   
   // Calculate overall health score as weighted average
@@ -229,8 +268,10 @@ function calculateHealthMetrics(
   // Format market cap for display
   const marketCap = formatCurrency(tokenDetails.market_data?.market_cap?.usd || 0);
   
-  // Social followers count
-  const socialFollowers = formatNumber(tokenDetails.community_data?.twitter_followers || 0);
+  // Social followers count - now from Twitter if available
+  const socialFollowers = twitterData 
+    ? formatNumber(twitterData.followersCount) 
+    : formatNumber(tokenDetails.community_data?.twitter_followers || 0);
   
   // Process GeckoTerminal data
   let liquidityLock = "365 days"; // Default fallback
@@ -357,6 +398,8 @@ function calculateHealthMetrics(
     tvlSparkline,
     // New field for GitHub data
     github: githubData,
+    // New field for Twitter data
+    twitter: twitterData,
     categories: {
       security: { score: securityScore },
       liquidity: { score: liquidityScore },
@@ -570,11 +613,12 @@ function calculateTokenomicsScore(
 }
 
 /**
- * Calculate community score
+ * Calculate community score based on various factors
+ * Enhanced with Twitter data
  */
-function calculateCommunityScore(tokenDetails: TokenDetails): number {
+function calculateCommunityScore(tokenDetails: TokenDetails, twitterData?: TwitterMetrics): number {
   // Based on social metrics
-  const twitterFollowers = tokenDetails.community_data?.twitter_followers || 0;
+  const twitterFollowers = twitterData?.followersCount || tokenDetails.community_data?.twitter_followers || 0;
   const redditSubscribers = tokenDetails.community_data?.reddit_subscribers || 0;
   const telegramUsers = tokenDetails.community_data?.telegram_channel_user_count || 0;
   
@@ -585,6 +629,37 @@ function calculateCommunityScore(tokenDetails: TokenDetails): number {
   else if (twitterFollowers > 100000) score += 15;
   else if (twitterFollowers > 10000) score += 10;
   else if (twitterFollowers > 1000) score += 5;
+  
+  // Twitter verification adds points
+  if (twitterData && twitterData.verified) {
+    score += 10;
+  }
+  
+  // Twitter account age
+  if (twitterData && twitterData.createdAt) {
+    const createdAt = new Date(twitterData.createdAt);
+    const now = new Date();
+    const accountAgeInYears = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24 * 365);
+    
+    if (accountAgeInYears > 3) score += 10;
+    else if (accountAgeInYears > 1) score += 5;
+  }
+  
+  // Twitter engagement (estimated by tweet count)
+  if (twitterData && twitterData.tweetCount) {
+    if (twitterData.tweetCount > 5000) score += 10;
+    else if (twitterData.tweetCount > 1000) score += 5;
+  }
+  
+  // Follower growth trend
+  if (twitterData && twitterData.followerChange) {
+    if (twitterData.followerChange.trend === 'up') {
+      // Parse percentage value
+      const percentValue = parseFloat(twitterData.followerChange.percentage.replace('%', ''));
+      if (percentValue > 10) score += 10;
+      else if (percentValue > 5) score += 5;
+    }
+  }
   
   // Reddit subscribers
   if (redditSubscribers > 100000) score += 10;

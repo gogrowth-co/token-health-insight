@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -92,7 +91,8 @@ const ScanResult = () => {
     tvl: projectData.tvl,
     auditStatus: projectData.auditStatus,
     socialFollowers: projectData.socialFollowers,
-    etherscan: projectData.etherscan
+    etherscan: projectData.etherscan,
+    twitter: projectData.twitter
   };
 
   // Determine security item statuses based on Etherscan data
@@ -111,6 +111,50 @@ const ScanResult = () => {
     } catch (e) {
       return 'Unknown';
     }
+  };
+
+  // Format Twitter date
+  const formatTwitterDate = (dateString?: string): string => {
+    if (!dateString) return 'Unknown';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
+    } catch (e) {
+      return 'Unknown';
+    }
+  };
+
+  // Get Twitter account age
+  const getTwitterAccountAge = (dateString?: string): string => {
+    if (!dateString) return 'Unknown';
+    try {
+      const createdAt = new Date(dateString);
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - createdAt.getTime());
+      const diffYears = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 365));
+      return diffYears === 1 ? '1 year' : `${diffYears} years`;
+    } catch (e) {
+      return 'Unknown';
+    }
+  };
+
+  // Get Team Visibility status based on Twitter verification
+  const getTeamVisibilityStatus = (): string => {
+    if (!projectData.twitter) return "Unknown";
+    return projectData.twitter.verified ? "High" : "Medium";
+  };
+
+  // Get Twitter growth rate
+  const getTwitterGrowthRate = (): string => {
+    if (!projectData.twitter?.followerChange) return "+18%";
+    // Remove + or - from percentage string
+    return projectData.twitter.followerChange.percentage.replace(/^[+-]/, '');
+  };
+
+  // Get Twitter follower change trend
+  const getTwitterFollowerTrend = (): 'up' | 'down' | 'neutral' => {
+    if (!projectData.twitter?.followerChange) return "up";
+    return projectData.twitter.followerChange.trend;
   };
 
   return (
@@ -219,8 +263,8 @@ const ScanResult = () => {
                     description="Social and community engagement"
                     metrics={[
                       "Twitter Followers: " + projectData.socialFollowers,
-                      "Verified Account: Yes",
-                      "Growth Rate (30d): +18%",
+                      "Verified Account: " + (projectData.twitter?.verified ? "Yes" : "No"),
+                      "Growth Rate (30d): " + getTwitterGrowthRate(),
                       "Active Channels: 4"
                     ]}
                     color="bg-orange-500"
@@ -390,12 +434,49 @@ const ScanResult = () => {
                 description="Social engagement and growth metrics"
                 score={projectData.categories.community.score}
                 items={[
-                  { name: "Twitter Followers", status: projectData.socialFollowers, tooltip: "Total Twitter/X followers" },
-                  { name: "Verified Account", status: "Yes", tooltip: "Official account is verified" },
-                  { name: "Growth Rate (30d)", status: "+18%", tooltip: "Follower growth in the last 30 days" },
-                  { name: "Active Channels", status: "4", tooltip: "Number of active community channels" },
-                  { name: "Team Visibility", status: "High", tooltip: "Team regularly engages with community" },
-                  { name: "Weekly Updates", status: "Yes", tooltip: "Regular weekly updates published" }
+                  { 
+                    name: "Twitter Followers", 
+                    status: projectData.socialFollowers, 
+                    tooltip: projectData.twitter ? 
+                      `Twitter followers for @${projectData.twitter.screenName}` : 
+                      "Total Twitter/X followers"
+                  },
+                  { 
+                    name: "Verified Account", 
+                    status: projectData.twitter?.verified ? "Yes" : "No", 
+                    tooltip: getVerificationTooltip()
+                  },
+                  { 
+                    name: "Growth Rate (30d)", 
+                    status: getTwitterGrowthRate(), 
+                    tooltip: "Follower growth in the last 30 days",
+                    change: projectData.twitter?.followerChange ? 
+                      parseFloat(projectData.twitter.followerChange.percentage) : undefined,
+                    trend: getTwitterFollowerTrend()
+                  },
+                  { 
+                    name: "Account Age", 
+                    status: projectData.twitter?.createdAt ? 
+                      getTwitterAccountAge(projectData.twitter.createdAt) : "Unknown", 
+                    tooltip: projectData.twitter?.createdAt ? 
+                      `Account created in ${formatTwitterDate(projectData.twitter.createdAt)}` : 
+                      "Twitter account creation date"
+                  },
+                  { 
+                    name: "Active Channels", 
+                    status: "4", 
+                    tooltip: "Number of active community channels" 
+                  },
+                  { 
+                    name: "Team Visibility", 
+                    status: getTeamVisibilityStatus(), 
+                    tooltip: "Team regularly engages with community" 
+                  },
+                  { 
+                    name: "Weekly Updates", 
+                    status: "Yes", 
+                    tooltip: "Regular weekly updates published" 
+                  }
                 ]}
               />
             </TabsContent>

@@ -176,6 +176,7 @@ export interface GeckoTerminalOhlcvData {
 
 import { DefiLlamaData, SparklineData } from './defiLlamaTypes';
 import { GitHubData } from './githubTypes';
+import { TwitterMetrics } from './twitterTypes';
 
 export interface TokenMetrics {
   name: string;
@@ -214,6 +215,8 @@ export interface TokenMetrics {
   tvlSparkline?: SparklineData;
   // New field for GitHub data
   github?: GitHubData;
+  // New field for Twitter data
+  twitter?: TwitterMetrics;
   categories: {
     security: { score: number };
     liquidity: { score: number };

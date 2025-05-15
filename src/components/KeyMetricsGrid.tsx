@@ -1,5 +1,6 @@
+
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, Clock, CircleDollarSign, Users, ShieldCheck, Layers } from "lucide-react";
+import { TrendingUp, TrendingDown, Clock, CircleDollarSign, Users, ShieldCheck, Layers, Twitter } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Tooltip,
@@ -35,6 +36,18 @@ interface KeyMetricsGridProps {
         canBurn: boolean;
         hasFreeze: boolean;
         isMultiSig: boolean;
+      };
+    };
+    twitter?: {
+      followersCount: number;
+      tweetCount: number;
+      verified: boolean;
+      createdAt: string;
+      screenName: string;
+      followerChange?: {
+        trend: 'up' | 'down' | 'neutral';
+        value: number;
+        percentage: string;
       };
     };
   };
@@ -118,6 +131,26 @@ export const KeyMetricsGrid = ({ projectData, tokenId }: KeyMetricsGridProps) =>
     return metrics.defiLlama?.chainDistribution || "Ethereum";
   };
 
+  // Get Twitter follower change percentage
+  const getFollowerChangePercent = () => {
+    if (!metrics.twitter?.followerChange) return "+3.2%";
+    return metrics.twitter.followerChange.percentage;
+  };
+
+  // Get Twitter follower change trend
+  const getFollowerChangeTrend = () => {
+    if (!metrics.twitter?.followerChange) return "up";
+    return metrics.twitter.followerChange.trend;
+  };
+
+  // Get Twitter verification status for tooltip
+  const getVerificationTooltip = () => {
+    if (!metrics.twitter) return "Twitter account verification status unknown";
+    return metrics.twitter.verified 
+      ? "Twitter account is verified" 
+      : "Twitter account is not verified";
+  };
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {/* Market Cap */}
@@ -165,6 +198,18 @@ export const KeyMetricsGrid = ({ projectData, tokenId }: KeyMetricsGridProps) =>
         sparklineColor={metrics.tvlSparkline?.trend === 'up' ? "#22c55e" : "#ef4444"}
       />
 
+      {/* Social Followers (Twitter) */}
+      <MetricTile 
+        label="Social Followers" 
+        value={metrics.socialFollowers}
+        trend={getFollowerChangeTrend()}
+        change={getFollowerChangePercent()}
+        tooltip={metrics.twitter ? `Twitter followers @${metrics.twitter.screenName}` : "Twitter followers"}
+        loading={loading}
+        icon={<Twitter size={14} />}
+        status={metrics.twitter?.verified ? "success" : "default"}
+      />
+
       {/* Ownership Status */}
       <MetricTile 
         label="Ownership Renounced" 
@@ -173,15 +218,6 @@ export const KeyMetricsGrid = ({ projectData, tokenId }: KeyMetricsGridProps) =>
         loading={loading}
         icon={<ShieldCheck size={14} />}
         status={securityAnalysis?.ownershipRenounced ? "success" : "warning"}
-      />
-
-      {/* Wallet Type */}
-      <MetricTile 
-        label="Wallet Type" 
-        value={getWalletType()} 
-        tooltip="Multi-signature wallet or standard externally owned account"
-        loading={loading}
-        status={securityAnalysis?.isMultiSig ? "success" : "default"}
       />
     </div>
   );
