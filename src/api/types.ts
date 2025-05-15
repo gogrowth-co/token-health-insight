@@ -1,3 +1,4 @@
+
 export interface TokenSearchResult {
   id: string;
   symbol: string;
@@ -81,6 +82,7 @@ export interface GeckoTerminalTokenData {
   };
 }
 
+// Single unified GeckoTerminalPoolData definition
 export interface GeckoTerminalPoolData {
   data: {
     id: string;
@@ -89,38 +91,38 @@ export interface GeckoTerminalPoolData {
       address: string;
       name: string;
       reserve_in_usd: string;
-      base_token_price_usd: string;
-      quote_token_price_usd: string;
-      base_token_price_native_currency: string;
-      quote_token_price_native_currency: string;
-      volume_usd: {
+      volume_usd?: {
         h24: string;
-        h6: string;
-        m5: string;
+        h6?: string;
+        m5?: string;
       };
-      transactions: {
+      transactions?: {
         h24: number;
-        h6: number;
-        m5: number;
+        h6?: number;
+        m5?: number;
       };
-      creation_block: number;
-      creation_timestamp: string;
+      creation_timestamp?: string;
+      creation_block?: number;
+      base_token_price_usd?: string;
+      quote_token_price_usd?: string;
+      base_token_price_native_currency?: string;
+      quote_token_price_native_currency?: string;
       liquidity_locked?: {
         is_locked: boolean;
         locked_until?: string;
         duration_in_seconds?: number;
       };
     };
-    relationships: {
-      base_token: {
+    relationships?: {
+      base_token?: {
         data: { id: string; type: string };
       };
-      quote_token: {
+      quote_token?: {
         data: { id: string; type: string };
       };
     };
   };
-  included: Array<{
+  included?: Array<{
     id: string;
     type: string;
     attributes: {
@@ -173,62 +175,13 @@ export interface GeckoTerminalOhlcvData {
   }>;
 }
 
+// Import statements moved to top to avoid conflicts
 import { DefiLlamaData, SparklineData } from './defiLlamaTypes';
 import { GitHubData } from './githubTypes';
-import { TwitterMetrics } from './twitterTypes';
+import type { TwitterMetrics as ImportedTwitterMetrics } from './twitterTypes';
 
-// Additional type definitions to resolve build errors
-
-// GeckoTerminal Pool Data type
-export interface GeckoTerminalPoolData {
-  data: {
-    id: string;
-    type: string;
-    attributes: {
-      address: string;
-      name: string;
-      reserve_in_usd: string;
-      volume_usd?: {
-        h24: string;
-        h6?: string;
-        m5?: string;
-      };
-      transactions?: {
-        h24: number;
-        h6?: number;
-        m5?: number;
-      };
-      creation_timestamp?: string;
-      creation_block?: number;
-      base_token_price_usd?: string;
-      quote_token_price_usd?: string;
-      base_token_price_native_currency?: string;
-      quote_token_price_native_currency?: string;
-      liquidity_locked?: {
-        is_locked: boolean;
-        locked_until?: string;
-        duration_in_seconds?: number;
-      };
-    };
-    relationships?: {
-      base_token?: {
-        data: { id: string; type: string };
-      };
-      quote_token?: {
-        data: { id: string; type: string };
-      };
-    };
-  };
-  included?: Array<{
-    id: string;
-    type: string;
-    attributes: {
-      address: string;
-      name: string;
-      symbol: string;
-    };
-  }>;
-}
+// Rename the imported type to avoid conflicts
+export type TwitterMetrics = ImportedTwitterMetrics;
 
 // Etherscan Token Data type
 export interface EtherscanTokenData {
@@ -242,22 +195,6 @@ export interface EtherscanTokenData {
     isProxy: boolean;
   };
   contractSource?: any;
-}
-
-// Twitter Metrics type from twitterTypes.ts
-export interface TwitterMetrics {
-  username: string;
-  displayName: string;
-  followersCount: number;
-  followingCount?: number;
-  verified: boolean;
-  profileImageUrl?: string;
-  createdAt?: string;
-  tweetCount?: number;
-  followerChange?: {
-    trend: 'up' | 'down' | 'neutral';
-    percentage: string;
-  };
 }
 
 // Helper function for formatting TVL history data for sparklines

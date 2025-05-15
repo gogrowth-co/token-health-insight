@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { fetchWithTimeout } from "@/utils/fetchWithTimeout";
 
@@ -9,11 +10,15 @@ const ETHERSCAN_BASE_URL = "https://api.etherscan.io/api";
  */
 const getApiKey = async (): Promise<string | null> => {
   try {
+    // Create a controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
     const { data } = await supabase.functions.invoke('get-secret', {
-      body: { secretName: 'ETHERSCAN_API_KEY' },
-      // Use timeout signal via AbortController
-      signal: AbortSignal.timeout(5000) // 5 second timeout
+      body: { secretName: 'ETHERSCAN_API_KEY' }
     });
+    
+    clearTimeout(timeoutId);
     return data?.value || null;
   } catch (error) {
     console.error("Error fetching Etherscan API key:", error);

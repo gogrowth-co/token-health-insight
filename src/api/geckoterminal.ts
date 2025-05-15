@@ -1,3 +1,4 @@
+
 /**
  * GeckoTerminal API service for fetching on-chain token and pool data
  * API Documentation: https://apiguide.geckoterminal.com/
@@ -5,6 +6,9 @@
 
 // Base URL for the GeckoTerminal API
 import { fetchJsonWithTimeout } from "@/utils/fetchWithTimeout";
+
+// Define the base URL for GeckoTerminal API
+const BASE_URL = 'https://api.geckoterminal.com/api/v2';
 
 // API version header
 const API_VERSION = "20230302";

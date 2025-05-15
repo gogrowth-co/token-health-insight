@@ -34,12 +34,16 @@ export async function getSecurityData(contractAddress: string): Promise<Security
       return null;
     }
     
+    // Create a controller for timeout instead of AbortSignal.timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    
     // Call our edge function to fetch GoPlus security data with a timeout
     const { data, error } = await supabase.functions.invoke('fetch-security-data', {
-      body: { contractAddress },
-      // Use timeout signal via AbortController
-      signal: AbortSignal.timeout(12000) // 12 second timeout
+      body: { contractAddress }
     });
+    
+    clearTimeout(timeoutId);
     
     if (error) {
       throw new Error(`Edge function error: ${error.message}`);

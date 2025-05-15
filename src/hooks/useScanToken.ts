@@ -41,8 +41,7 @@ export const useScanToken = () => {
         
         // Call the edge function with timeout
         const { data, error: funcError } = await supabase.functions.invoke('scan-token', {
-          body: { tokenId },
-          signal: controller.signal,
+          body: { tokenId }
         });
         
         if (funcError) throw new Error(funcError.message);
@@ -71,6 +70,7 @@ export const useScanToken = () => {
         result = await scanToken(tokenId, scanProgress);
       }
       
+      clearTimeout(timeoutId);
       setProgress(100);
       
       if (result) {
@@ -87,7 +87,6 @@ export const useScanToken = () => {
         throw new Error("Failed to retrieve token data");
       }
       
-      clearTimeout(timeoutId);
       return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
