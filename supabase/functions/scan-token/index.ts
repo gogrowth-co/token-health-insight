@@ -228,7 +228,7 @@ async function findProtocolSlug(tokenSymbol: string, tokenName: string): Promise
       );
     }
     
-    if (!match && normalizedName.length > 3) {
+    if (!match) {
       match = protocols.find(
         (protocol: any) => 
           protocol.name?.toLowerCase().includes(normalizedName) ||
@@ -306,6 +306,191 @@ function formatTVLHistoryForSparkline(tvlHistory: any[], days = 7): number[] {
   
   // Extract just the TVL values
   return recentData.map((dataPoint: any) => dataPoint.totalLiquidityUSD);
+}
+
+// Add GitHub API functions
+async function getGitHubRepoInfo(owner: string, repo: string) {
+  try {
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
+    
+    if (!response.ok) {
+      console.warn(`GitHub API error: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching GitHub repo info:", error);
+    return null;
+  }
+}
+
+async function getGitHubRepoCommits(owner: string, repo: string, days = 30) {
+  try {
+    // Calculate date from X days ago
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const sinceString = since.toISOString();
+    
+    const response = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/commits?since=${sinceString}&per_page=100`
+    );
+    
+    if (!response.ok) {
+      console.warn(`GitHub API error: ${response.status} ${response.statusText}`);
+      return [];
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching GitHub commits:", error);
+    return [];
+  }
+}
+
+async function getGitHubCommitActivity(owner: string, repo: string) {
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/stats/commit_activity`
+    );
+    
+    if (!response.ok) {
+      console.warn(`GitHub API error: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching GitHub commit activity:", error);
+    return null;
+  }
+}
+
+// Extract GitHub repo info from URL
+function extractGitHubRepoFromUrl(url: string) {
+  try {
+    const githubRegex = /github\.com\/([^\/]+)\/([^\/]+)/;
+    const matches = url.match(githubRegex);
+    
+    if (matches && matches.length >= 3) {
+      const owner = matches[1];
+      let repo = matches[2].split('.git')[0].split('#')[0].split('?')[0];
+      return { owner, repo };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error extracting GitHub repo from URL:", error);
+    return null;
+  }
+}
+
+// Find GitHub repo from token details
+function findGitHubRepoFromTokenDetails(tokenDetails: any) {
+  // Check token links
+  if (tokenDetails?.links?.repos_url?.github?.length > 0) {
+    for (const url of tokenDetails.links.repos_url.github) {
+      const repoInfo = extractGitHubRepoFromUrl(url);
+      if (repoInfo) return repoInfo;
+    }
+  }
+  
+  // Check homepage for GitHub links
+  if (tokenDetails?.links?.homepage?.length > 0) {
+    for (const url of tokenDetails.links.homepage) {
+      if (url.includes('github.com')) {
+        const repoInfo = extractGitHubRepoFromUrl(url);
+        if (repoInfo) return repoInfo;
+      }
+    }
+  }
+  
+  return null;
+}
+
+// Calculate activity status based on commit frequency
+function calculateGitHubActivityStatus(commits: any[], commitActivity: any[] | null) {
+  // Default values
+  const result = {
+    status: 'Inactive' as 'Active' | 'Stale' | 'Inactive',
+    commitCount: 0,
+    commitTrend: 'neutral' as 'up' | 'down' | 'neutral',
+    commitChange: '0%',
+    lastCommitDate: null as string | null
+  };
+  
+  // Get commit count for the last 30 days
+  result.commitCount = commits.length;
+  
+  // Get the date of the most recent commit
+  if (commits.length > 0) {
+    result.lastCommitDate = commits[0].commit.author.date;
+  }
+  
+  // Determine activity status based on commit frequency
+  if (result.commitCount > 10) {
+    result.status = 'Active';
+  } else if (result.commitCount > 0) {
+    result.status = 'Stale';
+  }
+  
+  // Calculate commit trend using commit activity data
+  if (commitActivity && commitActivity.length >= 8) {
+    // Sum up commits from the last 4 weeks and the 4 weeks before that
+    const lastFourWeeks = commitActivity.slice(0, 4).reduce((sum, week) => sum + week.total, 0);
+    const previousFourWeeks = commitActivity.slice(4, 8).reduce((sum, week) => sum + week.total, 0);
+    
+    if (previousFourWeeks === 0) {
+      if (lastFourWeeks > 0) {
+        result.commitTrend = 'up';
+        result.commitChange = 'New';
+      }
+    } else {
+      const change = ((lastFourWeeks - previousFourWeeks) / previousFourWeeks) * 100;
+      result.commitChange = `${change > 0 ? '+' : ''}${change.toFixed(0)}%`;
+      
+      if (change > 5) {
+        result.commitTrend = 'up';
+      } else if (change < -5) {
+        result.commitTrend = 'down';
+      }
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Calculate a rough estimate of roadmap progress based on repository data
+ */
+function calculateRoadmapProgress(repoDetails: any): string {
+  // In a real implementation, this would analyze milestones, issues, or project boards
+  // For now, returning a placeholder calculation based on issues and repository age
+  
+  // If there are no open issues, consider it complete
+  if (repoDetails.open_issues_count === 0) {
+    return "100%";
+  }
+  
+  // Base the calculation on the ratio of open issues to repository age
+  const creationDate = new Date(repoDetails.created_at);
+  const now = new Date();
+  const ageInDays = Math.ceil((now.getTime() - creationDate.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Older repositories with fewer open issues are considered further along
+  const issuesPerDay = repoDetails.open_issues_count / ageInDays;
+  
+  if (issuesPerDay < 0.01) {
+    return "90%";
+  } else if (issuesPerDay < 0.05) {
+    return "75%";
+  } else if (issuesPerDay < 0.1) {
+    return "60%";
+  } else if (issuesPerDay < 0.5) {
+    return "40%";
+  } else {
+    return "25%";
+  }
 }
 
 serve(async (req) => {
@@ -459,8 +644,46 @@ serve(async (req) => {
       // Continue without DeFiLlama data
     }
     
-    // Calculate health metrics with DeFiLlama data
-    const metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData, etherscanData, defiLlamaData);
+    // Try to get GitHub data
+    let githubData = null;
+    try {
+      const repoInfo = findGitHubRepoFromTokenDetails(tokenDetails);
+      
+      if (repoInfo) {
+        console.log("Found GitHub repository:", repoInfo);
+        const { owner, repo } = repoInfo;
+        const [repoDetails, recentCommits, commitActivity] = await Promise.all([
+          getGitHubRepoInfo(owner, repo),
+          getGitHubRepoCommits(owner, repo),
+          getGitHubCommitActivity(owner, repo)
+        ]);
+        
+        if (repoDetails) {
+          const activityMetrics = calculateGitHubActivityStatus(recentCommits, commitActivity);
+          
+          githubData = {
+            repoUrl: repoDetails.html_url,
+            activityStatus: activityMetrics.status,
+            starCount: repoDetails.stargazers_count,
+            forkCount: repoDetails.forks_count,
+            commitCount: activityMetrics.commitCount,
+            commitTrend: activityMetrics.commitTrend,
+            commitChange: activityMetrics.commitChange,
+            isOpenSource: repoDetails.visibility === 'public',
+            license: repoDetails.license?.spdx_id,
+            language: repoDetails.language,
+            updatedAt: repoDetails.pushed_at,
+            roadmapProgress: calculateRoadmapProgress(repoDetails),
+            openIssues: repoDetails.open_issues_count
+          };
+        }
+      }
+    } catch (error) {
+      console.error("Error processing GitHub data:", error);
+    }
+    
+    // Calculate health metrics with all collected data
+    const metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData, etherscanData, defiLlamaData, githubData);
     
     return new Response(
       JSON.stringify(metrics),
@@ -526,7 +749,8 @@ function calculateHealthMetrics(
   marketChart: any, 
   poolData: any,
   etherscanData: any = {},
-  defiLlamaData: any = null
+  defiLlamaData: any = null,
+  githubData: any = null
 ): any {
   // Format market cap for display
   const marketCap = formatCurrency(tokenDetails.market_data?.market_cap?.usd || 0);
@@ -539,7 +763,7 @@ function calculateHealthMetrics(
   const liquidityScore = calculateLiquidityScore(tokenDetails, marketChart, poolData, defiLlamaData);
   const tokenomicsScore = calculateTokenomicsScore(tokenDetails, poolData, etherscanData);
   const communityScore = calculateCommunityScore(tokenDetails);
-  const developmentScore = calculateDevelopmentScore(tokenDetails);
+  const developmentScore = calculateDevelopmentScore(tokenDetails, githubData);
   
   // Calculate overall health score
   const healthScore = Math.round(
@@ -678,6 +902,8 @@ function calculateHealthMetrics(
     },
     // Add DeFiLlama-specific data
     defiLlama: defiLlamaData,
+    // Add GitHub-specific data
+    github: githubData,
     tvlSparkline,
     categories: {
       security: { score: securityScore },
@@ -842,11 +1068,42 @@ function calculateCommunityScore(tokenDetails: any): number {
 }
 
 // Calculate development score
-function calculateDevelopmentScore(tokenDetails: any): number {
-  // Development score based on community score
-  const developmentScore = Math.round((tokenDetails.community_data?.twitter_followers || 0) / 1000000);
+function calculateDevelopmentScore(tokenDetails: any, githubData: any = null): number {
+  let score = 50; // Base score
   
-  return developmentScore;
+  // If we have GitHub data, prioritize that for development metrics
+  if (githubData) {
+    // Recent commit activity
+    if (githubData.commitCount > 100) score += 20;
+    else if (githubData.commitCount > 50) score += 15;
+    else if (githubData.commitCount > 20) score += 10;
+    else if (githubData.commitCount > 0) score += 5;
+    
+    // Repository stars
+    if (githubData.starCount > 5000) score += 15;
+    else if (githubData.starCount > 1000) score += 10;
+    else if (githubData.starCount > 100) score += 5;
+    
+    // Repository forks
+    if (githubData.forkCount > 1000) score += 10;
+    else if (githubData.forkCount > 100) score += 7;
+    else if (githubData.forkCount > 10) score += 3;
+    
+    // Open source status
+    if (githubData.isOpenSource) score += 10;
+    
+    // Activity status
+    if (githubData.activityStatus === 'Active') score += 10;
+    else if (githubData.activityStatus === 'Stale') score += 5;
+  } else {
+    // Fall back to CoinGecko dev data if available
+    if (tokenDetails.links?.dev_data?.social?.twitter_followers) {
+      score += Math.round((tokenDetails.links.dev_data.social.twitter_followers / 1000000) * 100);
+    }
+  }
+  
+  // Cap the score at 100
+  return Math.min(Math.max(score, 0), 100);
 }
 
 // Format currency values for display

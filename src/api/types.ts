@@ -1,3 +1,4 @@
+
 export interface TokenSearchResult {
   id: string;
   symbol: string;
@@ -174,6 +175,7 @@ export interface GeckoTerminalOhlcvData {
 }
 
 import { DefiLlamaData, SparklineData } from './defiLlamaTypes';
+import { GitHubData } from './githubTypes';
 
 export interface TokenMetrics {
   name: string;
@@ -210,6 +212,8 @@ export interface TokenMetrics {
   defiLlama?: DefiLlamaData;
   // TVL sparkline data
   tvlSparkline?: SparklineData;
+  // New field for GitHub data
+  github?: GitHubData;
   categories: {
     security: { score: number };
     liquidity: { score: number };

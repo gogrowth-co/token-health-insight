@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -100,6 +101,17 @@ const ScanResult = () => {
   const getMintStatus = () => securityAnalysis?.canMint ? "Yes" : "No";
   const getWalletType = () => securityAnalysis?.isMultiSig ? "Multi-Sig" : "Standard";
   const getFreezeStatus = () => securityAnalysis?.hasFreeze ? "Yes" : "No";
+
+  // Format date for GitHub data
+  const formatGitHubDate = (dateString?: string): string => {
+    if (!dateString) return 'Unknown';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString();
+    } catch (e) {
+      return 'Unknown';
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -220,10 +232,10 @@ const ScanResult = () => {
                     icon={<FileCode className="text-white" />}
                     description="Development activity and roadmap progress"
                     metrics={[
-                      "GitHub Repo: Public",
-                      "Last Commit: 3 days ago",
-                      "Commit Frequency: High",
-                      "Contributors: 8"
+                      `GitHub Activity: ${projectData.github?.activityStatus || "Unknown"}`,
+                      `Recent Commits: ${projectData.github ? projectData.github.commitCount : "Unknown"}`,
+                      `Roadmap Progress: ${projectData.github?.roadmapProgress || "Unknown"}`,
+                      `Open Source: ${projectData.github?.isOpenSource ? "Yes" : "No"}`
                     ]}
                     color="bg-teal-500"
                     score={projectData.categories.development.score}
@@ -395,13 +407,54 @@ const ScanResult = () => {
                 description="Code activity and technical progress"
                 score={projectData.categories.development.score}
                 items={[
-                  { name: "GitHub Repo", status: "Public", tooltip: "Code repository is publicly accessible" },
-                  { name: "Last Commit Date", status: "3 days ago", tooltip: "Most recent code commit" },
-                  { name: "Commit Frequency", status: "High", tooltip: "Regular code contributions" },
-                  { name: "Roadmap Progress", status: "On Track", tooltip: "Development follows published roadmap" },
-                  { name: "Contributors Count", status: "8", tooltip: "Number of active code contributors" },
-                  { name: "License Type", status: "MIT", tooltip: "Open source under MIT license" },
-                  { name: "Open Source", status: "Yes", tooltip: "Codebase is open source" }
+                  { 
+                    name: "GitHub Repository", 
+                    status: projectData.github?.repoUrl ? "Public" : "Not Found", 
+                    tooltip: projectData.github?.repoUrl 
+                      ? `Repository available at ${projectData.github.repoUrl}` 
+                      : "No GitHub repository found for this project"
+                  },
+                  { 
+                    name: "GitHub Activity", 
+                    status: projectData.github?.activityStatus || "Unknown", 
+                    tooltip: projectData.github?.activityStatus === 'Active' 
+                      ? "Regular commits in the past 30 days"
+                      : projectData.github?.activityStatus === 'Stale'
+                      ? "Limited commit activity in the past 30 days"
+                      : "No recent commit activity detected"
+                  },
+                  { 
+                    name: "Recent Commits", 
+                    status: projectData.github ? `${projectData.github.commitCount} commits` : "Unknown",
+                    tooltip: "Number of commits in the past 30 days",
+                    sparklineData: projectData.github?.commitCount ? [projectData.github.commitCount/2, projectData.github.commitCount] : undefined,
+                    change: projectData.github?.commitChange 
+                      ? parseFloat(projectData.github.commitChange.replace('%', ''))
+                      : undefined,
+                    trend: projectData.github?.commitTrend
+                  },
+                  { 
+                    name: "Last Updated", 
+                    status: projectData.github ? formatGitHubDate(projectData.github.updatedAt) : "Unknown", 
+                    tooltip: "Date of the most recent commit to the repository" 
+                  },
+                  { 
+                    name: "Roadmap Progress", 
+                    status: projectData.github?.roadmapProgress || "Unknown", 
+                    tooltip: "Estimated progress based on open issues and repository activity" 
+                  },
+                  { 
+                    name: "Open Source", 
+                    status: projectData.github?.isOpenSource ? "Yes" : "No", 
+                    tooltip: projectData.github?.isOpenSource 
+                      ? `Public repository with ${projectData.github.license || 'unknown'} license`
+                      : "Repository is private or not found" 
+                  },
+                  { 
+                    name: "Language", 
+                    status: projectData.github?.language || "Unknown", 
+                    tooltip: "Main programming language used in the repository" 
+                  }
                 ]}
               />
             </TabsContent>

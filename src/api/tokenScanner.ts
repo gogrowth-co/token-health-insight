@@ -24,6 +24,14 @@ import {
   formatTVLHistoryForSparkline
 } from "./defillama";
 import { DefiLlamaTVLHistoryItem } from "./defiLlamaTypes";
+import {
+  findGitHubRepoFromTokenDetails,
+  getRepoInfo,
+  getRepoCommits,
+  getCommitActivity,
+  calculateGitHubActivityStatus,
+  calculateRoadmapProgress
+} from "./github";
 
 // Cache duration in seconds (24 hours)
 const CACHE_DURATION = 24 * 60 * 60;
@@ -132,9 +140,47 @@ export async function scanToken(tokenIdOrSymbol: string): Promise<TokenMetrics |
         console.warn("Error fetching DeFiLlama data:", error);
         // Continue without DeFiLlama data
       }
+
+      // New: Try to get GitHub data
+      let githubData = null;
+      try {
+        const repoInfo = findGitHubRepoFromTokenDetails(tokenDetails);
+        
+        if (repoInfo) {
+          console.log("Found GitHub repository:", repoInfo);
+          const { owner, repo } = repoInfo;
+          const [repoDetails, recentCommits, commitActivity] = await Promise.all([
+            getRepoInfo(owner, repo),
+            getRepoCommits(owner, repo),
+            getCommitActivity(owner, repo)
+          ]);
+          
+          if (repoDetails) {
+            const activityMetrics = calculateGitHubActivityStatus(recentCommits, commitActivity);
+            
+            githubData = {
+              repoUrl: repoDetails.html_url,
+              activityStatus: activityMetrics.status,
+              starCount: repoDetails.stargazers_count,
+              forkCount: repoDetails.forks_count,
+              commitCount: activityMetrics.commitCount,
+              commitTrend: activityMetrics.commitTrend,
+              commitChange: activityMetrics.commitChange,
+              isOpenSource: repoDetails.visibility === 'public',
+              license: repoDetails.license?.spdx_id,
+              language: repoDetails.language,
+              updatedAt: repoDetails.pushed_at,
+              roadmapProgress: calculateRoadmapProgress(repoDetails),
+              openIssues: repoDetails.open_issues_count
+            };
+          }
+        }
+      } catch (error) {
+        console.error("Error processing GitHub data:", error);
+      }
       
       // Process the data and calculate health scores
-      metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData, null, defiLlamaData);
+      metrics = calculateHealthMetrics(tokenDetails, marketChart, poolData, null, defiLlamaData, githubData);
     }
     
     // Cache the result
@@ -161,14 +207,15 @@ function calculateHealthMetrics(
   marketChart: any,
   poolData?: GeckoTerminalPoolData | null,
   etherscanData?: EtherscanTokenData,
-  defiLlamaData?: any
+  defiLlamaData?: any,
+  githubData?: any
 ): TokenMetrics {
   // Initialize scores for each category
   const securityScore = calculateSecurityScore(tokenDetails, poolData, etherscanData);
   const liquidityScore = calculateLiquidityScore(tokenDetails, marketChart, poolData, defiLlamaData);
   const tokenomicsScore = calculateTokenomicsScore(tokenDetails, poolData, etherscanData);
   const communityScore = calculateCommunityScore(tokenDetails);
-  const developmentScore = calculateDevelopmentScore(tokenDetails);
+  const developmentScore = calculateDevelopmentScore(tokenDetails, githubData);
   
   // Calculate overall health score as weighted average
   const healthScore = Math.round(
@@ -308,6 +355,8 @@ function calculateHealthMetrics(
     // New fields from DeFiLlama
     defiLlama: defiLlamaData,
     tvlSparkline,
+    // New field for GitHub data
+    github: githubData,
     categories: {
       security: { score: securityScore },
       liquidity: { score: liquidityScore },
@@ -552,31 +601,57 @@ function calculateCommunityScore(tokenDetails: TokenDetails): number {
 }
 
 /**
- * Calculate development score
+ * Calculate development score using token details and GitHub data
  */
-function calculateDevelopmentScore(tokenDetails: TokenDetails): number {
-  // Based on GitHub metrics
-  const commitCount = tokenDetails.developer_data?.commit_count_4_weeks || 0;
-  const stars = tokenDetails.developer_data?.stars || 0;
-  const forks = tokenDetails.developer_data?.forks || 0;
-  
+function calculateDevelopmentScore(tokenDetails: TokenDetails, githubData?: any): number {
   let score = 50; // Base score
   
-  // Recent commit activity
-  if (commitCount > 100) score += 20;
-  else if (commitCount > 50) score += 15;
-  else if (commitCount > 20) score += 10;
-  else if (commitCount > 0) score += 5;
-  
-  // GitHub stars
-  if (stars > 5000) score += 15;
-  else if (stars > 1000) score += 10;
-  else if (stars > 100) score += 5;
-  
-  // GitHub forks
-  if (forks > 1000) score += 15;
-  else if (forks > 100) score += 10;
-  else if (forks > 10) score += 5;
+  // If we have GitHub data, prioritize that for development metrics
+  if (githubData) {
+    // Recent commit activity
+    if (githubData.commitCount > 100) score += 20;
+    else if (githubData.commitCount > 50) score += 15;
+    else if (githubData.commitCount > 20) score += 10;
+    else if (githubData.commitCount > 0) score += 5;
+    
+    // Repository stars
+    if (githubData.starCount > 5000) score += 15;
+    else if (githubData.starCount > 1000) score += 10;
+    else if (githubData.starCount > 100) score += 5;
+    
+    // Repository forks
+    if (githubData.forkCount > 1000) score += 10;
+    else if (githubData.forkCount > 100) score += 7;
+    else if (githubData.forkCount > 10) score += 3;
+    
+    // Open source status
+    if (githubData.isOpenSource) score += 10;
+    
+    // Activity status
+    if (githubData.activityStatus === 'Active') score += 10;
+    else if (githubData.activityStatus === 'Stale') score += 5;
+  } else {
+    // Fall back to CoinGecko dev data if available
+    const commitCount = tokenDetails.developer_data?.commit_count_4_weeks || 0;
+    const stars = tokenDetails.developer_data?.stars || 0;
+    const forks = tokenDetails.developer_data?.forks || 0;
+    
+    // Recent commit activity
+    if (commitCount > 100) score += 20;
+    else if (commitCount > 50) score += 15;
+    else if (commitCount > 20) score += 10;
+    else if (commitCount > 0) score += 5;
+    
+    // GitHub stars
+    if (stars > 5000) score += 15;
+    else if (stars > 1000) score += 10;
+    else if (stars > 100) score += 5;
+    
+    // GitHub forks
+    if (forks > 1000) score += 15;
+    else if (forks > 100) score += 10;
+    else if (forks > 10) score += 5;
+  }
   
   // Cap the score at 100
   return Math.min(Math.max(score, 0), 100);

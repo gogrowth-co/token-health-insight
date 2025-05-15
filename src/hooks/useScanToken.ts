@@ -29,7 +29,11 @@ export const useScanToken = () => {
       let result: TokenMetrics | null = null;
       
       try {
-        setTimeout(() => setProgress(50), 1000);
+        setTimeout(() => setProgress(40), 800);
+        toast({
+          title: "Analyzing token",
+          description: "Examining on-chain metrics...",
+        });
         
         // Call the edge function
         const { data, error: funcError } = await supabase.functions.invoke('scan-token', {
@@ -39,7 +43,13 @@ export const useScanToken = () => {
         if (funcError) throw new Error(funcError.message);
         result = data as TokenMetrics;
         
-        setTimeout(() => setProgress(80), 1500);
+        setTimeout(() => setProgress(60), 1200);
+        toast({
+          title: "Processing data",
+          description: "Retrieving GitHub development metrics...",
+        });
+        
+        setTimeout(() => setProgress(80), 1800);
       } catch (edgeFunctionError) {
         console.warn("Edge function error, falling back to client-side scan:", edgeFunctionError);
         
