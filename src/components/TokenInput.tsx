@@ -25,11 +25,11 @@ export const TokenInput = () => {
       return;
     }
     
-    // Navigate to dashboard if authenticated, otherwise to signup with token as URL param
+    // Navigate to dashboard if authenticated, otherwise to auth with token as URL param
     if (user) {
       navigate(`/dashboard?token=${encodeURIComponent(tokenInput)}`);
     } else {
-      navigate(`/auth?token=${encodeURIComponent(tokenInput)}`);
+      navigate(`/auth?tab=signup&token=${encodeURIComponent(tokenInput)}`);
     }
   };
 
