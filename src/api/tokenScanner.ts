@@ -283,7 +283,7 @@ function calculateHealthMetrics(
   let poolAge;
   let poolAddress;
   let network;
-  let dataQuality = "partial"; // Default to partial quality
+  let dataQuality: "complete" | "partial" = "partial"; // Fixed: Add type annotation and default to partial quality
   
   // Extract liquidity lock status from pool data if available
   if (poolData) {
