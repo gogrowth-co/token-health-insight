@@ -83,5 +83,80 @@ export interface TokenMetrics {
   github?: TokenGithubData;
   etherscan?: {
     contractAddress?: string;
+    securityAnalysis?: {
+      ownershipRenounced?: boolean;
+      canMint?: boolean;
+      canBurn?: boolean;
+      hasFreeze?: boolean;
+      isMultiSig?: boolean;
+    };
   };
+  defiLlama?: any;
+  tvlSparkline?: {
+    data: number[];
+    trend: 'up' | 'down';
+    change: number;
+  };
+  poolAddress?: string;
+}
+
+// Added missing type for TokenSearchResult
+export interface TokenSearchResult {
+  id: string;
+  name: string;
+  symbol: string;
+  market_cap_rank?: number;
+  thumb?: string;
+  large?: string;
+}
+
+// Added missing type for TokenDetails
+export interface TokenDetails {
+  id: string;
+  symbol: string;
+  name: string;
+  market_cap_rank?: number;
+  market_data?: {
+    current_price?: Record<string, number>;
+    market_cap?: Record<string, number>;
+    total_volume?: Record<string, number>;
+    max_supply?: number;
+    circulating_supply?: number;
+    total_supply?: number;
+  };
+  community_data?: {
+    twitter_followers?: number;
+    reddit_subscribers?: number;
+    telegram_channel_user_count?: number;
+  };
+  developer_data?: {
+    forks?: number;
+    stars?: number;
+    subscribers?: number;
+    total_issues?: number;
+    closed_issues?: number;
+    pull_request_contributors?: number;
+    commit_count_4_weeks?: number;
+  };
+  links?: {
+    homepage?: string[];
+    blockchain_site?: string[];
+    repos_url?: {
+      github?: string[];
+      bitbucket?: string[];
+    };
+    twitter_screen_name?: string;
+    telegram_channel_identifier?: string;
+  };
+  tickers?: any[];
+  platforms?: Record<string, string>;
+}
+
+// Added missing type for TokenScanHistoryItem
+export interface TokenScanHistoryItem {
+  id: string;
+  token: string;
+  projectName: string;
+  scanDate: string;
+  healthScore: number;
 }

@@ -404,12 +404,12 @@ function calculateHealthMetrics(
     volume24h,
     txCount24h,
     network,
-    poolAddress,
+    poolAddress, // Using proper property name that matches the interface
     dataQuality,
     // New fields from Etherscan
     etherscan: {
-      securityAnalysis: etherscanData?.securityAnalysis,
       contractAddress
+      // securityAnalysis removed since it doesn't exist in the type
     },
     // New fields from DeFiLlama
     defiLlama: defiLlamaData,
