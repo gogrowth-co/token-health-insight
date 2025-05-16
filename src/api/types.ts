@@ -98,6 +98,15 @@ export interface TokenMetrics {
   };
   poolAddress?: string;
   dataSources?: string[];
+  // New token info fields
+  description?: string;
+  website?: string;
+  twitterUrl?: string;
+  githubUrl?: string;
+  explorerUrl?: string;
+  whitepaper?: string;
+  launchDate?: string;
+  tokenType?: string;
 }
 
 // Added missing type for TokenSearchResult
@@ -190,4 +199,20 @@ export interface TokenCoreMetrics {
     stars?: number;
     commitCount?: number;
   };
+}
+
+// Add a new TokenInfoPanelProps interface
+export interface TokenInfoData {
+  name: string;
+  symbol: string;
+  contractAddress?: string;
+  description?: string;
+  website?: string;
+  twitterUrl?: string;
+  githubUrl?: string;
+  explorerUrl?: string;
+  whitepaper?: string;
+  launchDate?: string;
+  tokenType?: string;
+  network?: string;
 }

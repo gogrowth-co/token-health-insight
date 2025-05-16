@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RefreshCw, ShieldCheck, Droplet, LineChart, UsersRound, Code, AlertCircle } from "lucide-react";
+import { RefreshCw, ShieldCheck, Droplet, LineChart, UsersRound, Code, AlertCircle, Info } from "lucide-react";
 import { useScanToken } from "@/hooks/useScanToken";
 import { TokenMetrics } from "@/api/types";
 import { Navbar } from "@/components/Navbar";
@@ -21,6 +21,9 @@ import { useTokenSecurity } from "@/hooks/useTokenSecurity";
 import { SecurityPanel } from "@/components/SecurityPanel";
 import { useTokenTokenomics } from "@/hooks/useTokenTokenomics";
 import { TokenomicsPanel } from "@/components/TokenomicsPanel";
+import { TokenInfoPanel } from "@/components/TokenInfoPanel";
+import { useTokenInfo } from "@/hooks/useTokenInfo";
+import { truncateAddress } from "@/utils/linkFormatters";
 
 const ScanResult = () => {
   const navigate = useNavigate();
@@ -51,6 +54,13 @@ const ScanResult = () => {
     isLoading: tokenomicsLoading,
     error: tokenomicsError
   } = useTokenTokenomics(contractAddress);
+  
+  // Add the token info data hook
+  const {
+    data: tokenInfoData,
+    isLoading: tokenInfoLoading,
+    error: tokenInfoError
+  } = useTokenInfo(token, projectData?.etherscan?.contractAddress);
   
   // Redirect to auth if not authenticated
   useEffect(() => {
@@ -110,6 +120,26 @@ const ScanResult = () => {
 
   const tryAnotherToken = (tokenId: string) => {
     navigate(`/scan?token=${encodeURIComponent(tokenId)}`);
+  };
+
+  // Add token info extraction function
+  const extractTokenInfo = (data: TokenMetrics | null): TokenInfoData | null => {
+    if (!data) return null;
+    
+    return {
+      name: data.name,
+      symbol: data.symbol,
+      contractAddress: data.etherscan?.contractAddress,
+      description: data.description,
+      website: data.website,
+      twitterUrl: data.twitterUrl,
+      githubUrl: data.githubUrl,
+      explorerUrl: data.explorerUrl,
+      whitepaper: data.whitepaper,
+      launchDate: data.launchDate,
+      tokenType: data.tokenType,
+      network: data.network
+    };
   };
 
   // Show loading while checking authentication
@@ -248,6 +278,7 @@ const ScanResult = () => {
               <div className="p-4 border-b">
                 <TabsList className="w-full justify-start overflow-x-auto">
                   <TabsTrigger value="overview" className="min-w-max">Overview</TabsTrigger>
+                  <TabsTrigger value="info" className="min-w-max">Info</TabsTrigger>
                   <TabsTrigger value="security" className="min-w-max">Security</TabsTrigger>
                   <TabsTrigger value="liquidity" className="min-w-max">Liquidity</TabsTrigger>
                   <TabsTrigger value="tokenomics" className="min-w-max">Tokenomics</TabsTrigger>
@@ -311,6 +342,32 @@ const ScanResult = () => {
                     />
                     
                     <CategorySection 
+                      title="Token Info" 
+                      icon={<Info className="h-5 w-5" />}
+                      score={100}
+                      description="Basic details about this token" 
+                      items={[
+                        { 
+                          name: 'Contract Address', 
+                          status: projectData?.etherscan?.contractAddress 
+                            ? truncateAddress(projectData?.etherscan?.contractAddress) 
+                            : 'Unknown',
+                          tooltip: 'The token contract address on its blockchain'
+                        },
+                        { 
+                          name: 'Website', 
+                          status: tokenInfoData?.website ? 'Available' : 'Unknown',
+                          tooltip: 'Link to token website'
+                        },
+                        { 
+                          name: 'Token Type', 
+                          status: tokenInfoData?.tokenType || 'Unknown',
+                          tooltip: 'The type of token contract'
+                        },
+                      ]}
+                    />
+                    
+                    <CategorySection 
                       title="Tokenomics" 
                       icon={<LineChart className="h-5 w-5" />}
                       score={projectData.categories.tokenomics.score}
@@ -367,6 +424,13 @@ const ScanResult = () => {
                     securityData={securityData} 
                     tokenomicsData={tokenomicsData}
                     isLoading={securityLoading || tokenomicsLoading} 
+                  />
+                </TabsContent>
+                
+                <TabsContent value="info" className="mt-0">
+                  <TokenInfoPanel 
+                    tokenInfo={tokenInfoData}
+                    isLoading={tokenInfoLoading}
                   />
                 </TabsContent>
                 
