@@ -2,7 +2,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Globe, Twitter, Github, Copy, ExternalLink, Info } from "lucide-react";
+import { Globe, Twitter, Github, Copy, ExternalLink, Info, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenInfo } from "@/hooks/useTokenInfo";
@@ -19,6 +19,7 @@ export const TokenInfoCard = ({
   error
 }: TokenInfoCardProps) => {
   const [copied, setCopied] = useState(false);
+  const [showFullDescription, setShowFullDescription] = useState(false);
   
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -29,6 +30,14 @@ export const TokenInfoCard = ({
   // Truncate address for display
   const truncateAddress = (addr: string) => {
     return addr?.length > 12 ? `${addr.substring(0, 6)}...${addr.substring(addr.length - 6)}` : addr;
+  };
+
+  // Truncate description to approximately 300 words
+  const summarizeDescription = (desc: string) => {
+    const words = desc.split(/\s+/);
+    if (words.length <= 300) return desc;
+    
+    return words.slice(0, 300).join(' ') + '...';
   };
 
   // If there's an error, display error card
@@ -93,6 +102,7 @@ export const TokenInfoCard = ({
   const twitter = token.links?.twitter_screen_name || "";
   const github = token.links?.github || "";
   const description = token.description || `${token.name} is a cryptocurrency token with symbol ${token.symbol.toUpperCase()}.`;
+  const summaryDescription = summarizeDescription(description);
 
   return (
     <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
@@ -146,7 +156,24 @@ export const TokenInfoCard = ({
           
           {/* Description and Social Links */}
           <div className="flex-1 space-y-2">
-            <p className="text-sm text-gray-600">{description}</p>
+            <div>
+              <p className="text-sm text-gray-600">
+                {showFullDescription ? description : summaryDescription}
+              </p>
+              
+              {description.length > summaryDescription.length && (
+                <button 
+                  onClick={() => setShowFullDescription(!showFullDescription)} 
+                  className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center mt-1"
+                >
+                  {showFullDescription ? (
+                    <>Show less <ChevronUp size={14} className="ml-1" /></>
+                  ) : (
+                    <>Read more <ChevronDown size={14} className="ml-1" /></>
+                  )}
+                </button>
+              )}
+            </div>
             
             <div className="flex items-center gap-3 pt-1">
               {website && (
