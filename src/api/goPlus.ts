@@ -134,3 +134,43 @@ export function processSecurityData(data: GoPlusSecurityResponse): SecurityRiskS
     return null;
   }
 }
+
+/**
+ * Get tokenomics data from GoPlus API
+ * @param contractAddress The contract address to analyze
+ * @returns Tokenomics data including taxes and mintable status
+ */
+export async function getTokenomicsData(contractAddress: string): Promise<{
+  buyTax: number;
+  sellTax: number;
+  isMintable: boolean;
+} | null> {
+  try {
+    if (!contractAddress) {
+      console.warn("No contract address provided for GoPlus tokenomics check");
+      return null;
+    }
+    
+    const data = await fetchJsonWithTimeout<GoPlusSecurityResponse>(
+      `https://api.gopluslabs.io/api/v1/token_security/1?contract_addresses=${contractAddress}`,
+      {},
+      10000 // 10 second timeout
+    );
+    
+    const contractData = data?.result?.[contractAddress.toLowerCase()];
+    
+    if (!contractData) {
+      return null;
+    }
+    
+    return {
+      buyTax: contractData.buy_tax ? Number(contractData.buy_tax) : 0,
+      sellTax: contractData.sell_tax ? Number(contractData.sell_tax) : 0,
+      isMintable: contractData.is_mintable === '1'
+    };
+    
+  } catch (error) {
+    console.error("Error fetching GoPlus tokenomics data:", error);
+    return null;
+  }
+}

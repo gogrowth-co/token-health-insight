@@ -2,15 +2,18 @@
 import React from "react";
 import { RiskFactorsList } from "./RiskFactorsList";
 import { TokenSecurityData } from "@/hooks/useTokenSecurity";
+import { TokenTokenomicsData } from "@/hooks/useTokenTokenomics";
 
 interface RiskFactorsSectionProps {
   securityData?: TokenSecurityData | null;
+  tokenomicsData?: TokenTokenomicsData | null;
   isLoading?: boolean;
   showHeader?: boolean;
 }
 
 export const RiskFactorsSection: React.FC<RiskFactorsSectionProps> = ({ 
   securityData, 
+  tokenomicsData,
   isLoading = false,
   showHeader = true 
 }) => {
@@ -26,7 +29,11 @@ export const RiskFactorsSection: React.FC<RiskFactorsSectionProps> = ({
           </>
         )}
         
-        <RiskFactorsList securityData={securityData} isLoading={isLoading} />
+        <RiskFactorsList 
+          securityData={securityData} 
+          tokenomicsData={tokenomicsData} 
+          isLoading={isLoading} 
+        />
       </div>
     </section>
   );

@@ -19,6 +19,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cleanTokenId } from '@/api/coingecko';
 import { useTokenSecurity } from "@/hooks/useTokenSecurity";
 import { SecurityPanel } from "@/components/SecurityPanel";
+import { useTokenTokenomics } from "@/hooks/useTokenTokenomics";
+import { TokenomicsPanel } from "@/components/TokenomicsPanel";
 
 const ScanResult = () => {
   const navigate = useNavigate();
@@ -42,6 +44,13 @@ const ScanResult = () => {
     isLoading: securityLoading, 
     error: securityError 
   } = useTokenSecurity(contractAddress);
+  
+  // Add the tokenomics data hook
+  const {
+    data: tokenomicsData,
+    isLoading: tokenomicsLoading,
+    error: tokenomicsError
+  } = useTokenTokenomics(contractAddress);
   
   // Redirect to auth if not authenticated
   useEffect(() => {
@@ -308,20 +317,21 @@ const ScanResult = () => {
                       description="Evaluates distribution, supply, and taxation" 
                       items={[
                         { 
-                          name: 'Market Cap', 
-                          status: projectData.marketCap || 'Unknown',
-                          tooltip: 'Total market value of the circulating supply'
+                          name: 'Holders', 
+                          status: tokenomicsData?.holdersCount ? tokenomicsData.holdersCount.toLocaleString() : 'Unknown',
+                          tooltip: 'Number of unique addresses holding this token'
                         },
                         { 
-                          name: 'Top Holders', 
-                          status: projectData.topHoldersPercentage || 'Unknown',
-                          tooltip: 'Percentage owned by the top wallet holders'
+                          name: 'Top Holder', 
+                          status: tokenomicsData?.topHolderPct ? `${tokenomicsData.topHolderPct.toFixed(2)}%` : 'Unknown',
+                          tooltip: 'Percentage owned by the largest wallet',
+                          trend: tokenomicsData?.topHolderPct && tokenomicsData.topHolderPct < 15 ? 'up' : 'down'
                         },
                         { 
-                          name: 'Buy Tax', 
-                          status: projectData.goPlus?.buyTax || '0%',
-                          tooltip: 'Fee applied when buying this token',
-                          trend: projectData.goPlus?.buyTax === '0%' ? 'up' : 'down'
+                          name: 'Buy/Sell Tax', 
+                          status: tokenomicsData ? `${tokenomicsData.buyTax}% / ${tokenomicsData.sellTax}%` : '0% / 0%',
+                          tooltip: 'Fees applied when buying/selling this token',
+                          trend: tokenomicsData && tokenomicsData.buyTax + tokenomicsData.sellTax < 5 ? 'up' : 'down'
                         },
                       ]}
                     />
@@ -352,8 +362,12 @@ const ScanResult = () => {
                     />
                   </div>
                   
-                  {/* Update to the new RiskFactorsSection with security data */}
-                  <RiskFactorsSection securityData={securityData} isLoading={securityLoading} />
+                  {/* Update to include tokenomics data */}
+                  <RiskFactorsSection 
+                    securityData={securityData} 
+                    tokenomicsData={tokenomicsData}
+                    isLoading={securityLoading || tokenomicsLoading} 
+                  />
                 </TabsContent>
                 
                 <TabsContent value="security" className="mt-0">
@@ -407,49 +421,10 @@ const ScanResult = () => {
                 </TabsContent>
                 
                 <TabsContent value="tokenomics" className="mt-0">
-                  <CategorySection 
-                    title="Tokenomics" 
-                    icon={<LineChart className="h-5 w-5" />}
-                    score={projectData.categories.tokenomics.score}
-                    description="Evaluates distribution, supply, and taxation" 
-                    fullWidth={true}
-                    items={[
-                      { 
-                        name: 'Market Cap', 
-                        status: projectData.marketCap || 'Unknown',
-                        tooltip: 'Total market value of the circulating supply'
-                      },
-                      { 
-                        name: 'Top Holders', 
-                        status: projectData.topHoldersPercentage || 'Unknown',
-                        tooltip: 'Percentage owned by the top wallet holders'
-                      },
-                      { 
-                        name: 'Buy Tax', 
-                        status: projectData.goPlus?.buyTax || '0%',
-                        tooltip: 'Fee applied when buying this token',
-                        trend: projectData.goPlus?.buyTax === '0%' ? 'up' : 'down'
-                      },
-                      { 
-                        name: 'Sell Tax', 
-                        status: projectData.goPlus?.sellTax || '0%',
-                        tooltip: 'Fee applied when selling this token',
-                        trend: projectData.goPlus?.sellTax === '0%' ? 'up' : 'down'
-                      },
-                      { 
-                        name: 'Can Change Balance', 
-                        status: projectData.goPlus?.ownerCanChangeBalance ? 'Yes' : 'No',
-                        tooltip: 'Owner can modify balances without user consent',
-                        trend: projectData.goPlus?.ownerCanChangeBalance ? 'down' : 'up'
-                      },
-                      { 
-                        name: 'Risk Level', 
-                        status: projectData.goPlus?.riskLevel || 'Unknown',
-                        tooltip: 'Overall contract risk level based on multiple factors',
-                        trend: projectData.goPlus?.riskLevel === 'Low' ? 'up' : 
-                               projectData.goPlus?.riskLevel === 'High' ? 'down' : 'neutral'
-                      }
-                    ]}
+                  <TokenomicsPanel 
+                    tokenomicsData={tokenomicsData}
+                    isLoading={tokenomicsLoading}
+                    tokenomicsScore={projectData.categories.tokenomics.score}
                   />
                 </TabsContent>
                 

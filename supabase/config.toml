@@ -82,3 +82,7 @@ verify_jwt = true
 [functions.fetch-token-security-data]
 verify_jwt = true
 
+[functions.fetch-token-tokenomics]
+verify_jwt = true
+
+
