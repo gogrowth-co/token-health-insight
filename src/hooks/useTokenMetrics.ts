@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { TokenInfo } from './useTokenInfo';
+import { toast } from '@/components/ui/use-toast';
 
 export interface TokenMetrics {
   marketCap: string;
@@ -36,23 +37,45 @@ export const useTokenMetrics = (
         throw new Error('Token identifier is required');
       }
 
-      const { data, error } = await supabase.functions.invoke('get-token-metrics', {
-        body: { 
-          token: normalizedToken,
-          address: tokenInfo?.contract_address || '',
-          twitter: tokenInfo?.links?.twitter_screen_name || ''
+      try {
+        const { data, error } = await supabase.functions.invoke('get-token-metrics', {
+          body: { 
+            token: normalizedToken,
+            address: tokenInfo?.contract_address || '',
+            twitter: tokenInfo?.links?.twitter_screen_name || ''
+          }
+        });
+
+        if (error) {
+          console.error('Error fetching token metrics:', error);
+          toast({
+            title: "Error loading metrics",
+            description: "We're having trouble loading metrics. Using cached data where possible.",
+            variant: "destructive",
+          });
+          throw new Error(`Failed to fetch token metrics: ${error.message}`);
         }
-      });
 
-      if (error) {
-        console.error('Error fetching token metrics:', error);
-        throw new Error(`Failed to fetch token metrics: ${error.message}`);
+        if (data.error) {
+          console.error('API error fetching token metrics:', data.error);
+          toast({
+            title: "API error",
+            description: data.error,
+            variant: "destructive",
+          });
+        }
+
+        return data.metrics as TokenMetrics;
+      } catch (error) {
+        console.error('Exception fetching token metrics:', error);
+        // For mock data we could implement a fallback here
+        // but the edge function already provides fallbacks
+        throw error;
       }
-
-      return data.metrics as TokenMetrics;
     },
     enabled: !!normalizedToken,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 15 * 60 * 1000, // 15 minutes
+    retry: 2, // Retry failed requests up to 2 times
   });
 };

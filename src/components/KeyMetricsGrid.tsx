@@ -1,5 +1,5 @@
 
-import { TrendingUp, TrendingDown, Loader2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Loader2, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Tooltip,
@@ -10,6 +10,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenInfo } from "@/hooks/useTokenInfo";
 import { useTokenMetrics } from "@/hooks/useTokenMetrics";
+import { useEffect } from "react";
+import { toast } from "@/components/ui/use-toast";
 
 interface KeyMetricsGridProps {
   token: TokenInfo | null;
@@ -21,15 +23,42 @@ export const KeyMetricsGrid = ({ token, tokenId, isLoading = false }: KeyMetrics
   const { 
     data: metrics,
     isLoading: metricsLoading,
-    error: metricsError
+    error: metricsError,
+    isError,
+    refetch
   } = useTokenMetrics(tokenId, token);
 
   // Check if we're loading or have an error
   const showSkeletons = isLoading || metricsLoading;
-  const hasError = metricsError ? true : false;
+
+  // Show error toast once when an error occurs
+  useEffect(() => {
+    if (isError && metricsError) {
+      toast({
+        title: "Error loading token metrics",
+        description: "We're having trouble fetching the latest data. Some metrics may be unavailable.",
+        variant: "destructive",
+      });
+    }
+  }, [isError, metricsError]);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {isError && (
+        <div className="col-span-full bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-center gap-2">
+          <AlertCircle className="text-red-500" size={20} />
+          <div className="text-sm text-red-700">
+            Error loading metrics. 
+            <button 
+              onClick={() => refetch()} 
+              className="ml-2 underline text-indigo-600 hover:text-indigo-800"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Market Cap */}
       {showSkeletons ? (
         <MetricTileSkeleton />
@@ -40,7 +69,7 @@ export const KeyMetricsGrid = ({ token, tokenId, isLoading = false }: KeyMetrics
           trend={metrics?.marketCapChange24h && metrics.marketCapChange24h > 0 ? "up" : "down"} 
           change={metrics?.marketCapChange24h ? `${metrics.marketCapChange24h.toFixed(1)}%` : undefined}
           tooltip="Total market value of circulating supply" 
-          error={hasError}
+          error={isError}
         />
       )}
 
@@ -52,7 +81,7 @@ export const KeyMetricsGrid = ({ token, tokenId, isLoading = false }: KeyMetrics
           label="Liquidity Lock" 
           value={metrics?.liquidityLock || "Unknown"} 
           tooltip="Duration that liquidity is locked for"
-          error={hasError} 
+          error={isError} 
         />
       )}
 
@@ -66,7 +95,7 @@ export const KeyMetricsGrid = ({ token, tokenId, isLoading = false }: KeyMetrics
           trend={metrics?.topHoldersTrend || undefined}
           change={metrics?.topHoldersTrend === "down" ? "Risk" : metrics?.topHoldersTrend === "up" ? "Good" : undefined}
           tooltip="Percentage owned by top 10 addresses" 
-          error={hasError}
+          error={isError}
         />
       )}
 
@@ -80,7 +109,7 @@ export const KeyMetricsGrid = ({ token, tokenId, isLoading = false }: KeyMetrics
           trend={metrics?.tvlChange24h && metrics.tvlChange24h > 0 ? "up" : "down"}
           change={metrics?.tvlChange24h ? `${metrics.tvlChange24h.toFixed(1)}%` : undefined}
           tooltip="Total Value Locked in protocol" 
-          error={hasError}
+          error={isError}
         />
       )}
 
@@ -92,7 +121,7 @@ export const KeyMetricsGrid = ({ token, tokenId, isLoading = false }: KeyMetrics
           label="Audit Status" 
           value={metrics?.auditStatus || "Unknown"} 
           tooltip="Contract verification status" 
-          error={hasError}
+          error={isError}
         />
       )}
 
@@ -106,7 +135,7 @@ export const KeyMetricsGrid = ({ token, tokenId, isLoading = false }: KeyMetrics
           trend={metrics?.socialFollowersChange && metrics.socialFollowersChange > 0 ? "up" : "down"}
           change={metrics?.socialFollowersChange ? `${metrics.socialFollowersChange.toFixed(1)}%` : undefined}
           tooltip="Total followers across social platforms" 
-          error={hasError}
+          error={isError}
         />
       )}
     </div>
@@ -146,7 +175,7 @@ const MetricTile = ({ label, value, trend, change, tooltip, error = false }: Met
           )}
         </div>
         
-        <h3 className="text-2xl font-bold mt-1">{error ? "Error loading" : value}</h3>
+        <h3 className="text-2xl font-bold mt-1">{error && value === "Unknown" ? "Error loading" : value}</h3>
       </CardContent>
     </Card>
   );
