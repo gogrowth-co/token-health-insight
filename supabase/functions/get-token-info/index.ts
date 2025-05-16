@@ -55,8 +55,26 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Get token from URL params or request body
+    let token;
+    
+    // Check if it's a GET request with URL params
     const url = new URL(req.url);
-    let token = url.searchParams.get('token');
+    token = url.searchParams.get('token');
+    
+    // If not found in URL params and it's a POST request, check the request body
+    if (!token && req.method === 'POST') {
+      try {
+        const bodyText = await req.text();
+        if (bodyText) {
+          const body = JSON.parse(bodyText);
+          token = body.token;
+          console.log("Found token in request body:", token);
+        }
+      } catch (e) {
+        console.error("Error parsing request body:", e);
+      }
+    }
 
     if (!token) {
       return new Response(
@@ -67,6 +85,7 @@ Deno.serve(async (req) => {
 
     // Normalize token input: remove $ prefix, convert to lowercase
     token = token.replace(/^\$/, '').toLowerCase();
+    console.log("Processing token:", token);
 
     // Check if we have cached token data
     const { data: cachedData, error: cacheError } = await supabase
