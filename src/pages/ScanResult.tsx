@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RefreshCw, ShieldCheck, Droplet, LineChart, UsersRound, Code, AlertCircle, Info } from "lucide-react";
 import { useScanToken } from "@/hooks/useScanToken";
-import { TokenMetrics } from "@/api/types";
+import { TokenMetrics, TokenInfoData } from "@/api/types";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { HealthScoreCard } from "@/components/HealthScoreCard";

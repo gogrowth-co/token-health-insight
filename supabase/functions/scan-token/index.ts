@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { TokenMetrics } from '@/api/types';
 import { getTokenDetails } from '@/api/coingecko';
@@ -204,12 +205,17 @@ function calculateHealthMetrics(
     },
     healthScore: Math.round((securityScore + liquidityScore + tokenomicsScore + communityScore + developmentScore) / 5),
     lastUpdated: Date.now(),
-    // New token info fields
+    // Enhanced token info fields from CoinGecko API
     description: tokenDetails.description?.en,
     website: tokenDetails.links?.homepage?.[0],
     twitterUrl: tokenDetails.links?.twitter_screen_name,
     githubUrl: tokenDetails.links?.repos_url?.github?.[0],
     tokenType: tokenDetails.asset_platform_id ? `${tokenDetails.asset_platform_id.charAt(0).toUpperCase() + tokenDetails.asset_platform_id.slice(1)} Token` : "Native Token",
+    network: tokenDetails.asset_platform_id || "ethereum",
+    // Extract contract address from platforms if available
+    etherscan: {
+      contractAddress: tokenDetails.platforms && Object.values(tokenDetails.platforms).find(value => value)
+    }
   };
   
   // Add GoPlus security data if available

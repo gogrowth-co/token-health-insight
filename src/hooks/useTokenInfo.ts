@@ -1,9 +1,9 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { TokenInfoData } from "@/api/types";
+import { TokenInfoData, TokenDetails } from "@/api/types";
 import { getTokenDetails } from "@/api/coingecko";
-import { formatExplorerUrl, formatGithubUrl, formatTwitterUrl } from "@/utils/linkFormatters";
+import { formatExplorerUrl, formatGithubUrl, formatTwitterUrl, formatUrl } from "@/utils/linkFormatters";
 
 export const useTokenInfo = (tokenId: string, contractAddress: string | null | undefined) => {
   const [data, setData] = useState<TokenInfoData | null>(null);
@@ -81,7 +81,7 @@ export const useTokenInfo = (tokenId: string, contractAddress: string | null | u
             }
           }
           
-          setData({
+          const tokenInfo: TokenInfoData = {
             name: tokenDetails.name,
             symbol: tokenDetails.symbol.toUpperCase(),
             contractAddress: actualContractAddress || undefined,
@@ -91,7 +91,9 @@ export const useTokenInfo = (tokenId: string, contractAddress: string | null | u
             githubUrl: githubRepo,
             network: network,
             tokenType: tokenType
-          });
+          };
+          
+          setData(tokenInfo);
         }
       } catch (err: any) {
         console.error("Error fetching token info:", err);

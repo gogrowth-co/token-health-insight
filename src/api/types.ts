@@ -109,7 +109,7 @@ export interface TokenMetrics {
   tokenType?: string;
 }
 
-// Added missing type for TokenSearchResult
+// Updated TokenSearchResult interface to match CoinGecko API response
 export interface TokenSearchResult {
   id: string;
   name: string;
@@ -119,12 +119,17 @@ export interface TokenSearchResult {
   large?: string;
 }
 
-// Added missing type for TokenDetails
+// Updated TokenDetails interface to include all necessary fields from CoinGecko API
 export interface TokenDetails {
   id: string;
   symbol: string;
   name: string;
   market_cap_rank?: number;
+  asset_platform_id?: string;
+  platforms?: Record<string, string>;
+  description?: {
+    en?: string;
+  };
   market_data?: {
     current_price?: Record<string, number>;
     market_cap?: Record<string, number>;
@@ -158,7 +163,6 @@ export interface TokenDetails {
     telegram_channel_identifier?: string;
   };
   tickers?: any[];
-  platforms?: Record<string, string>;
 }
 
 // Added missing type for TokenScanHistoryItem
@@ -201,7 +205,7 @@ export interface TokenCoreMetrics {
   };
 }
 
-// Add a new TokenInfoPanelProps interface
+// TokenInfoData interface for the token info panel
 export interface TokenInfoData {
   name: string;
   symbol: string;
