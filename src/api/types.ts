@@ -1,4 +1,3 @@
-
 export interface TokenCategories {
   security: {
     score: number;
@@ -98,6 +97,7 @@ export interface TokenMetrics {
     change: number;
   };
   poolAddress?: string;
+  dataSources?: string[];
 }
 
 // Added missing type for TokenSearchResult
@@ -159,4 +159,35 @@ export interface TokenScanHistoryItem {
   projectName: string;
   scanDate: string;
   healthScore: number;
+}
+
+// Enhanced type for Core Metrics from our new function
+export interface TokenCoreMetrics {
+  name: string;
+  symbol: string;
+  price: number | null;
+  marketCap: number | null;
+  volume24h: number | null; 
+  dexVolume24h: number | null;
+  liquidityUSD: number | null;
+  supply: number | null;
+  contractAddress: string;
+  dataQuality: "complete" | "partial" | "minimal";
+  dataSources: string[];
+  scannedAt: string;
+  tvlSparkline?: {
+    data: number[];
+    trend: 'up' | 'down';
+    change: number;
+  };
+  communityData?: {
+    twitterFollowers?: number;
+    telegramUsers?: number;
+    redditSubscribers?: number;
+  };
+  developerData?: {
+    forks?: number;
+    stars?: number;
+    commitCount?: number;
+  };
 }
