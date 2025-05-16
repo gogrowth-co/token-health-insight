@@ -1,4 +1,3 @@
-
 import React from "react";
 import { LineChart } from "lucide-react";
 import { TokenTokenomicsData } from "@/hooks/useTokenTokenomics";
@@ -25,11 +24,11 @@ export const TokenomicsPanel: React.FC<TokenomicsPanelProps> = ({
   };
   
   // Determine risk level based on top holder concentration
-  const getConcentrationRisk = (percent: number | null): { label: string; variant: "success" | "warning" | "destructive" | "default" } => {
+  const getConcentrationRisk = (percent: number | null): { label: string; variant: "success" | "warning" | "danger" | "default" } => {
     if (percent === null) return { label: "Unknown", variant: "default" };
     if (percent < 15) return { label: "Low", variant: "success" };
     if (percent < 30) return { label: "Medium", variant: "warning" };
-    return { label: "High", variant: "destructive" };
+    return { label: "High", variant: "danger" };
   };
   
   // Get top holder risk assessment
@@ -127,7 +126,7 @@ export const TokenomicsPanel: React.FC<TokenomicsPanelProps> = ({
                       className={`h-full ${
                         topHolderRisk.variant === "success" ? "bg-green-500" :
                         topHolderRisk.variant === "warning" ? "bg-amber-500" : 
-                        topHolderRisk.variant === "destructive" ? "bg-red-500" : "bg-gray-400"
+                        topHolderRisk.variant === "danger" ? "bg-red-500" : "bg-gray-400"
                       }`} 
                       style={{ width: `${tokenomicsData?.topHolderPct || 0}%` }}
                     />
@@ -147,7 +146,7 @@ export const TokenomicsPanel: React.FC<TokenomicsPanelProps> = ({
                       className={`h-full ${
                         top5HoldersRisk.variant === "success" ? "bg-green-500" :
                         top5HoldersRisk.variant === "warning" ? "bg-amber-500" : 
-                        top5HoldersRisk.variant === "destructive" ? "bg-red-500" : "bg-gray-400"
+                        top5HoldersRisk.variant === "danger" ? "bg-red-500" : "bg-gray-400"
                       }`} 
                       style={{ width: `${tokenomicsData?.top5HoldersPct || 0}%` }}
                     />

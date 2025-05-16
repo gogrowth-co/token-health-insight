@@ -14,6 +14,16 @@ export interface TokenSecurityData {
   hiddenOwner: boolean;
   slippageModifiable: boolean;
   tradingCooldown: boolean;
+  // Add missing properties that RiskFactorsList is expecting
+  isHoneypot: boolean;
+  canMint: boolean;
+  hasBlacklist: boolean;
+  ownerCanChangeBalance: boolean;
+  transferPausable: boolean;
+  isSelfdestructable: boolean;
+  isOpenSource: boolean;
+  buyTax: string;
+  sellTax: string;
   riskFactors: string[];
   scannedAt: string;
   dataSource: {

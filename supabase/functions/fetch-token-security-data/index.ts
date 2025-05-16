@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -157,9 +156,21 @@ function processSecurityData(contractAddress, etherscanData, goPlusData) {
   let tradingCooldown = false;
   const riskFactors = [];
   
+  // For the RiskFactorsList component
+  let isHoneypot = false;
+  let canMint = false;
+  let hasBlacklist = false;
+  let ownerCanChangeBalance = false;
+  let transferPausable = false;
+  let isSelfdestructable = false;
+  let isOpenSource = true; // Default to true
+  let buyTax = '0%';
+  let sellTax = '0%';
+  
   // Process Etherscan data if available
   if (etherscanData && etherscanData[0]) {
     contractVerified = etherscanData[0].ABI !== 'Contract source code not verified';
+    isOpenSource = contractVerified;
     
     if (etherscanData[0].ContractName) {
       console.log(`Contract name: ${etherscanData[0].ContractName}`);
@@ -178,12 +189,30 @@ function processSecurityData(contractAddress, etherscanData, goPlusData) {
   if (goPlusData) {
     // Extract risk factors
     honeypotRisk = goPlusData.is_honeypot === '1' ? 'High' : 'Low';
+    isHoneypot = goPlusData.is_honeypot === '1';
     isMintable = goPlusData.is_mintable === '1';
+    canMint = goPlusData.can_mint === '1';
     canTakeBackOwnership = goPlusData.can_take_back_ownership === '1';
     hiddenOwner = goPlusData.hidden_owner === '1';
     isBlacklisted = goPlusData.is_blacklisted === '1';
+    hasBlacklist = isBlacklisted;
     slippageModifiable = goPlusData.slippage_modifiable === '1';
     tradingCooldown = goPlusData.trading_cooldown === '1';
+    ownerCanChangeBalance = goPlusData.owner_change_balance === '1';
+    transferPausable = goPlusData.transfer_pausable === '1';
+    isSelfdestructable = goPlusData.selfdestruct === '1';
+    
+    // Get tax information
+    if (goPlusData.buy_tax) {
+      buyTax = `${goPlusData.buy_tax}%`;
+    }
+    if (goPlusData.sell_tax) {
+      sellTax = `${goPlusData.sell_tax}%`;
+    }
+    
+    if (!contractVerified) {
+      isOpenSource = goPlusData.is_open_source === '1';
+    }
   }
   
   // Build the risk factors list
@@ -223,6 +252,16 @@ function processSecurityData(contractAddress, etherscanData, goPlusData) {
     hiddenOwner,
     slippageModifiable,
     tradingCooldown,
+    // Add the fields expected by RiskFactorsList
+    isHoneypot,
+    canMint, 
+    hasBlacklist,
+    ownerCanChangeBalance,
+    transferPausable,
+    isSelfdestructable,
+    isOpenSource,
+    buyTax,
+    sellTax,
     riskFactors,
     scannedAt: new Date().toISOString(),
     dataSource: {

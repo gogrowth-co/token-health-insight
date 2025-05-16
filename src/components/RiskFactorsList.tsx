@@ -1,4 +1,3 @@
-
 import React from "react";
 import { AlertTriangle, Info } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -227,7 +226,7 @@ export const RiskFactorsList: React.FC<RiskFactorsListProps> = ({
           variant={
             risk.severity === "critical" ? "destructive" : 
             risk.severity === "high" ? "destructive" : 
-            risk.severity === "medium" ? "default" : "outline"
+            "default"
           }
           className={
             risk.severity === "critical" ? "bg-red-50 text-red-900 border-red-200" : 
