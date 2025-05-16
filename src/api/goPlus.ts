@@ -79,20 +79,20 @@ export function processSecurityData(data: GoPlusSecurityResponse): SecurityRiskS
     let highRiskCount = 0;
     let moderateRiskCount = 0;
     
-    // Check high risk factors - convert strings to numbers using parseInt
-    if (parseInt(security.is_honeypot) === 1) highRiskCount++;
-    if (parseInt(security.can_take_back_ownership) === 1) highRiskCount++;
-    if (parseInt(security.owner_change_balance) === 1) highRiskCount++;
-    if (parseInt(security.selfdestruct) === 1) highRiskCount++;
-    if (parseInt(security.cannot_sell_all) === 1) highRiskCount++;
+    // Check high risk factors - ensure we're passing strings to parseInt
+    if (parseInt(String(security.is_honeypot)) === 1) highRiskCount++;
+    if (parseInt(String(security.can_take_back_ownership)) === 1) highRiskCount++;
+    if (parseInt(String(security.owner_change_balance)) === 1) highRiskCount++;
+    if (parseInt(String(security.selfdestruct)) === 1) highRiskCount++;
+    if (parseInt(String(security.cannot_sell_all)) === 1) highRiskCount++;
     
-    // Check moderate risk factors - convert strings to numbers using parseInt
-    if (parseInt(security.can_mint) === 1) moderateRiskCount++;
-    if (parseInt(security.is_blacklisted) === 1) moderateRiskCount++;
-    if (parseInt(security.slippage_modifiable) === 1) moderateRiskCount++;
-    if (parseInt(security.is_proxy) === 1) moderateRiskCount++;
-    if (parseInt(security.transfer_pausable) === 1) moderateRiskCount++;
-    if (parseInt(security.external_call) === 1) moderateRiskCount++;
+    // Check moderate risk factors - ensure we're passing strings to parseInt
+    if (parseInt(String(security.can_mint)) === 1) moderateRiskCount++;
+    if (parseInt(String(security.is_blacklisted)) === 1) moderateRiskCount++;
+    if (parseInt(String(security.slippage_modifiable)) === 1) moderateRiskCount++;
+    if (parseInt(String(security.is_proxy)) === 1) moderateRiskCount++;
+    if (parseInt(String(security.transfer_pausable)) === 1) moderateRiskCount++;
+    if (parseInt(String(security.external_call)) === 1) moderateRiskCount++;
     
     // Calculate risk level
     let riskLevel: 'High' | 'Moderate' | 'Low' | 'Unknown' = 'Unknown';
@@ -103,7 +103,7 @@ export function processSecurityData(data: GoPlusSecurityResponse): SecurityRiskS
       riskLevel = 'Moderate';
     } else if (moderateRiskCount === 1) {
       riskLevel = 'Low';
-    } else if (parseInt(security.is_open_source) === 1) {
+    } else if (parseInt(String(security.is_open_source)) === 1) {
       riskLevel = 'Low';
     }
     
@@ -112,17 +112,17 @@ export function processSecurityData(data: GoPlusSecurityResponse): SecurityRiskS
     const sellTax = security.sell_tax ? `${security.sell_tax}%` : '0%';
     
     return {
-      ownershipRenounced: parseInt(security.can_take_back_ownership) !== 1,
-      canMint: parseInt(security.can_mint) === 1,
-      hasBlacklist: parseInt(security.is_blacklisted) === 1,
-      slippageModifiable: parseInt(security.slippage_modifiable) === 1,
-      isHoneypot: parseInt(security.is_honeypot) === 1,
-      ownerCanChangeBalance: parseInt(security.owner_change_balance) === 1,
-      isProxy: parseInt(security.is_proxy) === 1,
-      hasExternalCalls: parseInt(security.external_call) === 1,
-      transferPausable: parseInt(security.transfer_pausable) === 1,
-      isSelfdestructable: parseInt(security.selfdestruct) === 1,
-      isOpenSource: parseInt(security.is_open_source) === 1,
+      ownershipRenounced: parseInt(String(security.can_take_back_ownership)) !== 1,
+      canMint: parseInt(String(security.can_mint)) === 1,
+      hasBlacklist: parseInt(String(security.is_blacklisted)) === 1,
+      slippageModifiable: parseInt(String(security.slippage_modifiable)) === 1,
+      isHoneypot: parseInt(String(security.is_honeypot)) === 1,
+      ownerCanChangeBalance: parseInt(String(security.owner_change_balance)) === 1,
+      isProxy: parseInt(String(security.is_proxy)) === 1,
+      hasExternalCalls: parseInt(String(security.external_call)) === 1,
+      transferPausable: parseInt(String(security.transfer_pausable)) === 1,
+      isSelfdestructable: parseInt(String(security.selfdestruct)) === 1,
+      isOpenSource: parseInt(String(security.is_open_source)) === 1,
       buyTax,
       sellTax,
       highRiskCount,
@@ -166,7 +166,7 @@ export async function getTokenomicsData(contractAddress: string): Promise<{
     return {
       buyTax: contractData.buy_tax ? Number(contractData.buy_tax) : 0,
       sellTax: contractData.sell_tax ? Number(contractData.sell_tax) : 0,
-      isMintable: contractData.is_mintable === '1'
+      isMintable: String(contractData.is_mintable) === '1'
     };
     
   } catch (error) {
