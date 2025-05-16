@@ -1,3 +1,4 @@
+
 import React from "react";
 import { LineChart } from "lucide-react";
 import { TokenTokenomicsData } from "@/hooks/useTokenTokenomics";
@@ -119,7 +120,12 @@ export const TokenomicsPanel: React.FC<TokenomicsPanelProps> = ({
                 <div>
                   <div className="flex justify-between mb-1">
                     <p className="text-sm font-medium">Top Holder Concentration</p>
-                    <Badge variant={topHolderRisk.variant}>{topHolderRisk.label} Risk</Badge>
+                    <Badge variant={topHolderRisk.variant === "danger" ? "destructive" : 
+                           topHolderRisk.variant === "warning" ? "warning" : 
+                           topHolderRisk.variant === "success" ? "success" : 
+                           "default"}>
+                      {topHolderRisk.label} Risk
+                    </Badge>
                   </div>
                   <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
                     <div 
@@ -139,7 +145,12 @@ export const TokenomicsPanel: React.FC<TokenomicsPanelProps> = ({
                 <div>
                   <div className="flex justify-between mb-1">
                     <p className="text-sm font-medium">Top 5 Holders Concentration</p>
-                    <Badge variant={top5HoldersRisk.variant}>{top5HoldersRisk.label} Risk</Badge>
+                    <Badge variant={top5HoldersRisk.variant === "danger" ? "destructive" : 
+                           top5HoldersRisk.variant === "warning" ? "warning" : 
+                           top5HoldersRisk.variant === "success" ? "success" : 
+                           "default"}>
+                      {top5HoldersRisk.label} Risk
+                    </Badge>
                   </div>
                   <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
                     <div 

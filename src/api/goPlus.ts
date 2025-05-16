@@ -79,20 +79,20 @@ export function processSecurityData(data: GoPlusSecurityResponse): SecurityRiskS
     let highRiskCount = 0;
     let moderateRiskCount = 0;
     
-    // Check high risk factors
-    if (parseInt(security.is_honeypot) === 1) highRiskCount++;
-    if (parseInt(security.can_take_back_ownership) === 1) highRiskCount++;
-    if (parseInt(security.owner_change_balance) === 1) highRiskCount++;
-    if (parseInt(security.selfdestruct) === 1) highRiskCount++;
-    if (parseInt(security.cannot_sell_all) === 1) highRiskCount++;
+    // Check high risk factors - convert strings to numbers using parseInt
+    if (parseInt(security.is_honeypot, 10) === 1) highRiskCount++;
+    if (parseInt(security.can_take_back_ownership, 10) === 1) highRiskCount++;
+    if (parseInt(security.owner_change_balance, 10) === 1) highRiskCount++;
+    if (parseInt(security.selfdestruct, 10) === 1) highRiskCount++;
+    if (parseInt(security.cannot_sell_all, 10) === 1) highRiskCount++;
     
-    // Check moderate risk factors
-    if (parseInt(security.can_mint) === 1) moderateRiskCount++;
-    if (parseInt(security.is_blacklisted) === 1) moderateRiskCount++;
-    if (parseInt(security.slippage_modifiable) === 1) moderateRiskCount++;
-    if (parseInt(security.is_proxy) === 1) moderateRiskCount++;
-    if (parseInt(security.transfer_pausable) === 1) moderateRiskCount++;
-    if (parseInt(security.external_call) === 1) moderateRiskCount++;
+    // Check moderate risk factors - convert strings to numbers using parseInt
+    if (parseInt(security.can_mint, 10) === 1) moderateRiskCount++;
+    if (parseInt(security.is_blacklisted, 10) === 1) moderateRiskCount++;
+    if (parseInt(security.slippage_modifiable, 10) === 1) moderateRiskCount++;
+    if (parseInt(security.is_proxy, 10) === 1) moderateRiskCount++;
+    if (parseInt(security.transfer_pausable, 10) === 1) moderateRiskCount++;
+    if (parseInt(security.external_call, 10) === 1) moderateRiskCount++;
     
     // Calculate risk level
     let riskLevel: 'High' | 'Moderate' | 'Low' | 'Unknown' = 'Unknown';
@@ -103,7 +103,7 @@ export function processSecurityData(data: GoPlusSecurityResponse): SecurityRiskS
       riskLevel = 'Moderate';
     } else if (moderateRiskCount === 1) {
       riskLevel = 'Low';
-    } else if (parseInt(security.is_open_source) === 1) {
+    } else if (parseInt(security.is_open_source, 10) === 1) {
       riskLevel = 'Low';
     }
     
@@ -112,17 +112,17 @@ export function processSecurityData(data: GoPlusSecurityResponse): SecurityRiskS
     const sellTax = security.sell_tax ? `${security.sell_tax}%` : '0%';
     
     return {
-      ownershipRenounced: parseInt(security.can_take_back_ownership) !== 1,
-      canMint: parseInt(security.can_mint) === 1,
-      hasBlacklist: parseInt(security.is_blacklisted) === 1,
-      slippageModifiable: parseInt(security.slippage_modifiable) === 1,
-      isHoneypot: parseInt(security.is_honeypot) === 1,
-      ownerCanChangeBalance: parseInt(security.owner_change_balance) === 1,
-      isProxy: parseInt(security.is_proxy) === 1,
-      hasExternalCalls: parseInt(security.external_call) === 1,
-      transferPausable: parseInt(security.transfer_pausable) === 1,
-      isSelfdestructable: parseInt(security.selfdestruct) === 1,
-      isOpenSource: parseInt(security.is_open_source) === 1,
+      ownershipRenounced: parseInt(security.can_take_back_ownership, 10) !== 1,
+      canMint: parseInt(security.can_mint, 10) === 1,
+      hasBlacklist: parseInt(security.is_blacklisted, 10) === 1,
+      slippageModifiable: parseInt(security.slippage_modifiable, 10) === 1,
+      isHoneypot: parseInt(security.is_honeypot, 10) === 1,
+      ownerCanChangeBalance: parseInt(security.owner_change_balance, 10) === 1,
+      isProxy: parseInt(security.is_proxy, 10) === 1,
+      hasExternalCalls: parseInt(security.external_call, 10) === 1,
+      transferPausable: parseInt(security.transfer_pausable, 10) === 1,
+      isSelfdestructable: parseInt(security.selfdestruct, 10) === 1,
+      isOpenSource: parseInt(security.is_open_source, 10) === 1,
       buyTax,
       sellTax,
       highRiskCount,
