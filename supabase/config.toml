@@ -75,3 +75,10 @@ enabled = true
 
 [functions.fetch-token-core-metrics]
 verify_jwt = true
+
+[functions.fetch-security-data]
+verify_jwt = true
+
+[functions.fetch-token-security-data]
+verify_jwt = true
+

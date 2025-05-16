@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -18,6 +17,8 @@ import { formatDistance } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { cleanTokenId } from '@/api/coingecko';
+import { useTokenSecurity } from "@/hooks/useTokenSecurity";
+import { SecurityPanel } from "@/components/SecurityPanel";
 
 const ScanResult = () => {
   const navigate = useNavigate();
@@ -33,7 +34,15 @@ const ScanResult = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [scanAttempted, setScanAttempted] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
-
+  const contractAddress = projectData?.etherscan?.contractAddress || null;
+  
+  // Add the security data hook
+  const { 
+    data: securityData, 
+    isLoading: securityLoading, 
+    error: securityError 
+  } = useTokenSecurity(contractAddress);
+  
   // Redirect to auth if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
@@ -249,20 +258,21 @@ const ScanResult = () => {
                       items={[
                         { 
                           name: 'Contract Verified', 
-                          status: projectData.auditStatus || 'Unknown',
-                          tooltip: 'Indicates whether the contract code has been verified and is publicly visible'
+                          status: securityData?.contractVerified ? 'Yes' : 'No',
+                          tooltip: 'Indicates whether the contract code has been verified and is publicly visible',
+                          trend: securityData?.contractVerified ? 'up' : 'down'
                         },
                         { 
                           name: 'Ownership Renounced', 
-                          status: projectData.goPlus?.ownershipRenounced ? 'Yes' : 'No',
+                          status: securityData?.ownershipRenounced ? 'Yes' : 'No',
                           tooltip: 'When ownership is renounced, no one can modify the contract',
-                          trend: projectData.goPlus?.ownershipRenounced ? 'up' : 'down'
+                          trend: securityData?.ownershipRenounced ? 'up' : 'down'
                         },
                         { 
                           name: 'Honeypot Risk', 
-                          status: projectData.goPlus?.isHoneypot ? 'High' : 'Low',
+                          status: securityData?.honeypotRisk || 'Unknown',
                           tooltip: 'Detects if the token contract prevents selling (honeypot)',
-                          trend: projectData.goPlus?.isHoneypot ? 'down' : 'up'
+                          trend: securityData?.honeypotRisk === 'Low' ? 'up' : 'down'
                         },
                       ]}
                     />
@@ -342,53 +352,15 @@ const ScanResult = () => {
                     />
                   </div>
                   
-                  <RiskFactorsSection projectData={projectData} />
+                  {/* Update to the new RiskFactorsSection with security data */}
+                  <RiskFactorsSection securityData={securityData} isLoading={securityLoading} />
                 </TabsContent>
                 
                 <TabsContent value="security" className="mt-0">
-                  <CategorySection 
-                    title="Security" 
-                    icon={<ShieldCheck className="h-5 w-5" />}
-                    score={projectData.categories.security.score}
-                    description="Evaluates contract safety, ownership, and audit status" 
-                    fullWidth={true}
-                    items={[
-                      { 
-                        name: 'Contract Verified', 
-                        status: projectData.auditStatus || 'Unknown',
-                        tooltip: 'Indicates whether the contract code has been verified and is publicly visible'
-                      },
-                      { 
-                        name: 'Ownership Renounced', 
-                        status: projectData.goPlus?.ownershipRenounced ? 'Yes' : 'No',
-                        tooltip: 'When ownership is renounced, no one can modify the contract',
-                        trend: projectData.goPlus?.ownershipRenounced ? 'up' : 'down'
-                      },
-                      { 
-                        name: 'Honeypot Risk', 
-                        status: projectData.goPlus?.isHoneypot ? 'High' : 'Low',
-                        tooltip: 'Detects if the token contract prevents selling (honeypot)',
-                        trend: projectData.goPlus?.isHoneypot ? 'down' : 'up'
-                      },
-                      { 
-                        name: 'Can Mint New Tokens', 
-                        status: projectData.goPlus?.canMint ? 'Yes' : 'No',
-                        tooltip: 'If enabled, the contract owner can create new tokens at will',
-                        trend: projectData.goPlus?.canMint ? 'down' : 'up'
-                      },
-                      { 
-                        name: 'Open Source', 
-                        status: projectData.goPlus?.isOpenSource ? 'Yes' : 'No',
-                        tooltip: 'Indicates if the contract source code is publicly available',
-                        trend: projectData.goPlus?.isOpenSource ? 'up' : 'down'
-                      },
-                      { 
-                        name: 'External Calls', 
-                        status: projectData.goPlus?.hasExternalCalls ? 'Yes' : 'No',
-                        tooltip: 'Contract may call external contracts which could be malicious',
-                        trend: projectData.goPlus?.hasExternalCalls ? 'down' : 'neutral'
-                      }
-                    ]}
+                  <SecurityPanel 
+                    securityData={securityData}
+                    isLoading={securityLoading} 
+                    securityScore={projectData.categories.security.score}
                   />
                 </TabsContent>
                 
