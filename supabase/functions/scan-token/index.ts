@@ -1,7 +1,80 @@
 
-import { createClient } from '@supabase/supabase-js';
-import { TokenMetrics } from './types.ts';  // Local import using relative path
-import { formatCurrency } from './utils.ts'; // Local import using relative path
+// Import the Supabase JS client from a URL (Deno style)
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
+
+// Define TokenMetrics type inline to avoid relative imports
+interface TokenMetrics {
+  name: string;
+  symbol: string;
+  marketCap?: string;
+  tvl?: string;
+  liquidityLock?: string;
+  topHoldersPercentage?: string;
+  auditStatus?: string;
+  socialFollowers?: string;
+  poolAge?: string;
+  volume24h?: string;
+  txCount24h?: number;
+  network?: string;
+  categories: {
+    security: { score: number };
+    liquidity: { score: number };
+    tokenomics: { score: number };
+    community: { score: number };
+    development: { score: number };
+  };
+  healthScore: number;
+  lastUpdated?: number;
+  dataQuality?: "complete" | "partial";
+  goPlus?: {
+    ownershipRenounced?: boolean;
+    canMint?: boolean;
+    hasBlacklist?: boolean;
+    slippageModifiable?: boolean;
+    isHoneypot?: boolean;
+    ownerCanChangeBalance?: boolean;
+    isProxy?: boolean;
+    hasExternalCalls?: boolean;
+    transferPausable?: boolean;
+    isSelfdestructable?: boolean;
+    isOpenSource?: boolean;
+    buyTax?: string;
+    sellTax?: string;
+    riskLevel?: string;
+  };
+  etherscan?: {
+    contractAddress?: string;
+  };
+  defiLlama?: any;
+  tvlSparkline?: {
+    data: number[];
+    trend: 'up' | 'down';
+    change: number;
+  };
+  poolAddress?: string;
+  dataSources?: string[];
+  description?: string;
+  website?: string;
+  twitterUrl?: string;
+  githubUrl?: string;
+  explorerUrl?: string;
+  whitepaper?: string;
+  launchDate?: string;
+  tokenType?: string;
+}
+
+// Include utility functions directly in the file
+function formatCurrency(value: number): string {
+  if (value >= 1000000000) {
+    return `$${(value / 1000000000).toFixed(2)}B`;
+  } else if (value >= 1000000) {
+    return `$${(value / 1000000).toFixed(2)}M`;
+  } else if (value >= 1000) {
+    return `$${(value / 1000).toFixed(2)}K`;
+  } else {
+    return `$${value.toFixed(2)}`;
+  }
+}
 
 // Initialize Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
@@ -249,64 +322,27 @@ async function cacheTokenData(tokenId: string, data: TokenMetrics): Promise<void
   }
 }
 
-// Utility function for formatting currency
-function formatCurrency(value: number): string {
-  if (value >= 1000000000) {
-    return `$${(value / 1000000000).toFixed(2)}B`;
-  } else if (value >= 1000000) {
-    return `$${(value / 1000000).toFixed(2)}M`;
-  } else if (value >= 1000) {
-    return `$${(value / 1000).toFixed(2)}K`;
-  } else {
-    return `$${value.toFixed(2)}`;
+// CORS headers for cross-origin requests
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// Handle all requests using Deno.serve
+Deno.serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
   }
-}
-
-// Export the required types for the edge function
-export interface TokenMetrics {
-  name: string;
-  symbol: string;
-  marketCap?: string;
-  tvl?: string;
-  liquidityLock?: string;
-  topHoldersPercentage?: string;
-  auditStatus?: string;
-  socialFollowers?: string;
-  poolAge?: string;
-  volume24h?: string;
-  txCount24h?: number;
-  network?: string;
-  categories: {
-    security: { score: number };
-    liquidity: { score: number };
-    tokenomics: { score: number };
-    community: { score: number };
-    development: { score: number };
-  };
-  healthScore: number;
-  lastUpdated?: number;
-  dataQuality?: "complete" | "partial";
-  goPlus?: GoPlusSecurityData;
-  etherscan?: {
-    contractAddress?: string;
-  };
-  defiLlama?: any;
-  tvlSparkline?: {
-    data: number[];
-    trend: 'up' | 'down';
-    change: number;
-  };
-  poolAddress?: string;
-  dataSources?: string[];
-  description?: string;
-  website?: string;
-  twitterUrl?: string;
-  githubUrl?: string;
-  explorerUrl?: string;
-  whitepaper?: string;
-  launchDate?: string;
-  tokenType?: string;
-}
-
-// Listen for requests
-Deno.serve(handler);
+  
+  // Add CORS headers to all responses
+  const response = await handler(req);
+  
+  // Clone the response and add CORS headers
+  const corsResponse = new Response(response.body, response);
+  Object.entries(corsHeaders).forEach(([key, value]) => {
+    corsResponse.headers.set(key, value);
+  });
+  
+  return corsResponse;
+});
