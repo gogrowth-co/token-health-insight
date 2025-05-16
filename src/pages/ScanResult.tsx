@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -10,6 +11,7 @@ import { HealthScoreCard } from "@/components/HealthScoreCard";
 import { KeyMetricsGrid } from "@/components/KeyMetricsGrid";
 import { CategoryCard } from "@/components/CategoryCard";
 import { CategorySection } from "@/components/CategorySection";
+import { TokenInfoCard } from "@/components/TokenInfoCard";
 
 import { 
   ShieldCheck, 
@@ -40,6 +42,12 @@ const ScanResult = () => {
   const projectData = {
     name: "ZenoFi Protocol",
     symbol: token,
+    address: "0x1234567890abcdef1234567890abcdef12345678",
+    description: "ZenoFi is a decentralized finance platform focusing on yield optimization and liquidity provision across multiple blockchains.",
+    website: "https://zenofi.io",
+    twitter: "zenofi_io",
+    github: "zenofi",
+    logoUrl: "https://images.unsplash.com/photo-1605810230434-7631ac76ec81?w=250&h=250&auto=format&fit=crop",
     healthScore: 78,
     marketCap: "$4,532,000",
     liquidityLock: "365 days",
@@ -76,6 +84,18 @@ const ScanResult = () => {
               </div>
               <HealthScoreCard score={projectData.healthScore} />
             </div>
+            
+            {/* Token Info Card */}
+            <TokenInfoCard 
+              name={projectData.name}
+              symbol={projectData.symbol}
+              address={projectData.address}
+              description={projectData.description}
+              logoUrl={projectData.logoUrl}
+              website={projectData.website}
+              twitter={projectData.twitter}
+              github={projectData.github}
+            />
             
             {/* Tabs Navigation */}
             <Tabs 
@@ -289,3 +309,4 @@ const ScanResult = () => {
 };
 
 export default ScanResult;
+

@@ -33,6 +33,90 @@ export type Database = {
         }
         Relationships: []
       }
+      token_data_cache: {
+        Row: {
+          data: Json
+          expires_at: string
+          last_updated: string | null
+          token_id: string
+        }
+        Insert: {
+          data: Json
+          expires_at: string
+          last_updated?: string | null
+          token_id: string
+        }
+        Update: {
+          data?: Json
+          expires_at?: string
+          last_updated?: string | null
+          token_id?: string
+        }
+        Relationships: []
+      }
+      token_scans: {
+        Row: {
+          category_scores: Json | null
+          created_at: string | null
+          health_score: number | null
+          id: string
+          metadata: Json | null
+          token_address: string | null
+          token_id: string
+          token_name: string | null
+          token_symbol: string
+          user_id: string | null
+        }
+        Insert: {
+          category_scores?: Json | null
+          created_at?: string | null
+          health_score?: number | null
+          id?: string
+          metadata?: Json | null
+          token_address?: string | null
+          token_id: string
+          token_name?: string | null
+          token_symbol: string
+          user_id?: string | null
+        }
+        Update: {
+          category_scores?: Json | null
+          created_at?: string | null
+          health_score?: number | null
+          id?: string
+          metadata?: Json | null
+          token_address?: string | null
+          token_id?: string
+          token_name?: string | null
+          token_symbol?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      twitter_profile_cache: {
+        Row: {
+          fetched_at: string
+          id: string
+          profile_data: Json
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          fetched_at?: string
+          id?: string
+          profile_data: Json
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          fetched_at?: string
+          id?: string
+          profile_data?: Json
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
