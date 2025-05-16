@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { getTokenDetails, getTokenMarketChart } from "./coingecko";
 import { 
@@ -85,10 +86,11 @@ export async function scanToken(
         console.error("Error from scan-token function:", error);
         toast({
           title: "Scan Error",
-          description: "We couldn't complete the token scan. Please try again later.",
+          description: "We couldn't complete the token scan. Falling back to client-side scan.",
           variant: "destructive",
         });
-        return null;
+        // Fall back to client-side scan
+        return await scanTokenDirectly(tokenIdOrSymbol, onProgress);
       }
       
       onProgress?.(0.9);

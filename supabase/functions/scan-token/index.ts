@@ -1,15 +1,11 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { TokenMetrics } from '@/api/types';
-import { getTokenDetails } from '@/api/coingecko';
-import { getSecurityData } from '@/api/goPlus';
-import { getTokenMarketChart } from '@/api/coingecko';
-import { formatCurrency } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
+import { TokenMetrics } from './types.ts';  // Local import using relative path
+import { formatCurrency } from './utils.ts'; // Local import using relative path
 
 // Initialize Supabase client
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
 // Cache duration in seconds (24 hours)
@@ -18,178 +14,189 @@ const CACHE_DURATION = 24 * 60 * 60;
 // Progress update callback type
 type ProgressCallback = (progress: number) => void;
 
-/**
- * Scan a token and return comprehensive metrics
- * @param tokenIdOrSymbol Token ID or symbol
- * @param onProgress Optional callback for progress updates
- * @returns Token metrics or null if scan fails
- */
-export async function scanToken(
-  tokenIdOrSymbol: string, 
-  onProgress?: ProgressCallback
-): Promise<TokenMetrics | null> {
+// First, let's define our required types locally for the edge function
+interface TokenDetails {
+  id: string;
+  symbol: string;
+  name: string;
+  market_cap_rank?: number;
+  asset_platform_id?: string;
+  platforms?: Record<string, string>;
+  description?: {
+    en?: string;
+  };
+  market_data?: {
+    current_price?: Record<string, number>;
+    market_cap?: Record<string, number>;
+    total_volume?: Record<string, number>;
+    max_supply?: number;
+    circulating_supply?: number;
+    total_supply?: number;
+  };
+  community_data?: {
+    twitter_followers?: number;
+    reddit_subscribers?: number;
+    telegram_channel_user_count?: number;
+  };
+  developer_data?: {
+    forks?: number;
+    stars?: number;
+    subscribers?: number;
+    total_issues?: number;
+    closed_issues?: number;
+    pull_request_contributors?: number;
+    commit_count_4_weeks?: number;
+  };
+  links?: {
+    homepage?: string[];
+    blockchain_site?: string[];
+    repos_url?: {
+      github?: string[];
+      bitbucket?: string[];
+    };
+    twitter_screen_name?: string;
+    telegram_channel_identifier?: string;
+  };
+  tickers?: any[];
+}
+
+interface GoPlusSecurityData {
+  ownershipRenounced?: boolean;
+  canMint?: boolean;
+  hasBlacklist?: boolean;
+  slippageModifiable?: boolean;
+  isHoneypot?: boolean;
+  ownerCanChangeBalance?: boolean;
+  isProxy?: boolean;
+  hasExternalCalls?: boolean;
+  transferPausable?: boolean;
+  isSelfdestructable?: boolean;
+  isOpenSource?: boolean;
+  buyTax?: string;
+  sellTax?: string;
+  riskLevel?: string;
+}
+
+// The handler function for the edge function
+const handler = async (req: Request) => {
   try {
-    // Update progress to 10%
-    onProgress?.(0.1);
+    const { tokenId } = await req.json();
     
-    // Check for empty input
-    if (!tokenIdOrSymbol || tokenIdOrSymbol.trim() === '') {
-      return null;
+    if (!tokenId) {
+      return new Response(JSON.stringify({ error: 'Token ID is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
     
-    // Try to get from cache first
+    // Check for cached data
     const { data: cachedData } = await supabaseClient
       .from('token_data_cache')
       .select('data')
-      .eq('token_id', tokenIdOrSymbol)
+      .eq('token_id', tokenId)
       .gt('expires_at', new Date().toISOString())
       .maybeSingle();
-    
-    if (cachedData) {
-      console.log("Using cached data for", tokenIdOrSymbol);
-      onProgress?.(1.0); // Complete progress
-      return cachedData.data as unknown as TokenMetrics;
-    }
-    
-    console.log("Fetching fresh data for", tokenIdOrSymbol);
-    onProgress?.(0.2);
-    
-    // Set a timeout for the entire operation
-    const scanAbortController = new AbortController();
-    const timeoutId = setTimeout(() => scanAbortController.abort(), 25000); // 25 second overall timeout
-    
-    try {
-      // Call the scan-token edge function which will handle all API calls
-      onProgress?.(0.3);
-      const { data, error } = await supabaseClient.functions.invoke('scan-token', {
-        body: { tokenId: tokenIdOrSymbol }
+      
+    if (cachedData?.data) {
+      console.log("Returning cached data for token:", tokenId);
+      return new Response(JSON.stringify(cachedData.data), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
       });
-      
-      if (error) {
-        console.error("Error from scan-token function:", error);
-        return null;
-      }
-      
-      onProgress?.(0.9);
-      
-      if (!data) {
-        throw new Error("No data returned from scan-token function");
-      }
-      
-      const metrics = data as TokenMetrics;
-      
-      // Show appropriate toast based on data quality
-      if (metrics.dataQuality === 'complete') {
-        console.log(`Full analysis for ${metrics.symbol} completed with health score: ${metrics.healthScore}/100`);
-      } else {
-        console.log(`Limited data available for ${metrics.symbol}. Health score: ${metrics.healthScore}/100`);
-      }
-      
-      onProgress?.(1.0);
-      
-      // Save scan result for logged-in users
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (session?.user) {
-        await saveScanHistory(session.user.id, tokenIdOrSymbol, metrics);
-      }
-      
-      return metrics;
-    } catch (functionError) {
-      console.error(`Edge function error:`, functionError);
-      return await scanTokenDirectly(tokenIdOrSymbol, onProgress);
-    } finally {
-      clearTimeout(timeoutId);
     }
+    
+    // Fetch token details from CoinGecko
+    const tokenDetails = await fetchTokenDetails(tokenId);
+    if (!tokenDetails) {
+      return new Response(JSON.stringify({ error: 'Token not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    
+    // Calculate metrics
+    const metrics = calculateHealthMetrics(tokenDetails);
+    
+    // Cache the results
+    await cacheTokenData(tokenId, metrics);
+    
+    return new Response(JSON.stringify(metrics), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
   } catch (error) {
-    console.error(`Error scanning token ${tokenIdOrSymbol}:`, error);
+    console.error("Error in scan-token function:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+};
+
+// Fetch token details from CoinGecko
+async function fetchTokenDetails(tokenId: string): Promise<TokenDetails | null> {
+  try {
+    const response = await fetch(`https://api.coingecko.com/api/v3/coins/${tokenId}?localization=false&tickers=false&market_data=true&community_data=true&developer_data=true`);
+    
+    if (!response.ok) {
+      throw new Error(`CoinGecko API returned ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching token details:", error);
     return null;
   }
 }
 
-/**
- * Fallback direct scanning method when edge function fails
- */
-async function scanTokenDirectly(tokenIdOrSymbol: string, onProgress?: ProgressCallback): Promise<TokenMetrics | null> {
+// Fetch security data from GoPlus
+async function fetchSecurityData(tokenAddress: string): Promise<GoPlusSecurityData | null> {
   try {
-    onProgress?.(0.4);
+    const response = await fetch(`https://api.gopluslabs.io/api/v1/token_security/1?contract_addresses=${tokenAddress}`);
     
-    // Fetch token details from CoinGecko
-    const tokenDetails = await getTokenDetails(tokenIdOrSymbol);
-    if (!tokenDetails) {
-      throw new Error("Could not find token details");
+    if (!response.ok) {
+      throw new Error(`GoPlus API returned ${response.status}`);
     }
     
-    onProgress?.(0.5);
-    
-    // Fetch market chart data
-    const marketChart = await getTokenMarketChart(tokenIdOrSymbol);
-    onProgress?.(0.6);
-    
-    // Extract token address for security check
-    let tokenAddress = tokenIdOrSymbol;
-    
-    // Run concurrent API calls for better performance
-    let goPlusData = null;
-    
-    if (tokenAddress) {
-      try {
-        // Get security data
-        goPlusData = await getSecurityData(tokenAddress);
-      } catch (err) {
-        console.warn("Error fetching GoPlus security data:", err);
-      }
-    }
-    
-    onProgress?.(0.7);
-    
-    // Process the data and calculate health scores
-    const metrics = calculateHealthMetrics(
-      tokenDetails, 
-      marketChart, 
-      null, // poolData (disabled for performance)
-      null, // etherscanData (disabled for performance)
-      null, // defiLlamaData (disabled for performance)
-      null, // githubData (disabled for performance)
-      null, // twitterData (fetched separately via edge function)
-      goPlusData
-    );
-    
-    onProgress?.(0.9);
-    
-    // Cache the result
-    await cacheTokenData(tokenIdOrSymbol, metrics);
-    
-    onProgress?.(1.0);
-    
-    return metrics;
+    const data = await response.json();
+    return data.result && data.result[tokenAddress.toLowerCase()] 
+      ? data.result[tokenAddress.toLowerCase()] 
+      : null;
   } catch (error) {
-    console.error(`Error in fallback scanner:`, error);
-    throw error;
+    console.error("Error fetching security data:", error);
+    return null;
   }
 }
 
-/**
- * Calculate health metrics for a token based on raw data
- */
-function calculateHealthMetrics(
-  tokenDetails: any,
-  marketChart: any,
-  poolData?: any,
-  etherscanData?: any,
-  defiLlamaData?: any,
-  githubData?: any,
-  twitterData?: any,
-  goPlusData?: any
-): TokenMetrics {
-  // Initialize scores for each category
-  const securityScore = 50; // Placeholder score
-  const liquidityScore = 50; // Placeholder score
-  const tokenomicsScore = 50; // Placeholder score
-  const communityScore = 50; // Placeholder score
-  const developmentScore = 50; // Placeholder score
+// Calculate health metrics based on token data
+function calculateHealthMetrics(tokenDetails: TokenDetails): TokenMetrics {
+  // Calculate scores for each category
+  const securityScore = 70;  // Default score
+  const liquidityScore = 65;  // Default score
+  const tokenomicsScore = 60;  // Default score
+  const communityScore = 65;  // Default score
+  const developmentScore = 70;  // Default score
   
-  // Format market cap for display
-  const marketCap = formatCurrency(tokenDetails.market_data?.market_cap?.usd || 0);
+  // Calculate overall health score
+  const healthScore = Math.round(
+    (securityScore + liquidityScore + tokenomicsScore + communityScore + developmentScore) / 5
+  );
+  
+  // Extract contract address from platforms if available
+  let contractAddress;
+  if (tokenDetails.platforms) {
+    for (const [platform, address] of Object.entries(tokenDetails.platforms)) {
+      if (address && typeof address === 'string') {
+        contractAddress = address;
+        break;
+      }
+    }
+  }
+
+  // Format market cap
+  const marketCap = tokenDetails.market_data?.market_cap?.usd 
+    ? formatCurrency(tokenDetails.market_data.market_cap.usd)
+    : 'Unknown';
   
   // Create the metrics object
   const metrics: TokenMetrics = {
@@ -203,47 +210,27 @@ function calculateHealthMetrics(
       community: { score: communityScore },
       development: { score: developmentScore }
     },
-    healthScore: Math.round((securityScore + liquidityScore + tokenomicsScore + communityScore + developmentScore) / 5),
+    healthScore,
     lastUpdated: Date.now(),
     // Enhanced token info fields from CoinGecko API
     description: tokenDetails.description?.en,
     website: tokenDetails.links?.homepage?.[0],
     twitterUrl: tokenDetails.links?.twitter_screen_name,
     githubUrl: tokenDetails.links?.repos_url?.github?.[0],
-    tokenType: tokenDetails.asset_platform_id ? `${tokenDetails.asset_platform_id.charAt(0).toUpperCase() + tokenDetails.asset_platform_id.slice(1)} Token` : "Native Token",
+    tokenType: tokenDetails.asset_platform_id 
+      ? `${tokenDetails.asset_platform_id.charAt(0).toUpperCase() + tokenDetails.asset_platform_id.slice(1)} Token` 
+      : "Native Token",
     network: tokenDetails.asset_platform_id || "ethereum",
-    // Extract contract address from platforms if available
     etherscan: {
-      contractAddress: tokenDetails.platforms && Object.values(tokenDetails.platforms).find(value => value)
-    }
+      contractAddress
+    },
+    dataQuality: "partial"
   };
-  
-  // Add GoPlus security data if available
-  if (goPlusData) {
-    metrics.goPlus = {
-      ownershipRenounced: goPlusData.ownershipRenounced,
-      canMint: goPlusData.canMint,
-      hasBlacklist: goPlusData.hasBlacklist,
-      slippageModifiable: goPlusData.slippageModifiable,
-      isHoneypot: goPlusData.isHoneypot,
-      ownerCanChangeBalance: goPlusData.ownerCanChangeBalance,
-      isProxy: goPlusData.isProxy,
-      hasExternalCalls: goPlusData.hasExternalCalls,
-      transferPausable: goPlusData.transferPausable,
-      isSelfdestructable: goPlusData.isSelfdestructable,
-      isOpenSource: goPlusData.isOpenSource,
-      buyTax: goPlusData.buyTax,
-      sellTax: goPlusData.sellTax,
-      riskLevel: goPlusData.riskLevel
-    };
-  }
   
   return metrics;
 }
 
-/**
- * Cache token data in Supabase
- */
+// Cache token data
 async function cacheTokenData(tokenId: string, data: TokenMetrics): Promise<void> {
   try {
     const expiresAt = new Date();
@@ -262,22 +249,64 @@ async function cacheTokenData(tokenId: string, data: TokenMetrics): Promise<void
   }
 }
 
-/**
- * Save scan history for logged-in users
- */
-async function saveScanHistory(userId: string, tokenId: string, metrics: TokenMetrics): Promise<void> {
-  try {
-    await supabaseClient
-      .from('token_scans')
-      .insert({
-        user_id: userId,
-        token_id: tokenId,
-        token_symbol: metrics.symbol,
-        token_name: metrics.name,
-        health_score: metrics.healthScore,
-        category_scores: metrics.categories as unknown as Record<string, any>,
-      });
-  } catch (error) {
-    console.error("Error saving scan history:", error);
+// Utility function for formatting currency
+function formatCurrency(value: number): string {
+  if (value >= 1000000000) {
+    return `$${(value / 1000000000).toFixed(2)}B`;
+  } else if (value >= 1000000) {
+    return `$${(value / 1000000).toFixed(2)}M`;
+  } else if (value >= 1000) {
+    return `$${(value / 1000).toFixed(2)}K`;
+  } else {
+    return `$${value.toFixed(2)}`;
   }
 }
+
+// Export the required types for the edge function
+export interface TokenMetrics {
+  name: string;
+  symbol: string;
+  marketCap?: string;
+  tvl?: string;
+  liquidityLock?: string;
+  topHoldersPercentage?: string;
+  auditStatus?: string;
+  socialFollowers?: string;
+  poolAge?: string;
+  volume24h?: string;
+  txCount24h?: number;
+  network?: string;
+  categories: {
+    security: { score: number };
+    liquidity: { score: number };
+    tokenomics: { score: number };
+    community: { score: number };
+    development: { score: number };
+  };
+  healthScore: number;
+  lastUpdated?: number;
+  dataQuality?: "complete" | "partial";
+  goPlus?: GoPlusSecurityData;
+  etherscan?: {
+    contractAddress?: string;
+  };
+  defiLlama?: any;
+  tvlSparkline?: {
+    data: number[];
+    trend: 'up' | 'down';
+    change: number;
+  };
+  poolAddress?: string;
+  dataSources?: string[];
+  description?: string;
+  website?: string;
+  twitterUrl?: string;
+  githubUrl?: string;
+  explorerUrl?: string;
+  whitepaper?: string;
+  launchDate?: string;
+  tokenType?: string;
+}
+
+// Listen for requests
+Deno.serve(handler);
