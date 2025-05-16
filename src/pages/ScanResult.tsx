@@ -1,632 +1,288 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RefreshCw, ShieldCheck, Droplet, LineChart, UsersRound, Code, AlertCircle, Info } from "lucide-react";
-import { useScanToken } from "@/hooks/useScanToken";
-import { TokenMetrics, TokenInfoData } from "@/api/types";
+import { useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { useAuth } from "@/contexts/AuthContext";
+import { Navigate, useParams, useSearchParams } from "react-router-dom";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { HealthScoreCard } from "@/components/HealthScoreCard";
 import { KeyMetricsGrid } from "@/components/KeyMetricsGrid";
+import { CategoryCard } from "@/components/CategoryCard";
 import { CategorySection } from "@/components/CategorySection";
-import { RiskFactorsSection } from "@/components/RiskFactorsSection";
-import { MetricQualityBadge } from "@/components/MetricQualityBadge";
-import { formatDistance } from 'date-fns';
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
-import { cleanTokenId } from '@/api/coingecko';
-import { useTokenSecurity } from "@/hooks/useTokenSecurity";
-import { SecurityPanel } from "@/components/SecurityPanel";
-import { useTokenTokenomics } from "@/hooks/useTokenTokenomics";
-import { TokenomicsPanel } from "@/components/TokenomicsPanel";
-import { TokenInfoPanel } from "@/components/TokenInfoPanel";
-import { useTokenInfo } from "@/hooks/useTokenInfo";
-import { truncateAddress } from "@/utils/linkFormatters";
+
+import { 
+  ShieldCheck, 
+  CircleCheck, 
+  CircleDot, 
+  CircleX, 
+  CircleHelp,
+  TrendingUp,
+  FileCode,
+  Users,
+  Calendar
+} from "lucide-react";
 
 const ScanResult = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { toast } = useToast();
-  const { user, isLoading: authLoading } = useAuth();
-  
-  // Get token from query parameters
-  const token = new URLSearchParams(location.search).get("token") || '';
-  
-  const { scan, isLoading, progress, error } = useScanToken();
-  const [projectData, setProjectData] = useState<TokenMetrics | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [scanAttempted, setScanAttempted] = useState(false);
+  const { user, isLoading } = useAuth();
+  const { tokenId } = useParams();
+  const [searchParams] = useSearchParams();
+  const tokenFromQuery = searchParams.get("token");
+  const token = tokenId || tokenFromQuery || "ZEN";
   const [activeTab, setActiveTab] = useState("overview");
-  const contractAddress = projectData?.etherscan?.contractAddress || null;
-  
-  // Add the security data hook
-  const { 
-    data: securityData, 
-    isLoading: securityLoading, 
-    error: securityError 
-  } = useTokenSecurity(contractAddress);
-  
-  // Add the tokenomics data hook
-  const {
-    data: tokenomicsData,
-    isLoading: tokenomicsLoading,
-    error: tokenomicsError
-  } = useTokenTokenomics(contractAddress);
-  
-  // Add the token info data hook
-  const {
-    data: tokenInfoData,
-    isLoading: tokenInfoLoading,
-    error: tokenInfoError
-  } = useTokenInfo(token, projectData?.etherscan?.contractAddress);
-  
-  // Redirect to auth if not authenticated
-  useEffect(() => {
-    if (!authLoading && !user) {
-      console.log("ScanResult: User not authenticated, redirecting to auth with token:", token);
-      if (token) {
-        navigate(`/auth?tab=signup&token=${encodeURIComponent(token)}`);
-      } else {
-        navigate('/auth?tab=signin');
-      }
-      return;
-    }
-    
-    // Only proceed with scan if authenticated and token exists
-    if (!authLoading && user && token) {
-      console.log("ScanResult: User authenticated, starting scan for token:", token);
-      startScan(token);
-      setScanAttempted(true);
-    } else if (!authLoading && user && !token) {
-      // Notify user that no token was provided
-      toast({
-        title: "Missing token",
-        description: "No token was provided. Please enter a token to scan.",
-        variant: "destructive",
-      });
-      
-      // Redirect to dashboard after a short delay to show the toast
-      setTimeout(() => navigate('/dashboard'), 2000);
-    }
-  }, [token, navigate, toast, user, authLoading]);
 
-  const startScan = async (tokenValue: string) => {
-    console.log("Starting scan for token:", tokenValue);
-    const data = await scan(tokenValue);
-    setProjectData(data);
-  };
-
-  const refreshScan = async () => {
-    setIsRefreshing(true);
-    if (token) {
-      const data = await scan(token);
-      setProjectData(data);
-    }
-    setIsRefreshing(false);
-  };
-
-  const getSuggestedTokens = () => {
-    // Return some popular tokens that are known to work well
-    return [
-      { id: 'bitcoin', name: 'Bitcoin (BTC)' },
-      { id: 'ethereum', name: 'Ethereum (ETH)' },
-      { id: 'pepe', name: 'Pepe (PEPE)' },
-      { id: 'dogecoin', name: 'Dogecoin (DOGE)' },
-      { id: 'shiba-inu', name: 'Shiba Inu (SHIB)' }
-    ];
-  };
-
-  const tryAnotherToken = (tokenId: string) => {
-    navigate(`/scan?token=${encodeURIComponent(tokenId)}`);
-  };
-
-  // Add token info extraction function
-  const extractTokenInfo = (data: TokenMetrics | null): TokenInfoData | null => {
-    if (!data) return null;
-    
-    return {
-      name: data.name,
-      symbol: data.symbol,
-      contractAddress: data.etherscan?.contractAddress,
-      description: data.description,
-      website: data.website,
-      twitterUrl: data.twitterUrl,
-      githubUrl: data.githubUrl,
-      explorerUrl: data.explorerUrl,
-      whitepaper: data.whitepaper,
-      launchDate: data.launchDate,
-      tokenType: data.tokenType,
-      network: data.network
-    };
-  };
-
-  // Show loading while checking authentication
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50">
-        <Navbar />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col items-center justify-center py-16 text-center space-y-8">
-            <Progress value={30} className="w-full max-w-md" />
-            <div className="text-lg font-medium">
-              Checking authentication...
-            </div>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
+  // Redirect to auth page if not authenticated
+  if (!isLoading && !user) {
+    return <Navigate to={`/auth?token=${encodeURIComponent(token)}`} />;
   }
 
-  // Token header component with name, symbol, health score, and data quality badge
-  const TokenHeader = ({ data }: { data: TokenMetrics }) => (
-    <div className="bg-white rounded-lg shadow p-6 mb-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-col md:flex-row md:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">{data.name} ({data.symbol})</h1>
-            <div className="flex items-center mt-1 gap-3">
-              <MetricQualityBadge quality={data.dataQuality || "partial"} />
-              <span className="text-sm text-gray-500">Token ID: {token}</span>
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex items-center space-x-3">
-          <HealthScoreCard score={data.healthScore} />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={refreshScan}
-            disabled={isRefreshing}
-          >
-            {isRefreshing ? (
-              <>Refreshing<span className="loading">...</span></>
-            ) : (
-              <>Refresh <RefreshCw size={14} className="ml-1" /></>
-            )}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
+  // Sample project data (in a real app this would come from an API)
+  const projectData = {
+    name: "ZenoFi Protocol",
+    symbol: token,
+    healthScore: 78,
+    marketCap: "$4,532,000",
+    liquidityLock: "365 days",
+    topHoldersPercentage: "42%",
+    tvl: "$1.2M",
+    auditStatus: "Verified",
+    socialFollowers: "12.4K",
+    categories: {
+      security: { score: 72 },
+      liquidity: { score: 82 },
+      tokenomics: { score: 65 },
+      community: { score: 85 },
+      development: { score: 70 }
+    }
+  };
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="flex flex-col min-h-screen">
       <Navbar />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center space-y-8">
-            <Progress value={progress} className="w-full max-w-md" />
-            <div className="text-lg font-medium">
-              {progress < 30 ? "Initializing scan..." : 
-               progress < 60 ? "Analyzing on-chain data..." :
-               progress < 90 ? "Gathering token metrics..." : 
-               "Finalizing results..."}
-            </div>
-          </div>
-        ) : error ? (
-          <div className="py-16 text-center">
-            <div className="max-w-md mx-auto bg-white rounded-lg shadow p-6">
-              <div className="flex flex-col items-center mb-6">
-                <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-                <h2 className="text-xl font-semibold text-red-600 mb-2">Scan Error</h2>
-                <p className="text-slate-700 mb-4">{error}</p>
-                <p className="text-slate-600 text-sm">
-                  We couldn't retrieve data for <strong>{token}</strong>. 
-                  Please check the token name or address and try again.
-                </p>
+      <main className="flex-1 bg-gray-50">
+        {/* Project Header */}
+        <div className="bg-white border-b border-gray-200">
+          <div className="container mx-auto px-4 py-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold">{projectData.name}</h1>
+                <Badge variant="outline" className="text-sm font-medium">
+                  ${projectData.symbol}
+                </Badge>
               </div>
-              
-              <div className="mt-6">
-                <h3 className="text-md font-medium text-slate-800 mb-3">Try one of these popular tokens:</h3>
-                <div className="grid grid-cols-2 gap-2 mb-6">
-                  {getSuggestedTokens().map((suggestedToken) => (
-                    <Button 
-                      key={suggestedToken.id}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => tryAnotherToken(suggestedToken.id)}
-                      className="text-xs"
-                    >
-                      {suggestedToken.name}
-                    </Button>
-                  ))}
-                </div>
-                
-                <Button 
-                  onClick={() => navigate('/dashboard')} 
-                  className="w-full"
-                >
-                  Return to Dashboard
-                </Button>
-              </div>
-            </div>
-          </div>
-        ) : projectData ? (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <Button 
-                onClick={() => navigate('/dashboard')} 
-                variant="ghost" 
-                size="sm"
-              >
-                Back to Dashboard
-              </Button>
-              <Button 
-                onClick={() => navigate('/dashboard')} 
-                variant="ghost" 
-                size="sm"
-              >
-                New Scan
-              </Button>
+              <HealthScoreCard score={projectData.healthScore} />
             </div>
             
-            {/* Token header with name and health score */}
-            <TokenHeader data={projectData} />
-            
-            {/* Key metrics grid section */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-bold mb-4">Key Metrics</h2>
-              <KeyMetricsGrid projectData={projectData} tokenId={token} onDataUpdate={setProjectData} />
-            </div>
-            
-            {/* Main content tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="bg-white rounded-lg shadow">
-              <div className="p-4 border-b">
-                <TabsList className="w-full justify-start overflow-x-auto">
-                  <TabsTrigger value="overview" className="min-w-max">Overview</TabsTrigger>
-                  <TabsTrigger value="info" className="min-w-max">Info</TabsTrigger>
-                  <TabsTrigger value="security" className="min-w-max">Security</TabsTrigger>
-                  <TabsTrigger value="liquidity" className="min-w-max">Liquidity</TabsTrigger>
-                  <TabsTrigger value="tokenomics" className="min-w-max">Tokenomics</TabsTrigger>
-                  <TabsTrigger value="community" className="min-w-max">Community</TabsTrigger>
-                  <TabsTrigger value="development" className="min-w-max">Development</TabsTrigger>
-                </TabsList>
-              </div>
-              
-              <div className="p-6">
-                <TabsContent value="overview" className="space-y-6 mt-0">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <CategorySection 
-                      title="Security" 
-                      icon={<ShieldCheck className="h-5 w-5" />}
-                      score={projectData.categories.security.score}
-                      description="Evaluates contract safety, ownership, and audit status" 
-                      items={[
-                        { 
-                          name: 'Contract Verified', 
-                          status: securityData?.contractVerified ? 'Yes' : 'No',
-                          tooltip: 'Indicates whether the contract code has been verified and is publicly visible',
-                          trend: securityData?.contractVerified ? 'up' : 'down'
-                        },
-                        { 
-                          name: 'Ownership Renounced', 
-                          status: securityData?.ownershipRenounced ? 'Yes' : 'No',
-                          tooltip: 'When ownership is renounced, no one can modify the contract',
-                          trend: securityData?.ownershipRenounced ? 'up' : 'down'
-                        },
-                        { 
-                          name: 'Honeypot Risk', 
-                          status: securityData?.honeypotRisk || 'Unknown',
-                          tooltip: 'Detects if the token contract prevents selling (honeypot)',
-                          trend: securityData?.honeypotRisk === 'Low' ? 'up' : 'down'
-                        },
-                      ]}
-                    />
-                    
-                    <CategorySection 
-                      title="Liquidity" 
-                      icon={<Droplet className="h-5 w-5" />}
-                      score={projectData.categories.liquidity.score}
-                      description="Evaluates pool size, locked liquidity, and trading volume" 
-                      items={[
-                        { 
-                          name: 'Total Value Locked', 
-                          status: projectData.tvl || 'Unknown',
-                          tooltip: 'The total amount of funds locked in liquidity pools'
-                        },
-                        { 
-                          name: 'Liquidity Lock', 
-                          status: projectData.liquidityLock || 'Unknown',
-                          tooltip: 'Indicates if and how long the liquidity is locked'
-                        },
-                        { 
-                          name: '24h Volume', 
-                          status: projectData.volume24h || 'Unknown',
-                          tooltip: 'Trading volume in the last 24 hours'
-                        },
-                      ]}
-                    />
-                    
-                    <CategorySection 
-                      title="Token Info" 
-                      icon={<Info className="h-5 w-5" />}
-                      score={100}
-                      description="Basic details about this token" 
-                      items={[
-                        { 
-                          name: 'Contract Address', 
-                          status: projectData?.etherscan?.contractAddress 
-                            ? truncateAddress(projectData?.etherscan?.contractAddress) 
-                            : 'Unknown',
-                          tooltip: 'The token contract address on its blockchain'
-                        },
-                        { 
-                          name: 'Website', 
-                          status: tokenInfoData?.website ? 'Available' : 'Unknown',
-                          tooltip: 'Link to token website'
-                        },
-                        { 
-                          name: 'Token Type', 
-                          status: tokenInfoData?.tokenType || 'Unknown',
-                          tooltip: 'The type of token contract'
-                        },
-                      ]}
-                    />
-                    
-                    <CategorySection 
-                      title="Tokenomics" 
-                      icon={<LineChart className="h-5 w-5" />}
-                      score={projectData.categories.tokenomics.score}
-                      description="Evaluates distribution, supply, and taxation" 
-                      items={[
-                        { 
-                          name: 'Holders', 
-                          status: tokenomicsData?.holdersCount ? tokenomicsData.holdersCount.toLocaleString() : 'Unknown',
-                          tooltip: 'Number of unique addresses holding this token'
-                        },
-                        { 
-                          name: 'Top Holder', 
-                          status: tokenomicsData?.topHolderPct ? `${tokenomicsData.topHolderPct.toFixed(2)}%` : 'Unknown',
-                          tooltip: 'Percentage owned by the largest wallet',
-                          trend: tokenomicsData?.topHolderPct && tokenomicsData.topHolderPct < 15 ? 'up' : 'down'
-                        },
-                        { 
-                          name: 'Buy/Sell Tax', 
-                          status: tokenomicsData ? `${tokenomicsData.buyTax}% / ${tokenomicsData.sellTax}%` : '0% / 0%',
-                          tooltip: 'Fees applied when buying/selling this token',
-                          trend: tokenomicsData && tokenomicsData.buyTax + tokenomicsData.sellTax < 5 ? 'up' : 'down'
-                        },
-                      ]}
-                    />
-                    
-                    <CategorySection 
-                      title="Community" 
-                      icon={<UsersRound className="h-5 w-5" />}
-                      score={projectData.categories.community.score}
-                      description="Evaluates social media presence and engagement" 
-                      items={[
-                        { 
-                          name: 'Social Followers', 
-                          status: projectData.socialFollowers || '0',
-                          tooltip: 'Total followers across all social platforms'
-                        },
-                        { 
-                          name: 'Twitter Account', 
-                          status: projectData.twitter?.verified ? 'Verified' : 'Standard',
-                          tooltip: 'Twitter verification status'
-                        },
-                        { 
-                          name: 'Community Growth', 
-                          status: projectData.twitter?.followerChange?.percentage || 'Unknown',
-                          tooltip: 'Follower growth rate in recent period',
-                          change: projectData.twitter?.followerChange?.value
-                        },
-                      ]}
-                    />
-                  </div>
-                  
-                  {/* Update to include tokenomics data */}
-                  <RiskFactorsSection 
-                    securityData={securityData} 
-                    tokenomicsData={tokenomicsData}
-                    isLoading={securityLoading || tokenomicsLoading} 
-                  />
-                </TabsContent>
-                
-                <TabsContent value="info" className="mt-0">
-                  <TokenInfoPanel 
-                    tokenInfo={tokenInfoData}
-                    isLoading={tokenInfoLoading}
-                  />
-                </TabsContent>
-                
-                <TabsContent value="security" className="mt-0">
-                  <SecurityPanel 
-                    securityData={securityData}
-                    isLoading={securityLoading} 
-                    securityScore={projectData.categories.security.score}
-                  />
-                </TabsContent>
-                
-                <TabsContent value="liquidity" className="mt-0">
-                  <CategorySection 
-                    title="Liquidity" 
-                    icon={<Droplet className="h-5 w-5" />}
-                    score={projectData.categories.liquidity.score}
-                    description="Evaluates pool size, locked liquidity, and trading volume" 
-                    fullWidth={true}
-                    items={[
-                      { 
-                        name: 'Total Value Locked', 
-                        status: projectData.tvl || 'Unknown',
-                        tooltip: 'The total amount of funds locked in liquidity pools'
-                      },
-                      { 
-                        name: 'Liquidity Lock', 
-                        status: projectData.liquidityLock || 'Unknown',
-                        tooltip: 'Indicates if and how long the liquidity is locked'
-                      },
-                      { 
-                        name: '24h Volume', 
-                        status: projectData.volume24h || 'Unknown',
-                        tooltip: 'Trading volume in the last 24 hours'
-                      },
-                      { 
-                        name: '24h Transactions', 
-                        status: projectData.txCount24h?.toString() || 'Unknown',
-                        tooltip: 'Number of transactions in the last 24 hours'
-                      },
-                      { 
-                        name: 'Pool Age', 
-                        status: projectData.poolAge || 'Unknown',
-                        tooltip: 'How long the trading pool has been active'
-                      },
-                      { 
-                        name: 'DEX', 
-                        status: projectData.network ? projectData.network.toUpperCase() : 'Unknown',
-                        tooltip: 'The decentralized exchange where this token is traded'
-                      }
-                    ]}
-                  />
-                </TabsContent>
-                
-                <TabsContent value="tokenomics" className="mt-0">
-                  <TokenomicsPanel 
-                    tokenomicsData={tokenomicsData}
-                    isLoading={tokenomicsLoading}
-                    tokenomicsScore={projectData.categories.tokenomics.score}
-                  />
-                </TabsContent>
-                
-                <TabsContent value="community" className="mt-0">
-                  <CategorySection 
-                    title="Community" 
-                    icon={<UsersRound className="h-5 w-5" />}
-                    score={projectData.categories.community.score}
-                    description="Evaluates social media presence and engagement" 
-                    fullWidth={true}
-                    items={[
-                      { 
-                        name: 'Social Followers', 
-                        status: projectData.socialFollowers || '0',
-                        tooltip: 'Total followers across all social platforms'
-                      },
-                      { 
-                        name: 'Twitter Account', 
-                        status: projectData.twitter?.verified ? 'Verified' : 'Standard',
-                        tooltip: 'Twitter verification status'
-                      },
-                      { 
-                        name: 'Community Growth', 
-                        status: projectData.twitter?.followerChange?.percentage || 'Unknown',
-                        tooltip: 'Follower growth rate in recent period',
-                        change: projectData.twitter?.followerChange?.value
-                      },
-                      { 
-                        name: 'Account Age', 
-                        status: projectData.twitter?.createdAt ? formatDistance(new Date(projectData.twitter.createdAt), new Date(), { addSuffix: true }) : 'Unknown',
-                        tooltip: 'How long the Twitter account has existed'
-                      },
-                      { 
-                        name: 'Tweet Count', 
-                        status: projectData.twitter?.tweetCount?.toString() || 'Unknown',
-                        tooltip: 'Total number of tweets from this account'
-                      },
-                      { 
-                        name: 'Twitter Handle', 
-                        status: projectData.twitter?.screenName || 'Unknown',
-                        tooltip: 'The Twitter username'
-                      }
-                    ]}
-                  />
-                </TabsContent>
-                
-                <TabsContent value="development" className="mt-0">
-                  <CategorySection 
-                    title="Development" 
-                    icon={<Code className="h-5 w-5" />}
-                    score={projectData.categories.development.score}
-                    description="Evaluates code activity and repository health" 
-                    fullWidth={true}
-                    items={[
-                      { 
-                        name: 'GitHub Repository', 
-                        status: projectData.github ? 'Available' : 'Not Found',
-                        tooltip: 'Indicates if a GitHub repository exists for this project'
-                      },
-                      { 
-                        name: 'Activity Status', 
-                        status: projectData.github?.activityStatus || 'Unknown',
-                        tooltip: 'Level of recent development activity'
-                      },
-                      { 
-                        name: 'Recent Commits', 
-                        status: projectData.github?.commitCount?.toString() || 'Unknown',
-                        tooltip: 'Number of code commits in recent period'
-                      },
-                      { 
-                        name: 'Stars', 
-                        status: projectData.github?.starCount?.toString() || 'Unknown',
-                        tooltip: 'Number of GitHub stars, indicating popularity'
-                      },
-                      { 
-                        name: 'Forks', 
-                        status: projectData.github?.forkCount?.toString() || 'Unknown',
-                        tooltip: 'Number of GitHub forks of this repository'
-                      },
-                      { 
-                        name: 'License', 
-                        status: projectData.github?.license || 'Unknown',
-                        tooltip: 'Type of open source license used'
-                      },
-                      { 
-                        name: 'Last Update', 
-                        status: projectData.github?.updatedAt ? formatDistance(new Date(projectData.github.updatedAt), new Date(), { addSuffix: true }) : 'Unknown',
-                        tooltip: 'Time since the last update to the repository' 
-                      },
-                    ]}
-                  />
-                </TabsContent>
-              </div>
+            {/* Tabs Navigation */}
+            <Tabs 
+              value={activeTab} 
+              onValueChange={handleTabChange}
+              className="mt-6"
+            >
+              <TabsList className="w-full sm:w-auto overflow-x-auto">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="security">Security</TabsTrigger>
+                <TabsTrigger value="liquidity">Liquidity</TabsTrigger>
+                <TabsTrigger value="tokenomics">Tokenomics</TabsTrigger>
+                <TabsTrigger value="community">Community</TabsTrigger>
+                <TabsTrigger value="development">Development</TabsTrigger>
+              </TabsList>
             </Tabs>
           </div>
-        ) : (
-          <div className="py-16 text-center">
-            {scanAttempted ? (
-              <div className="bg-white rounded-lg shadow p-6">
-                <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-                <h2 className="text-xl font-semibold text-gray-800 mb-4">No Data Available</h2>
-                <p className="text-slate-600 mb-6">We couldn't find data for <strong>{token}</strong>. Please try another token.</p>
-                
-                <div className="mb-6">
-                  <h3 className="text-md font-medium text-slate-800 mb-3">Try one of these popular tokens:</h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {getSuggestedTokens().map((suggestedToken) => (
-                      <Button 
-                        key={suggestedToken.id}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => tryAnotherToken(suggestedToken.id)}
-                        className="text-xs"
-                      >
-                        {suggestedToken.name}
-                      </Button>
-                    ))}
+        </div>
+
+        {/* Dashboard Content */}
+        <div className="container mx-auto px-4 py-8">
+          {/* Each Tab Content */}
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-8">
+            {/* Overview Tab */}
+            <TabsContent value="overview" className="space-y-8">
+              {/* Key Metrics Section */}
+              <section>
+                <h2 className="text-xl font-semibold mb-4">Key Metrics</h2>
+                <KeyMetricsGrid projectData={projectData} />
+              </section>
+              
+              {/* Categories Overview Section */}
+              <section>
+                <h2 className="text-xl font-semibold mb-4">Categories Overview</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <CategoryCard
+                    title="Security"
+                    icon={<ShieldCheck className="text-white" />}
+                    description="Contract and protocol security analysis"
+                    metrics={[
+                      "Ownership Renounced: Yes",
+                      "Can Mint: No",
+                      "Code Audit: Yes",
+                      "Multi-Sig Wallet: Partial"
+                    ]}
+                    color="bg-green-500"
+                    score={projectData.categories.security.score}
+                  />
+                  
+                  <CategoryCard
+                    title="Liquidity"
+                    icon={<TrendingUp className="text-white" />}
+                    description="Market depth and trading analysis"
+                    metrics={[
+                      "Liquidity Lock: 365 days",
+                      "CEX Listings: 2",
+                      "DEX Depth: Good",
+                      "Holder Distribution: Moderate"
+                    ]}
+                    color="bg-blue-500"
+                    score={projectData.categories.liquidity.score}
+                  />
+                  
+                  <CategoryCard
+                    title="Tokenomics"
+                    icon={<CircleDot className="text-white" />}
+                    description="Supply and distribution analysis"
+                    metrics={[
+                      "Supply Cap: Yes (100M)",
+                      "Token Distribution: Good",
+                      "Treasury Size: $500K",
+                      "Burn Mechanism: Yes"
+                    ]}
+                    color="bg-purple-500"
+                    score={projectData.categories.tokenomics.score}
+                  />
+                  
+                  <CategoryCard
+                    title="Community"
+                    icon={<Users className="text-white" />}
+                    description="Social and community engagement"
+                    metrics={[
+                      "Twitter Followers: 12.4K",
+                      "Verified Account: Yes",
+                      "Growth Rate (30d): +18%",
+                      "Active Channels: 4"
+                    ]}
+                    color="bg-orange-500"
+                    score={projectData.categories.community.score}
+                  />
+                  
+                  <CategoryCard
+                    title="Development"
+                    icon={<FileCode className="text-white" />}
+                    description="Development activity and roadmap progress"
+                    metrics={[
+                      "GitHub Repo: Public",
+                      "Last Commit: 3 days ago",
+                      "Commit Frequency: High",
+                      "Contributors: 8"
+                    ]}
+                    color="bg-teal-500"
+                    score={projectData.categories.development.score}
+                  />
+                </div>
+              </section>
+              
+              {/* Pro CTA */}
+              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg p-6 text-white">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+                  <div className="mb-4 md:mb-0">
+                    <h3 className="text-xl font-bold mb-2">Unlock Advanced Analytics</h3>
+                    <p>Get deep tokenomics breakdowns, video walkthroughs, and expert insights.</p>
                   </div>
-                </div>
-                
-                <Button 
-                  onClick={() => navigate('/dashboard')} 
-                  className="w-full"
-                >
-                  Return to Dashboard
-                </Button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center">
-                <Progress value={30} className="w-full max-w-md" />
-                <div className="mt-4 text-lg font-medium">
-                  Initializing scan...
+                  <Button className="bg-white text-indigo-600 hover:bg-gray-100">Upgrade to Pro →</Button>
                 </div>
               </div>
-            )}
-          </div>
-        )}
-      </div>
+            </TabsContent>
+            
+            {/* Other Tabs */}
+            <TabsContent value="security">
+              <CategorySection 
+                title="Security Analysis" 
+                icon={<ShieldCheck />} 
+                description="In-depth security audit of smart contracts and protocols"
+                score={projectData.categories.security.score}
+                items={[
+                  { name: "Ownership Renounced", status: "Yes", tooltip: "Contract ownership has been renounced, reducing centralization risk" },
+                  { name: "Can Mint", status: "No", tooltip: "Contract cannot mint new tokens" },
+                  { name: "Code Audit", status: "Yes", tooltip: "Smart contract audited by reputable firm" },
+                  { name: "Freeze / Blacklist Authority", status: "No", tooltip: "No ability to freeze or blacklist accounts" },
+                  { name: "Multi-Sig Wallet", status: "Partial", tooltip: "Some functions require multiple signatures, but not all" },
+                  { name: "Insurance", status: "No", tooltip: "No insurance coverage for smart contract risks" },
+                  { name: "Bug Bounty", status: "Yes", tooltip: "Active bug bounty program to identify vulnerabilities" }
+                ]}
+              />
+            </TabsContent>
+            
+            <TabsContent value="liquidity">
+              <CategorySection 
+                title="Liquidity Analysis" 
+                icon={<TrendingUp />} 
+                description="Assessment of market depth, trading volume, and holder distribution"
+                score={projectData.categories.liquidity.score}
+                items={[
+                  { name: "Liquidity Lock", status: "Yes (365 days)", tooltip: "LP tokens are locked for 1 year" },
+                  { name: "CEX Listings", status: "2", tooltip: "Listed on 2 centralized exchanges" },
+                  { name: "DEX Depth", status: "Good", tooltip: "Sufficient liquidity depth on decentralized exchanges" },
+                  { name: "Holder Distribution", status: "Moderate", tooltip: "Some concentration among top holders but not concerning" },
+                  { name: "Trading Volume", status: "$243K/24h", tooltip: "24-hour trading volume across all exchanges" }
+                ]}
+              />
+            </TabsContent>
+            
+            <TabsContent value="tokenomics">
+              <CategorySection 
+                title="Tokenomics Analysis" 
+                icon={<CircleDot />} 
+                description="Token supply, distribution, and monetary policy"
+                score={projectData.categories.tokenomics.score}
+                items={[
+                  { name: "Supply Cap", status: "Yes (100M)", tooltip: "Maximum supply is capped at 100 million tokens" },
+                  { name: "Token Distribution", status: "Good", tooltip: "Well-distributed allocation across stakeholders" },
+                  { name: "Treasury Size", status: "$500K", tooltip: "Project treasury holds $500,000 in assets" },
+                  { name: "Vesting Schedule", status: "Yes", tooltip: "Team and investor tokens subject to vesting" },
+                  { name: "Burn Mechanism", status: "Yes", tooltip: "Regular token burns from transaction fees" }
+                ]}
+              />
+            </TabsContent>
+            
+            <TabsContent value="community">
+              <CategorySection 
+                title="Community Analysis" 
+                icon={<Users />} 
+                description="Social engagement and growth metrics"
+                score={projectData.categories.community.score}
+                items={[
+                  { name: "Twitter Followers", status: "12.4K", tooltip: "Total Twitter/X followers" },
+                  { name: "Verified Account", status: "Yes", tooltip: "Official account is verified" },
+                  { name: "Growth Rate (30d)", status: "+18%", tooltip: "Follower growth in the last 30 days" },
+                  { name: "Active Channels", status: "4", tooltip: "Number of active community channels" },
+                  { name: "Team Visibility", status: "High", tooltip: "Team regularly engages with community" },
+                  { name: "Weekly Updates", status: "Yes", tooltip: "Regular weekly updates published" }
+                ]}
+              />
+            </TabsContent>
+            
+            <TabsContent value="development">
+              <CategorySection 
+                title="Development Analysis" 
+                icon={<FileCode />} 
+                description="Code activity and technical progress"
+                score={projectData.categories.development.score}
+                items={[
+                  { name: "GitHub Repo", status: "Public", tooltip: "Code repository is publicly accessible" },
+                  { name: "Last Commit Date", status: "3 days ago", tooltip: "Most recent code commit" },
+                  { name: "Commit Frequency", status: "High", tooltip: "Regular code contributions" },
+                  { name: "Roadmap Progress", status: "On Track", tooltip: "Development follows published roadmap" },
+                  { name: "Contributors Count", status: "8", tooltip: "Number of active code contributors" },
+                  { name: "License Type", status: "MIT", tooltip: "Open source under MIT license" },
+                  { name: "Open Source", status: "Yes", tooltip: "Codebase is open source" }
+                ]}
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </main>
       <Footer />
     </div>
   );

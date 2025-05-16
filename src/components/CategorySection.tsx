@@ -1,115 +1,126 @@
 
-import React from 'react';
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ReactNode } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { CircleHelp, TrendingDown, TrendingUp, Minus } from "lucide-react";
-import { MetricQualityBadge } from "@/components/MetricQualityBadge";
-
-interface CategoryItem {
-  name: string;
-  status: string | number;
-  tooltip?: string;
-  trend?: 'up' | 'down' | 'neutral';
-  change?: number;
-}
+import { CircleHelp, CircleCheck, CircleX, CircleDot } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface CategorySectionProps {
   title: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   description: string;
   score: number;
-  items: CategoryItem[];
-  fullWidth?: boolean;
+  items: {
+    name: string;
+    status: string;
+    tooltip: string;
+  }[];
 }
 
 export const CategorySection = ({ 
   title, 
   icon, 
   description, 
-  score,
-  items = [],
-  fullWidth = false,
+  score, 
+  items 
 }: CategorySectionProps) => {
-  const getScoreColor = () => {
-    if (score >= 80) return "bg-green-100 text-green-800";
-    if (score >= 60) return "bg-yellow-100 text-yellow-800";
-    return "bg-red-100 text-red-800";
-  };
-
-  const getTrendIcon = (trend?: string) => {
-    if (trend === 'up') {
-      return <TrendingUp size={16} className="text-green-600" />;
-    } else if (trend === 'down') {
-      return <TrendingDown size={16} className="text-red-600" />;
-    } else {
-      return <Minus size={16} className="text-gray-600" />;
+  // Get status color
+  const getStatusColor = (status: string) => {
+    if (status.toLowerCase().includes("yes") || status.toLowerCase().includes("good") || status.toLowerCase().includes("high")) {
+      return "bg-green-100 text-green-800 border-green-200";
     }
+    if (status.toLowerCase().includes("no") || status.toLowerCase().includes("risk") || status.toLowerCase().includes("low")) {
+      return "bg-red-100 text-red-800 border-red-200";
+    }
+    if (status.toLowerCase().includes("partial") || status.toLowerCase().includes("moderate")) {
+      return "bg-yellow-100 text-yellow-800 border-yellow-200";
+    }
+    return "bg-blue-100 text-blue-800 border-blue-200";
   };
-
+  
+  // Get status icon
+  const getStatusIcon = (status: string) => {
+    if (status.toLowerCase().includes("yes") || status.toLowerCase().includes("good") || status.toLowerCase().includes("high")) {
+      return <CircleCheck className="h-4 w-4" />;
+    }
+    if (status.toLowerCase().includes("no") || status.toLowerCase().includes("risk") || status.toLowerCase().includes("low")) {
+      return <CircleX className="h-4 w-4" />;
+    }
+    if (status.toLowerCase().includes("partial") || status.toLowerCase().includes("moderate")) {
+      return <CircleDot className="h-4 w-4" />;
+    }
+    return null;
+  };
+  
   return (
-    <Card className="h-full">
-      <CardHeader className="flex flex-row items-center justify-between pb-2 pt-6 px-6">
-        <div className="flex items-center space-x-2">
-          <div className="p-2 bg-slate-100 rounded-md">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="p-2 rounded-full bg-brand-purple/10 text-brand-purple">
             {icon}
           </div>
           <div>
-            <h3 className="font-bold">{title}</h3>
-            <p className="text-sm text-muted-foreground">{description}</p>
+            <h2 className="text-2xl font-bold">{title}</h2>
+            <p className="text-gray-500">{description}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className={`rounded-full px-3 py-1 text-sm font-semibold ${getScoreColor()}`}>
-            {score}/100
-          </div>
+        <div className="px-3 py-1 bg-gray-100 rounded-full font-medium">
+          Score: {score}/100
         </div>
-      </CardHeader>
-      <CardContent className="px-6 pb-6">
-        <div className={`grid ${fullWidth ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'} gap-4`}>
-          {items.map((item, index) => (
-            <div key={index} className="flex items-start justify-between py-2 border-t border-gray-100">
-              <div className="flex flex-col">
-                <div className="flex items-center space-x-1">
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {items.map((item, index) => (
+          <Card key={index} className="border border-gray-200">
+            <CardContent className="p-4">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <div className={`p-1 rounded-full ${getStatusColor(item.status)}`}>
+                    {getStatusIcon(item.status)}
+                  </div>
                   <span className="font-medium">{item.name}</span>
-                  {item.tooltip && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button className="text-gray-400 hover:text-gray-600">
-                            <CircleHelp size={12} />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="text-xs max-w-xs">
-                            {item.tooltip}
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
                 </div>
-                <span className="text-sm text-gray-600">{item.status}</span>
+                
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={getStatusColor(item.status)}>
+                    {item.status}
+                  </Badge>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button className="text-gray-400 hover:text-gray-600">
+                          <CircleHelp size={14} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs max-w-xs">{item.tooltip}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </div>
-              {item.trend && (
-                <div className="ml-auto">
-                  {getTrendIcon(item.trend)}
-                </div>
-              )}
-              {item.change !== undefined && (
-                <div className={`ml-auto text-sm font-medium ${Number(item.change) > 0 ? 'text-green-600' : Number(item.change) < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                  {Number(item.change) > 0 && '+'}
-                  {item.change.toString()}
-                </div>
-              )}
-            </div>
-          ))}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      
+      {/* Pro CTA specific to the section */}
+      <div className="bg-gray-100 rounded-lg p-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-600">
+            Unlock additional {title.toLowerCase()} insights with Pro
+          </p>
+          <Badge variant="outline" className="cursor-pointer bg-brand-purple text-white hover:bg-brand-purple/90">
+            Upgrade
+          </Badge>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };

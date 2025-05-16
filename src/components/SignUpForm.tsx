@@ -1,176 +1,187 @@
-
 import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight, Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
 
-interface SignUpFormProps {
-  redirectToken?: string | null;
-}
+// Define the form schema
+const signUpSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email address" }),
+  password: z
+    .string()
+    .min(8, { message: "Password must be at least 8 characters long" }),
+  confirmPassword: z.string(),
+})
+.refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+});
 
-export const SignUpForm = ({ redirectToken }: SignUpFormProps) => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [acceptTerms, setAcceptTerms] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+type SignUpFormValues = z.infer<typeof signUpSchema>;
+
+export const SignUpForm = () => {
   const { signUp } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const tokenFromQuery = queryParams.get('token') || '';
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!acceptTerms) {
-      toast({
-        title: "Please accept the terms",
-        description: "You must accept the terms and conditions to sign up",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setIsLoading(true);
+  const form = useForm<SignUpFormValues>({
+    resolver: zodResolver(signUpSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
+  });
 
+  const onSubmit = async (values: SignUpFormValues) => {
+    setIsSubmitting(true);
+    
     try {
-      const { error } = await signUp(
-        email, 
-        password, 
-        redirectToken || undefined, 
-        { full_name: fullName }
-      );
-
+      const { error } = await signUp(values.email, values.password, tokenFromQuery);
+      
       if (error) {
         toast({
-          title: "Sign up failed",
+          title: "Error signing up",
           description: error.message,
           variant: "destructive",
         });
-        setIsLoading(false);
-        return;
+      } else {
+        toast({
+          title: "Account created successfully!",
+          description: "Welcome to Token Health Scan",
+        });
       }
-
-      toast({
-        title: "Account created successfully",
-        description: "Welcome to Token Health Scan!",
-      });
-      
-      // Navigation is now handled in AuthContext
-      
     } catch (error) {
       toast({
-        title: "An error occurred",
+        title: "Something went wrong",
         description: "Please try again later",
         variant: "destructive",
       });
-      setIsLoading(false);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold">Create your account</h1>
-        <p className="text-gray-500 mt-1">Get access to token health data</p>
-      </div>
-      
-      <form onSubmit={handleSignUp} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="fullName">Full Name</Label>
-          <Input
-            id="fullName"
-            type="text"
-            placeholder="John Doe"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            required
-          />
-        </div>
-        
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-        </div>
-        
-        <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
-          <div className="relative">
-            <Input
-              id="password"
-              type={showPassword ? "text" : "password"}
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
-            >
-              {showPassword ? (
-                <EyeOff className="h-4 w-4" />
-              ) : (
-                <Eye className="h-4 w-4" />
+    <Card className="w-full shadow-lg border-neutral-100">
+      <CardHeader className="space-y-1">
+        <CardTitle className="text-2xl font-bold text-center">Create your account to view your scan</CardTitle>
+        <CardDescription className="text-center">
+          It only takes 10 seconds — no wallet required.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email Address</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="name@example.com" 
+                      type="email" 
+                      autoComplete="email"
+                      {...field} 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-            </button>
-          </div>
-        </div>
-        
-        <div className="flex items-start space-x-2 mt-4">
-          <Checkbox 
-            id="terms" 
-            checked={acceptTerms} 
-            onCheckedChange={(checked) => setAcceptTerms(checked === true)}
-          />
-          <label
-            htmlFor="terms"
-            className="text-sm text-gray-500 leading-tight"
-          >
-            I agree to the{" "}
-            <a href="/terms" className="text-brand-purple hover:underline">
-              Terms of Service
-            </a>{" "}
-            and{" "}
-            <a href="/privacy" className="text-brand-purple hover:underline">
-              Privacy Policy
-            </a>
-          </label>
-        </div>
-        
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? "Creating account..." : "Create Account"}
-        </Button>
-      </form>
-      
-      <div className="mt-6">
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200"></div>
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">Or continue with</span>
-          </div>
-        </div>
-        
-        <div className="mt-4">
-          <Button variant="outline" className="w-full" disabled>
-            Google (Coming Soon)
-          </Button>
-        </div>
-      </div>
-    </div>
+            />
+            
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Password</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="Create a password" 
+                      type="password"
+                      autoComplete="new-password"
+                      {...field} 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Confirm Password</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="Confirm your password" 
+                      type="password"
+                      autoComplete="new-password"
+                      {...field} 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {tokenFromQuery && (
+              <div className="bg-muted/50 px-3 py-2 rounded-md">
+                <p className="text-sm text-muted-foreground">
+                  You're creating an account to scan: <span className="font-mono">{tokenFromQuery}</span>
+                </p>
+              </div>
+            )}
+
+            <Button 
+              type="submit" 
+              className="w-full" 
+              size="lg"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
+                  Creating Account...
+                </>
+              ) : (
+                <>
+                  View My Scan <ArrowRight className="ml-2 h-5 w-5" />
+                </>
+              )}
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+      <CardFooter className="flex flex-col space-y-4 pt-0">
+        <p className="text-xs text-center text-muted-foreground">
+          By signing up, you agree to our{" "}
+          <Link to="/terms" className="text-primary hover:underline">
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link to="/privacy" className="text-primary hover:underline">
+            Privacy Policy
+          </Link>
+          .
+        </p>
+      </CardFooter>
+    </Card>
   );
 };

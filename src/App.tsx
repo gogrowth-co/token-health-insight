@@ -32,6 +32,7 @@ const App = () => (
             <Route path="/signin" element={<SignIn />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/scan/:tokenId" element={<ScanResult />} />
             <Route path="/scan" element={<ScanResult />} />
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/docs" element={<Docs />} />

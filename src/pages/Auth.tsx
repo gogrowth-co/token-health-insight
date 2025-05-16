@@ -1,40 +1,21 @@
-
-import { useState, useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { SignUpForm } from "@/components/SignUpForm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignInForm } from "@/components/SignInForm";
-import { useAuth } from "@/contexts/AuthContext";
 
 const Auth = () => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  
   const queryParams = new URLSearchParams(location.search);
   const tabParam = queryParams.get('tab');
   const tokenParam = queryParams.get('token');
   
-  console.log("Auth: Current URL parameters:", location.search);
-  console.log("Auth: Token parameter value:", tokenParam);
-  
   // Default to signup if there's a token parameter or if tab=signup is explicitly set
   // Otherwise, default to signin
   const defaultTab = tokenParam ? 'signup' : (tabParam === 'signup' ? 'signup' : 'signin');
-  
-  // Effect to redirect to scan page if user is already logged in and has a token
-  useEffect(() => {
-    if (user && tokenParam) {
-      console.log("Auth: User already logged in with token param, redirecting to scan:", tokenParam);
-      navigate(`/scan?token=${encodeURIComponent(tokenParam)}`);
-    } else if (user && !tokenParam) {
-      console.log("Auth: User already logged in without token, redirecting to dashboard");
-      navigate('/dashboard');
-    }
-  }, [user, tokenParam, navigate]);
   
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-white to-gray-50">
@@ -74,11 +55,11 @@ const Auth = () => {
           </TabsList>
           
           <TabsContent value="signin" className="mt-0">
-            <SignInForm redirectToken={tokenParam} />
+            <SignInForm />
           </TabsContent>
           
           <TabsContent value="signup" className="mt-0">
-            <SignUpForm redirectToken={tokenParam} />
+            <SignUpForm />
           </TabsContent>
         </Tabs>
       </main>
