@@ -12,6 +12,8 @@ import { KeyMetricsGrid } from "@/components/KeyMetricsGrid";
 import { CategoryCard } from "@/components/CategoryCard";
 import { CategorySection } from "@/components/CategorySection";
 import { TokenInfoCard } from "@/components/TokenInfoCard";
+import { useTokenInfo } from "@/hooks/useTokenInfo";
+import { toast } from "@/components/ui/use-toast";
 
 import { 
   ShieldCheck, 
@@ -26,35 +28,51 @@ import {
 } from "lucide-react";
 
 const ScanResult = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { tokenId } = useParams();
   const [searchParams] = useSearchParams();
   const tokenFromQuery = searchParams.get("token");
-  const token = tokenId || tokenFromQuery || "ZEN";
+  const token = tokenId || tokenFromQuery || "";
   const [activeTab, setActiveTab] = useState("overview");
 
+  // Fetch token info
+  const { 
+    data: tokenInfo, 
+    isLoading: tokenLoading, 
+    error: tokenError 
+  } = useTokenInfo(token);
+
+  // Show toast for errors
+  if (tokenError && !tokenLoading) {
+    toast({
+      title: "Error loading token data",
+      description: "We couldn't fetch information for this token. Please check the token symbol and try again.",
+      variant: "destructive",
+    });
+  }
+
   // Redirect to auth page if not authenticated
-  if (!isLoading && !user) {
+  if (!authLoading && !user) {
     return <Navigate to={`/auth?token=${encodeURIComponent(token)}`} />;
   }
 
   // Sample project data (in a real app this would come from an API)
   const projectData = {
-    name: "ZenoFi Protocol",
-    symbol: token,
-    address: "0x1234567890abcdef1234567890abcdef12345678",
-    description: "ZenoFi is a decentralized finance platform focusing on yield optimization and liquidity provision across multiple blockchains.",
-    website: "https://zenofi.io",
-    twitter: "zenofi_io",
-    github: "zenofi",
-    logoUrl: "https://images.unsplash.com/photo-1605810230434-7631ac76ec81?w=250&h=250&auto=format&fit=crop",
-    healthScore: 78,
-    marketCap: "$4,532,000",
-    liquidityLock: "365 days",
-    topHoldersPercentage: "42%",
-    tvl: "$1.2M",
-    auditStatus: "Verified",
-    socialFollowers: "12.4K",
+    name: tokenInfo?.name || "Unknown Token",
+    symbol: tokenInfo?.symbol?.toUpperCase() || token.replace(/^\$/, '').toUpperCase(),
+    address: tokenInfo?.contract_address || "0x0000000000000000000000000000000000000000",
+    description: tokenInfo?.description || "No description available.",
+    website: tokenInfo?.links?.homepage?.[0] || "",
+    twitter: tokenInfo?.links?.twitter_screen_name || "",
+    github: tokenInfo?.links?.github || "",
+    logoUrl: tokenInfo?.image || "",
+    healthScore: 78, // This would be calculated based on various metrics
+    marketCap: tokenInfo?.market_cap ? `$${(tokenInfo.market_cap / 1000000).toFixed(2)}M` : "Unknown",
+    liquidityLock: "365 days", // Not available from CoinGecko
+    topHoldersPercentage: "42%", // Not available from CoinGecko
+    tvl: "$1.2M", // Not available from CoinGecko
+    auditStatus: "Verified", // Not available from CoinGecko
+    socialFollowers: tokenInfo?.links?.twitter_screen_name ? "12.4K" : "Unknown", // Would need Twitter API for this
     categories: {
       security: { score: 72 },
       liquidity: { score: 82 },
@@ -87,14 +105,9 @@ const ScanResult = () => {
             
             {/* Token Info Card */}
             <TokenInfoCard 
-              name={projectData.name}
-              symbol={projectData.symbol}
-              address={projectData.address}
-              description={projectData.description}
-              logoUrl={projectData.logoUrl}
-              website={projectData.website}
-              twitter={projectData.twitter}
-              github={projectData.github}
+              token={tokenInfo}
+              isLoading={tokenLoading}
+              error={tokenError as Error}
             />
             
             {/* Tabs Navigation */}
@@ -309,4 +322,3 @@ const ScanResult = () => {
 };
 
 export default ScanResult;
-
