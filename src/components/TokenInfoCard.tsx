@@ -101,7 +101,7 @@ export const TokenInfoCard = ({
   const website = token.links?.homepage?.[0] || "";
   const twitter = token.links?.twitter_screen_name || "";
   const github = token.links?.github || "";
-  const description = token.description || `${token.name} is a cryptocurrency token with symbol ${token.symbol.toUpperCase()}.`;
+  const description = token.description || `${token.name} is a cryptocurrency token with symbol ${token.symbol?.toUpperCase() || ''}`;
   const summaryDescription = summarizeDescription(description);
 
   return (
@@ -115,7 +115,7 @@ export const TokenInfoCard = ({
                 <AvatarImage src={token.image} alt={`${token.name} logo`} />
               ) : (
                 <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-xl">
-                  {token.symbol.substring(0, 2).toUpperCase()}
+                  {token.symbol?.substring(0, 2).toUpperCase() || '--'}
                 </AvatarFallback>
               )}
             </Avatar>
@@ -123,7 +123,7 @@ export const TokenInfoCard = ({
             <div className="space-y-1">
               <h3 className="font-semibold text-lg">{token.name}</h3>
               <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                <span className="font-medium">${token.symbol.toUpperCase()}</span>
+                <span className="font-medium">${token.symbol?.toUpperCase() || '--'}</span>
                 {token.market_cap_rank && (
                   <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">
                     Rank #{token.market_cap_rank}
