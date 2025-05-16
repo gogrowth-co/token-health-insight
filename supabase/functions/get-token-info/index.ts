@@ -43,6 +43,26 @@ interface TokenData {
   };
 }
 
+// Known major tokens by symbol - used to prioritize search results
+const MAJOR_TOKENS = {
+  "btc": "bitcoin",
+  "eth": "ethereum",
+  "usdt": "tether",
+  "bnb": "binancecoin",
+  "xrp": "ripple",
+  "usdc": "usd-coin",
+  "sol": "solana",
+  "ada": "cardano",
+  "doge": "dogecoin",
+  "trx": "tron",
+  "dot": "polkadot",
+  "matic": "matic-network",
+  "avax": "avalanche-2",
+  "link": "chainlink",
+  "shib": "shiba-inu",
+  "ltc": "litecoin"
+};
+
 // Create a Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
 const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
@@ -105,6 +125,13 @@ Deno.serve(async (req) => {
 
     console.log(`Cache miss for token: ${token}, fetching from CoinGecko`);
 
+    // Check if this is a known major token
+    const knownTokenId = MAJOR_TOKENS[token];
+    if (knownTokenId) {
+      console.log(`Found as major token: ${token} -> ${knownTokenId}`);
+      return await fetchAndCacheTokenData(knownTokenId, token);
+    }
+
     // Step 1: Get CoinGecko ID from symbol
     const coinListResponse = await fetch('https://api.coingecko.com/api/v3/coins/list');
     
@@ -116,34 +143,116 @@ Deno.serve(async (req) => {
     }
     
     const coinList: CoinGeckoListItem[] = await coinListResponse.json();
-    const matchedCoins = coinList.filter(coin => coin.symbol.toLowerCase() === token);
     
-    if (matchedCoins.length === 0) {
+    // Find matches by symbol (case insensitive)
+    const symbolMatches = coinList.filter(coin => 
+      coin.symbol.toLowerCase() === token
+    );
+    
+    // If no exact symbol matches, try to search by name or ID
+    if (symbolMatches.length === 0) {
+      console.log(`No exact symbol matches for: ${token}, trying search API`);
+      return await trySearchFallback(token);
+    }
+
+    console.log(`Found ${symbolMatches.length} matching symbols for: ${token}`);
+    
+    // First check if any of the matches has a name or id that contains the token
+    // This helps when the token is actually the name of the cryptocurrency (e.g., "bitcoin")
+    const nameOrIdMatch = symbolMatches.find(
+      coin => coin.id.toLowerCase() === token || 
+              coin.id.toLowerCase().includes(token) || 
+              coin.name.toLowerCase() === token
+    );
+    
+    if (nameOrIdMatch) {
+      console.log(`Found name/id match: ${nameOrIdMatch.id}`);
+      return await fetchAndCacheTokenData(nameOrIdMatch.id, token);
+    }
+    
+    // Sort matches by coinId length (shorter is often better/original)
+    // and prioritize those with market data
+    const sortedMatches = [...symbolMatches].sort((a, b) => a.id.length - b.id.length);
+    
+    // Use the first match by default
+    const coinId = sortedMatches[0].id;
+    console.log(`Using first sorted match: ${coinId}`);
+    
+    return await fetchAndCacheTokenData(coinId, token);
+
+  } catch (error) {
+    console.error("Error processing request:", error.message);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    );
+  }
+});
+
+// Fallback to search API if we don't find an exact match
+async function trySearchFallback(token: string): Promise<Response> {
+  try {
+    // Use the CoinGecko search API
+    const searchUrl = `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(token)}`;
+    console.log(`Trying search API: ${searchUrl}`);
+    
+    const searchResponse = await fetch(searchUrl);
+    if (!searchResponse.ok) {
+      console.error("Search API failed:", searchResponse.status);
       return new Response(
-        JSON.stringify({ error: `Token not found: ${token}` }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+        JSON.stringify({ error: 'Search API failed', status: searchResponse.status }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 }
       );
     }
-
-    // Usually use the first match, but if we find an exact match by id, prefer that
-    let coinId = matchedCoins[0].id;
-    const exactMatch = matchedCoins.find(coin => coin.id.toLowerCase() === token);
-    if (exactMatch) {
-      coinId = exactMatch.id;
+    
+    const searchResults = await searchResponse.json();
+    
+    // Check if we found any coins
+    if (searchResults.coins && searchResults.coins.length > 0) {
+      // Sort by market cap rank (if available)
+      const sortedResults = searchResults.coins.sort((a: any, b: any) => {
+        const rankA = a.market_cap_rank || Number.MAX_SAFE_INTEGER;
+        const rankB = b.market_cap_rank || Number.MAX_SAFE_INTEGER;
+        return rankA - rankB;
+      });
+      
+      console.log(`Search found ${sortedResults.length} results, using top result: ${sortedResults[0].id}`);
+      return await fetchAndCacheTokenData(sortedResults[0].id, token);
     }
+    
+    // If no coins found, return an error
+    return new Response(
+      JSON.stringify({ error: `Token not found: ${token}`, suggestions: searchResults.coins?.slice(0, 5) }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+    );
+  } catch (error) {
+    console.error("Error in search fallback:", error);
+    return new Response(
+      JSON.stringify({ error: 'Search fallback failed', details: error.message }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    );
+  }
+}
 
+// Fetch and cache token data
+async function fetchAndCacheTokenData(coinId: string, originalToken: string): Promise<Response> {
+  try {
     // Step 2: Get detailed market data for the coin
     const marketDataUrl = `https://api.coingecko.com/api/v3/coins/${coinId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=true`;
+    console.log(`Fetching market data: ${marketDataUrl}`);
+    
     const marketResponse = await fetch(marketDataUrl);
     
     if (!marketResponse.ok) {
+      console.error("Market data fetch failed:", marketResponse.status);
+      
       // Fallback to simpler endpoint if detailed data fails
       const simplePriceUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true`;
       const simplePriceResponse = await fetch(simplePriceUrl);
       
       if (!simplePriceResponse.ok) {
         return new Response(
-          JSON.stringify({ error: `Failed to fetch data for token: ${token}` }),
+          JSON.stringify({ error: `Failed to fetch data for token: ${originalToken}` }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 }
         );
       }
@@ -151,8 +260,8 @@ Deno.serve(async (req) => {
       const simplePriceData = await simplePriceResponse.json();
       const tokenData = {
         id: coinId,
-        symbol: token,
-        name: matchedCoins[0].name,
+        symbol: originalToken,
+        name: coinId,  // Not ideal, but it's what we have
         current_price: simplePriceData[coinId]?.usd,
         market_cap: simplePriceData[coinId]?.usd_market_cap,
         price_change_percentage_24h: simplePriceData[coinId]?.usd_24h_change,
@@ -164,12 +273,12 @@ Deno.serve(async (req) => {
       await supabase
         .from('token_data_cache')
         .upsert({
-          token_id: token,
+          token_id: originalToken,
           data: tokenData,
           expires_at: expiresAt,
           last_updated: new Date().toISOString()
         })
-        .eq('token_id', token);
+        .eq('token_id', originalToken);
 
       return new Response(
         JSON.stringify(tokenData),
@@ -211,19 +320,19 @@ Deno.serve(async (req) => {
     await supabase
       .from('token_data_cache')
       .upsert({
-        token_id: token,
+        token_id: originalToken,
         data: tokenData,
         expires_at: expiresAt,
         last_updated: new Date().toISOString()
       })
-      .eq('token_id', token);
+      .eq('token_id', originalToken);
     
     // Store token scan record
     try {
       await supabase
         .from('token_scans')
         .insert({
-          token_id: token,
+          token_id: originalToken,
           token_symbol: tokenData.symbol,
           token_name: tokenData.name,
           token_address: tokenData.contract_address || null,
@@ -239,12 +348,11 @@ Deno.serve(async (req) => {
       JSON.stringify(tokenData),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
-    console.error("Error processing request:", error.message);
+    console.error("Error fetching token data:", error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      JSON.stringify({ error: 'Failed to fetch and process token data', details: error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
-});
+}
