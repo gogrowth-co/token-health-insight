@@ -26,18 +26,22 @@ export interface TokenMetrics {
 
 export const useTokenMetrics = (
   tokenIdentifier?: string | null,
-  tokenInfo?: TokenInfo | null
+  tokenInfo?: TokenInfo | null,
+  refreshTrigger: number = 0
 ) => {
   const normalizedToken = tokenIdentifier?.replace(/^\$/, '').toLowerCase() || '';
   
   return useQuery({
-    queryKey: ['tokenMetrics', normalizedToken],
+    queryKey: ['tokenMetrics', normalizedToken, refreshTrigger],
     queryFn: async (): Promise<TokenMetrics> => {
       if (!normalizedToken) {
         throw new Error('Token identifier is required');
       }
 
+      console.log(`Fetching token metrics for ${normalizedToken} (refresh: ${refreshTrigger})`);
+      
       try {
+        // First attempt with a short timeout
         const { data, error } = await supabase.functions.invoke('get-token-metrics', {
           body: { 
             token: normalizedToken,
@@ -48,28 +52,28 @@ export const useTokenMetrics = (
 
         if (error) {
           console.error('Error fetching token metrics:', error);
-          toast({
-            title: "Error loading metrics",
-            description: "We're having trouble loading metrics. Using cached data where possible.",
-            variant: "destructive",
-          });
           throw new Error(`Failed to fetch token metrics: ${error.message}`);
         }
 
         if (data.error) {
           console.error('API error fetching token metrics:', data.error);
-          toast({
-            title: "API error",
-            description: data.error,
-            variant: "destructive",
-          });
+          throw new Error(data.error);
         }
 
+        console.log(`Successfully fetched metrics for ${normalizedToken}:`, data);
         return data.metrics as TokenMetrics;
       } catch (error) {
         console.error('Exception fetching token metrics:', error);
-        // For mock data we could implement a fallback here
-        // but the edge function already provides fallbacks
+        
+        // Show more helpful error message
+        if (error.message?.includes('Failed to fetch')) {
+          toast({
+            title: "Connection error",
+            description: "Unable to connect to our servers. Please check your internet connection.",
+            variant: "destructive",
+          });
+        }
+        
         throw error;
       }
     },
