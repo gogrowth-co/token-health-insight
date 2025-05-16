@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -137,7 +136,11 @@ const ScanResult = () => {
               {/* Key Metrics Section */}
               <section>
                 <h2 className="text-xl font-semibold mb-4">Key Metrics</h2>
-                <KeyMetricsGrid projectData={projectData} />
+                <KeyMetricsGrid 
+                  token={tokenInfo} 
+                  tokenId={token} 
+                  isLoading={tokenLoading} 
+                />
               </section>
               
               {/* Categories Overview Section */}

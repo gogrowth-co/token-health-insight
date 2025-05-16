@@ -4,3 +4,5 @@ project_id = "ppbhbrbzjklsarodahoo"
 [functions.get-token-info]
 verify_jwt = false
 
+[functions.get-token-metrics]
+verify_jwt = false
