@@ -1,4 +1,4 @@
-import { CircleDot, AlertCircle, DollarSign, BarChart } from "lucide-react";
+import { CircleDot, AlertCircle, DollarSign, BarChart, Infinity, PieChart, TrendingUp } from "lucide-react";
 import { TokenMetrics } from "@/hooks/useTokenMetrics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +33,35 @@ export const TokenomicsMetricsSection = ({
     
     // Supply Cap status
     if (type === "supplyCap") {
-      return { icon: <BarChart className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
+      return { icon: <Infinity className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
+    }
+
+    // Token Distribution status
+    if (type === "tokenDistribution") {
+      const rating = metrics?.tokenDistributionRating;
+      if (rating === "Good") {
+        return { icon: <PieChart className="h-5 w-5 text-green-500" />, color: "text-green-500 bg-green-50" };
+      } else if (rating === "Moderate") {
+        return { icon: <PieChart className="h-5 w-5 text-yellow-500" />, color: "text-yellow-500 bg-yellow-50" };
+      } else if (rating === "Poor") {
+        return { icon: <PieChart className="h-5 w-5 text-red-500" />, color: "text-red-500 bg-red-50" };
+      }
+      return { icon: <PieChart className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
+    }
+    
+    // Treasury Size status
+    if (type === "treasurySize") {
+      return { icon: <TrendingUp className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
+    }
+
+    // Burn Mechanism status
+    if (type === "burnMechanism") {
+      if (value === "Yes") {
+        return { icon: <CircleDot className="h-5 w-5 text-green-500" />, color: "text-green-500 bg-green-50" };
+      } else if (value === "No") {
+        return { icon: <CircleDot className="h-5 w-5 text-red-500" />, color: "text-red-500 bg-red-50" };
+      }
+      return { icon: <CircleDot className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
     }
     
     // Other tokenomics metrics
@@ -129,6 +157,13 @@ export const TokenomicsMetricsSection = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            {metrics?.tvlChange24h ? (
+              <div className="mt-2">
+                <span className={`text-xs ${metrics.tvlChange24h > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {metrics.tvlChange24h > 0 ? '+' : ''}{metrics.tvlChange24h.toFixed(2)}% (24h)
+                </span>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
         
@@ -136,7 +171,7 @@ export const TokenomicsMetricsSection = ({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo("Coming Soon", "supplyCap").icon}
+              {getStatusInfo(metrics?.supplyCap, "supplyCap").icon}
               Supply Cap
             </CardTitle>
             <CardDescription className="text-xs">
@@ -147,8 +182,8 @@ export const TokenomicsMetricsSection = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "supplyCap").color}`}>
-                    Coming Soon
+                  <Badge className={`${getStatusInfo(metrics?.supplyCap, "supplyCap").color}`}>
+                    {metrics?.supplyCap || "N/A"}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -156,9 +191,11 @@ export const TokenomicsMetricsSection = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <p className="text-xs mt-2 text-gray-500">
-              Supply cap data will be added in a future update.
-            </p>
+            {metrics?.supplyCapExists === false && (
+              <p className="text-xs mt-2 text-gray-500">
+                No supply cap found for this token.
+              </p>
+            )}
           </CardContent>
         </Card>
         
@@ -166,19 +203,21 @@ export const TokenomicsMetricsSection = ({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo("Coming Soon", "tokenDistribution").icon}
+              {getStatusInfo(metrics?.tokenDistribution, "tokenDistribution").icon}
               Token Distribution
             </CardTitle>
             <CardDescription className="text-xs">
-              Token distribution across stakeholders
+              Top holder concentration
             </CardDescription>
           </CardHeader>
           <CardContent>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "tokenDistribution").color}`}>
-                    Coming Soon
+                  <Badge className={`${getStatusInfo(metrics?.tokenDistribution, "tokenDistribution").color}`}>
+                    {metrics?.tokenDistributionRating || "N/A"}
+                    {metrics?.tokenDistribution && metrics.tokenDistribution !== "N/A" ? 
+                      ` (${metrics.tokenDistribution})` : ''}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -186,6 +225,13 @@ export const TokenomicsMetricsSection = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            {metrics?.tokenDistributionRating && metrics.tokenDistributionRating !== "N/A" && (
+              <p className="text-xs mt-2 text-gray-500">
+                {metrics.tokenDistributionRating === "Good" ? "Well distributed among holders" : 
+                 metrics.tokenDistributionRating === "Poor" ? "Highly concentrated among top holders" :
+                 "Moderately distributed among holders"}
+              </p>
+            )}
           </CardContent>
         </Card>
         
@@ -193,7 +239,7 @@ export const TokenomicsMetricsSection = ({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo("Coming Soon", "treasurySize").icon}
+              {getStatusInfo(metrics?.treasurySize, "treasurySize").icon}
               Treasury Size
             </CardTitle>
             <CardDescription className="text-xs">
@@ -204,8 +250,8 @@ export const TokenomicsMetricsSection = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "treasurySize").color}`}>
-                    Coming Soon
+                  <Badge className={`${getStatusInfo(metrics?.treasurySize, "treasurySize").color}`}>
+                    {metrics?.treasurySize || "N/A"}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -213,6 +259,9 @@ export const TokenomicsMetricsSection = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            <p className="text-xs mt-2 text-gray-500">
+              Data currently unavailable from direct API sources.
+            </p>
           </CardContent>
         </Card>
         
@@ -220,7 +269,7 @@ export const TokenomicsMetricsSection = ({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo("Coming Soon", "burnMechanism").icon}
+              {getStatusInfo(metrics?.burnMechanism, "burnMechanism").icon}
               Burn Mechanism
             </CardTitle>
             <CardDescription className="text-xs">
@@ -231,8 +280,8 @@ export const TokenomicsMetricsSection = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "burnMechanism").color}`}>
-                    Coming Soon
+                  <Badge className={`${getStatusInfo(metrics?.burnMechanism, "burnMechanism").color}`}>
+                    {metrics?.burnMechanism || "N/A"}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -240,6 +289,16 @@ export const TokenomicsMetricsSection = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            {metrics?.burnMechanism === "Yes" && (
+              <p className="text-xs mt-2 text-gray-500">
+                This token has a verifiable burn mechanism.
+              </p>
+            )}
+            {metrics?.burnMechanism === "No" && (
+              <p className="text-xs mt-2 text-gray-500">
+                No burn mechanism detected in contract.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

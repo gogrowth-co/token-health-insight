@@ -6,6 +6,7 @@ import { useSubscription } from "@/contexts/SubscriptionContext";
 import { TokenInput } from "@/components/TokenInput";
 import { RecentScans } from "@/components/RecentScans";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Navigate, useSearchParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { CheckCircle, Shield, Zap, Loader2, History, Search } from "lucide-react
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { CryptoTrivia } from "@/components/CryptoTrivia";
+import { Json } from "@/integrations/supabase/types";
 
 interface LastScan {
   id: string;
@@ -26,6 +28,9 @@ interface LastScan {
     blockchain?: string;
     description?: string;
   };
+  category_scores?: Json;
+  token_address?: string;
+  user_id?: string;
 }
 
 const Dashboard = () => {
@@ -63,7 +68,25 @@ const Dashboard = () => {
         if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned" error
           console.error('Error fetching last scan:', error);
         } else if (data) {
-          setLastScan(data);
+          // Transform data to match LastScan type
+          const transformedData: LastScan = {
+            id: data.id,
+            token_id: data.token_id,
+            token_name: data.token_name || data.token_symbol,
+            token_symbol: data.token_symbol,
+            created_at: data.created_at,
+            health_score: data.health_score,
+            metadata: data.metadata as { 
+              image?: string; 
+              blockchain?: string;
+              description?: string;
+            } || {},
+            category_scores: data.category_scores,
+            token_address: data.token_address,
+            user_id: data.user_id
+          };
+          
+          setLastScan(transformedData);
         }
       } catch (err) {
         console.error('Error in last scan fetch:', err);
@@ -84,6 +107,7 @@ const Dashboard = () => {
 
   // Helper function to truncate description
   const truncateDescription = (description: string, maxLength: number = 150) => {
+    if (!description) return '';
     if (description.length <= maxLength) return description;
     return description.substring(0, maxLength) + '...';
   };

@@ -1,3 +1,4 @@
+
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { TokenInfo } from './useTokenInfo';
@@ -48,8 +49,26 @@ export interface TokenMetrics {
   dexDepthValue?: number;
   cexListings?: string;
   
-  // Additional section scores
+  // Tokenomics metrics
   tokenomicsScore?: number;
+  supplyCap?: string;
+  supplyCapValue?: number;
+  supplyCapExists?: boolean;
+  tokenDistribution?: string;
+  tokenDistributionValue?: number;
+  tokenDistributionRating?: string;
+  treasurySize?: string;
+  treasurySizeValue?: number;
+  burnMechanism?: string;
+  tokenomicsAnalysis?: {
+    tvl_usd: number;
+    supply_cap: number;
+    token_distribution_rating: string;
+    treasury_estimate: number | null;
+    burn_mechanism: string;
+  };
+  
+  // Additional section scores
   communityScore?: number;
   developmentScore?: number;
 }

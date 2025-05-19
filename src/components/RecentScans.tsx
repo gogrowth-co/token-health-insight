@@ -18,6 +18,9 @@ interface ScanData {
     image?: string;
     blockchain?: string;
   };
+  category_scores?: any;
+  token_address?: string;
+  user_id?: string;
 }
 
 interface RecentScansProps {
@@ -53,7 +56,21 @@ export const RecentScans = ({ userId, limit = 5 }: RecentScansProps) => {
           throw new Error(`Failed to fetch recent scans: ${error.message}`);
         }
 
-        setRecentScans(data || []);
+        // Transform the data to match ScanData type
+        const transformedData: ScanData[] = data?.map(item => ({
+          id: item.id,
+          token_id: item.token_id,
+          token_symbol: item.token_symbol,
+          token_name: item.token_name || item.token_symbol,
+          created_at: item.created_at,
+          health_score: item.health_score,
+          metadata: item.metadata as { image?: string; blockchain?: string } || {},
+          category_scores: item.category_scores,
+          token_address: item.token_address,
+          user_id: item.user_id
+        })) || [];
+
+        setRecentScans(transformedData);
       } catch (err) {
         console.error('Error fetching recent scans:', err);
         setError('Failed to load recent scans');

@@ -42,6 +42,43 @@ interface TokenMetricsResponse {
     githubActivity?: string;
     githubCommits?: number;
     fromCache?: boolean;
+    
+    // Security metrics
+    ownershipRenounced?: string;
+    freezeAuthority?: string;
+    codeAudit?: string;
+    multiSigWallet?: string;
+    bugBounty?: string;
+    securityScore?: number;
+    
+    // Liquidity metrics
+    liquidityScore?: number;
+    dexDepth?: string;
+    dexDepthValue?: number;
+    cexListings?: string;
+    
+    // Tokenomics metrics
+    tokenomicsScore?: number;
+    supplyCap?: string;
+    supplyCapValue?: number;
+    supplyCapExists?: boolean;
+    tokenDistribution?: string;
+    tokenDistributionValue?: number;
+    tokenDistributionRating?: string;
+    treasurySize?: string;
+    treasurySizeValue?: number;
+    burnMechanism?: string;
+    tokenomicsAnalysis?: {
+      tvl_usd: number;
+      supply_cap: number;
+      token_distribution_rating: string;
+      treasury_estimate: number | null;
+      burn_mechanism: string;
+    };
+    
+    // Additional section scores
+    communityScore?: number;
+    developmentScore?: number;
   };
   cacheHit: boolean;
   socialFollowersFromCache?: boolean;
@@ -94,7 +131,7 @@ async function getTokenData(tokenId: string) {
   }
 }
 
-async function getTVL(tokenId: string) {
+async function getTVL(tokenId: string, network: string, tokenAddress: string) {
   try {
     console.log(`Fetching TVL data from CoinGecko for ${tokenId}`);
     
@@ -119,9 +156,22 @@ async function getTVL(tokenId: string) {
     let tvlValue = 0;
     let tvlChange24h = 0;
     
-    if (data.market_data && data.market_data.total_value_locked) {
+    if (data.market_data && data.market_data.total_value_locked && data.market_data.total_value_locked.usd) {
       tvlValue = data.market_data.total_value_locked.usd || 0;
       tvlChange24h = data.market_data.total_value_locked_24h_percentage_change || 0;
+      console.log(`Found TVL data from CoinGecko: ${tvlValue}`);
+      
+      return { 
+        tvl: tvlValue > 0 ? formatCurrency(tvlValue) : "N/A", 
+        tvlValue, 
+        tvlChange24h 
+      };
+    }
+    
+    // If no TVL from CoinGecko and we have a token address, try GeckoTerminal as fallback
+    if (tokenAddress && !tvlValue) {
+      console.log(`No TVL data found in CoinGecko, trying GeckoTerminal fallback for ${tokenAddress}`);
+      return await getTVLFromGeckoTerminal(network, tokenAddress);
     }
     
     return { 
@@ -130,201 +180,158 @@ async function getTVL(tokenId: string) {
       tvlChange24h 
     };
   } catch (error) {
-    console.error('Error fetching TVL data:', error);
+    console.error('Error fetching TVL data from CoinGecko:', error);
+    
+    // Try GeckoTerminal as fallback if we have a token address
+    if (tokenAddress) {
+      console.log(`Trying GeckoTerminal as fallback for TVL data for ${tokenAddress}`);
+      return await getTVLFromGeckoTerminal(network, tokenAddress);
+    }
+    
     return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0 };
   }
 }
 
-async function getLiquidityLockInfo(network: string, tokenAddress: string) {
-  if (!tokenAddress || network !== 'eth' || !ETHERSCAN_API_KEY) {
-    return { liquidityLock: "N/A", liquidityLockDays: 0 };
+// New function to get TVL from GeckoTerminal as a fallback
+async function getTVLFromGeckoTerminal(network: string, tokenAddress: string) {
+  if (!tokenAddress) {
+    return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0 };
   }
   
   try {
-    console.log(`Fetching liquidity lock info from Etherscan for ${tokenAddress}`);
+    // Map network to GeckoTerminal network ID
+    const geckoNetwork = mapNetworkToGeckoTerminal(network);
+    if (!geckoNetwork) {
+      console.log(`Unsupported network for GeckoTerminal TVL fallback: ${network}`);
+      return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0 };
+    }
     
-    // Check for lock contracts or timelocks using Etherscan API
-    const url = `https://api.etherscan.io/api?module=account&action=txlist&address=${tokenAddress}&startblock=0&endblock=99999999&sort=desc&apikey=${ETHERSCAN_API_KEY}`;
+    // Fetch pools data from GeckoTerminal API
+    const url = `https://api.geckoterminal.com/api/v2/networks/${geckoNetwork}/tokens/${tokenAddress.toLowerCase()}/pools`;
+    console.log(`Fetching TVL data from GeckoTerminal: ${url}`);
     
-    const response = await fetchWithRetry(url, {});
+    const response = await fetchWithRetry(url, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    }, 3, 1000);
     
     if (!response.ok) {
-      throw new Error(`Etherscan API error: ${response.status}`);
+      console.error(`GeckoTerminal API error: ${response.status}`);
+      return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0 };
     }
     
     const data = await response.json();
+    console.log('GeckoTerminal API response received for TVL fallback');
     
-    if (data.status !== '1' || !data.result) {
-      return { liquidityLock: "N/A", liquidityLockDays: 0 };
+    if (!data.data || data.data.length === 0) {
+      console.log('No pools found in GeckoTerminal');
+      return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0 };
     }
     
-    // Look for common liquidity locker contracts in the transaction list
-    const lockerAddresses = [
-      '0x000000000000000000000000000000000000dead', // Dead address
-      '0x663a5c229c09b049e36dcc11a9dd1d7a4f3dc50d', // Unicrypt
-      '0x82ef791a91047d0c4c4fedd0cbe1c101ea9a5a9b', // Team Finance
-      '0x9709f9690aef44dd3ccf39b5fca9413c60d38e2d', // PinkLock
-    ];
+    // Calculate total liquidity across all pools as a TVL approximation
+    let totalLiquidity = 0;
     
-    const lockTransactions = data.result.filter((tx: any) => 
-      lockerAddresses.some(addr => tx.to.toLowerCase() === addr.toLowerCase()) && 
-      tx.isError === '0'
+    for (const pool of data.data) {
+      if (pool.attributes && pool.attributes.reserve_in_usd) {
+        const poolLiquidity = parseFloat(pool.attributes.reserve_in_usd);
+        if (!isNaN(poolLiquidity)) {
+          totalLiquidity += poolLiquidity;
+        }
+      }
+    }
+    
+    console.log(`Calculated TVL from GeckoTerminal pools: $${totalLiquidity.toFixed(2)}`);
+    
+    return {
+      tvl: totalLiquidity > 0 ? formatCurrency(totalLiquidity) : "N/A",
+      tvlValue: totalLiquidity,
+      tvlChange24h: 0 // GeckoTerminal doesn't provide change data
+    };
+  } catch (error) {
+    console.error('Error fetching TVL data from GeckoTerminal:', error);
+    return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0 };
+  }
+}
+
+// New function to get supply cap data
+async function getSupplyCap(tokenId: string) {
+  try {
+    console.log(`Fetching supply cap data for ${tokenId}`);
+    
+    // Use CoinGecko API to get max_supply
+    const response = await fetchWithRetry(
+      `https://api.coingecko.com/api/v3/coins/${tokenId}?localization=false&tickers=false&market_data=true`, 
+      {
+        headers: {
+          'Accept': 'application/json',
+        }
+      }
     );
     
-    if (lockTransactions.length === 0) {
-      return { liquidityLock: "Not Found", liquidityLockDays: 0 };
-    }
-    
-    // Get the latest lock transaction
-    const latestLock = lockTransactions[0];
-    
-    // Estimate lock period based on contract and input data
-    let lockDays = 0;
-    let lockInfo = "Unknown Lock";
-    
-    if (latestLock.to.toLowerCase() === '0x000000000000000000000000000000000000dead') {
-      // If sent to dead address, it's permanent
-      lockDays = 36500; // 100 years
-      lockInfo = "Permanent";
-    } else if (latestLock.to.toLowerCase() === '0x663a5c229c09b049e36dcc11a9dd1d7a4f3dc50d') {
-      // Unicrypt typically has 6 month to 4 year locks
-      lockDays = 180; // Estimate 6 months as minimum
-      lockInfo = "180+ days (Unicrypt)";
-    } else if (latestLock.to.toLowerCase() === '0x82ef791a91047d0c4c4fedd0cbe1c101ea9a5a9b') {
-      // Team Finance typically has 30 day to 1 year locks
-      lockDays = 30; // Estimate 30 days as minimum
-      lockInfo = "30+ days (Team Finance)";
-    } else if (latestLock.to.toLowerCase() === '0x9709f9690aef44dd3ccf39b5fca9413c60d38e2d') {
-      // PinkLock typically has 30 day to 1 year locks
-      lockDays = 30; // Estimate 30 days as minimum
-      lockInfo = "30+ days (PinkLock)";
-    }
-    
-    return { liquidityLock: lockInfo, liquidityLockDays: lockDays };
-  } catch (error) {
-    console.error('Error fetching liquidity lock info:', error);
-    return { liquidityLock: "Error", liquidityLockDays: 0 };
-  }
-}
-
-async function getContractVerificationStatus(network: string, tokenAddress: string) {
-  if (!tokenAddress || network !== 'eth' || !ETHERSCAN_API_KEY) {
-    return "N/A";
-  }
-  
-  try {
-    // Use Etherscan API to check contract verification
-    const url = `https://api.etherscan.io/api?module=contract&action=getsourcecode&address=${tokenAddress}&apikey=${ETHERSCAN_API_KEY}`;
-    console.log('Checking contract verification status from Etherscan');
-    
-    const response = await fetchWithRetry(url, {});
-    
     if (!response.ok) {
-      console.error(`Etherscan API error: ${response.status}`);
-      throw new Error(`Etherscan API error: ${response.status}`);
+      console.error(`CoinGecko API error: ${response.status}`);
+      throw new Error(`CoinGecko API error: ${response.status}`);
     }
     
     const data = await response.json();
     
-    if (data.status !== '1' || !data.result || data.result.length === 0) {
-      console.log('No verification data found');
-      return "Not Verified";
+    // Check if max_supply exists
+    if (data.market_data && data.market_data.max_supply) {
+      const maxSupply = data.market_data.max_supply;
+      console.log(`Found max supply: ${maxSupply}`);
+      
+      return { 
+        supplyCap: formatNumber(maxSupply),
+        supplyCapValue: maxSupply,
+        supplyCapExists: true
+      };
     }
     
-    // Check if source code is available
-    const sourceCode = data.result[0].SourceCode;
-    
-    const isVerified = sourceCode && sourceCode.length > 0;
-    console.log(`Contract verification status: ${isVerified ? 'Verified' : 'Not Verified'}`);
-    
-    return isVerified ? "Verified" : "Not Verified";
+    console.log('No max supply data found');
+    return { 
+      supplyCap: "N/A", 
+      supplyCapValue: 0,
+      supplyCapExists: false
+    };
   } catch (error) {
-    console.error('Error checking contract verification:', error);
-    return "N/A";
+    console.error('Error fetching supply cap data:', error);
+    return { 
+      supplyCap: "N/A", 
+      supplyCapValue: 0,
+      supplyCapExists: false
+    };
   }
 }
 
-async function getTopHoldersData(network: string, tokenAddress: string) {
+// New function to get token distribution data
+async function getTokenDistribution(network: string, tokenAddress: string) {
   if (!tokenAddress) {
-    console.log('No token address provided for holders data');
+    console.log('No token address provided for token distribution data');
     return { 
-      topHoldersPercentage: "N/A", 
-      topHoldersValue: 0, 
-      topHoldersTrend: null,
-      topHolders: []
+      tokenDistribution: "N/A",
+      tokenDistributionValue: 0,
+      tokenDistributionRating: "N/A"
     };
   }
   
   try {
-    console.log(`Getting top holders data for ${tokenAddress} on network ${network}`);
+    console.log(`Getting token distribution data for ${tokenAddress} on network ${network}`);
     
-    // First try to ensure the table exists
-    try {
-      await ensureTokenHoldersCacheExists();
-      console.log('Token holders cache table exists or was created');
-    } catch (tableError) {
-      console.error('Error ensuring token_holders_cache table exists:', tableError);
-      // Continue anyway, the query below will fail if the table doesn't exist
-    }
-    
-    // Check cache
-    try {
-      const { data: cachedData, error: cacheError } = await supabase
-        .from('token_holders_cache')
-        .select('*')
-        .eq('token_address', tokenAddress.toLowerCase())
-        .single();
-      
-      if (cachedData && !cacheError) {
-        const cacheTime = new Date(cachedData.last_updated);
-        const now = new Date();
-        const cacheAgeHours = (now.getTime() - cacheTime.getTime()) / (1000 * 60 * 60);
-        
-        // Use cache if it's less than 24 hours old
-        if (cacheAgeHours < 24) {
-          console.log(`Cache hit for holders data: ${tokenAddress} (age: ${cacheAgeHours.toFixed(1)} hours)`);
-          
-          // Parse the holders data from the cached JSON string
-          let parsedHolders = [];
-          try {
-            if (cachedData.holders_data) {
-              parsedHolders = JSON.parse(cachedData.holders_data);
-            }
-          } catch (parseError) {
-            console.error('Error parsing cached holders data:', parseError);
-          }
-          
-          return {
-            topHoldersPercentage: cachedData.percentage,
-            topHoldersValue: cachedData.value,
-            topHoldersTrend: cachedData.trend,
-            topHolders: parsedHolders,
-            fromCache: true
-          };
-        } else {
-          console.log(`Cache expired for holders data: ${tokenAddress}`);
-        }
-      } else if (cacheError) {
-        console.error('Cache error for holders data:', cacheError);
-      }
-    } catch (cacheQueryError) {
-      console.error('Error querying token_holders_cache:', cacheQueryError);
-    }
-    
-    // Use GoPlus Security API to get top holders data
+    // Get chain ID for the network
     const chainId = getChainIdForNetwork(network);
     if (!chainId) {
-      console.log(`Unsupported network for holders data: ${network}`);
+      console.log(`Unsupported network for token distribution data: ${network}`);
       return { 
-        topHoldersPercentage: "N/A", 
-        topHoldersValue: 0, 
-        topHoldersTrend: null,
-        topHolders: []
+        tokenDistribution: "N/A",
+        tokenDistributionValue: 0,
+        tokenDistributionRating: "N/A"
       };
     }
     
+    // Use GoPlus Security API to get holder data
     const url = `https://api.gopluslabs.io/api/v1/token_security/${chainId}?contract_address=${tokenAddress}`;
-    console.log(`Fetching top holders data from GoPlus Security for chain ID ${chainId}`);
+    console.log(`Fetching token distribution data from GoPlus Security for chain ID ${chainId}`);
     
     const headers: HeadersInit = {
       'Accept': 'application/json',
@@ -341,182 +348,148 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
     
     if (!response.ok) {
       console.error(`GoPlus API error: ${response.status}`);
-      
-      // Check for stale cache as fallback
-      const { data: staleCache } = await supabase
-        .from('token_holders_cache')
-        .select('*')
-        .eq('token_address', tokenAddress.toLowerCase())
-        .single();
-        
-      if (staleCache) {
-        console.log(`Using stale cache data for ${tokenAddress} as fallback due to API error`);
-        
-        // Parse the holders data from the cached JSON string
-        let parsedHolders = [];
-        try {
-          if (staleCache.holders_data) {
-            parsedHolders = JSON.parse(staleCache.holders_data);
-          }
-        } catch (parseError) {
-          console.error('Error parsing stale cached holders data:', parseError);
-        }
-        
-        return {
-          topHoldersPercentage: staleCache.percentage,
-          topHoldersValue: staleCache.value,
-          topHoldersTrend: staleCache.trend,
-          topHolders: parsedHolders,
-          fromCache: true
-        };
-      }
-      
-      throw new Error(`GoPlus API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    console.log('GoPlus API response received');
-    
-    if (data.code !== 1 || !data.result || !data.result[tokenAddress.toLowerCase()]) {
-      console.log('No holder data found');
-      
-      // If no data but we have stale cache, use it as fallback
-      const { data: staleCache } = await supabase
-        .from('token_holders_cache')
-        .select('*')
-        .eq('token_address', tokenAddress.toLowerCase())
-        .single();
-        
-      if (staleCache) {
-        console.log(`Using stale cache data for ${tokenAddress} as fallback due to missing data`);
-        
-        // Parse the holders data from the cached JSON string
-        let parsedHolders = [];
-        try {
-          if (staleCache.holders_data) {
-            parsedHolders = JSON.parse(staleCache.holders_data);
-          }
-        } catch (parseError) {
-          console.error('Error parsing stale cached holders data:', parseError);
-        }
-        
-        return {
-          topHoldersPercentage: staleCache.percentage,
-          topHoldersValue: staleCache.value,
-          topHoldersTrend: staleCache.trend,
-          topHolders: parsedHolders,
-          fromCache: true
-        };
-      }
-      
       return { 
-        topHoldersPercentage: "N/A", 
-        topHoldersValue: 0, 
-        topHoldersTrend: null,
-        topHolders: []
+        tokenDistribution: "N/A",
+        tokenDistributionValue: 0, 
+        tokenDistributionRating: "N/A"
       };
     }
     
-    // Get top holders percentage if available
+    const data = await response.json();
+    console.log('GoPlus API response received for token distribution');
+    
+    if (data.code !== 1 || !data.result || !data.result[tokenAddress.toLowerCase()]) {
+      console.log('No token distribution data found');
+      return { 
+        tokenDistribution: "N/A",
+        tokenDistributionValue: 0,
+        tokenDistributionRating: "N/A"
+      };
+    }
+    
+    // Get top10_holder_ratio if available
     const securityData = data.result[tokenAddress.toLowerCase()];
-    let holdersPercentage = 0;
-    let topHolders = [];
     
-    if (securityData.holder_count && securityData.holders) {
-      // Convert holders object to array and sort by percentage
-      const holdersArray = Object.entries(securityData.holders).map(([address, holder]: [string, any]) => ({
-        address,
-        percentage: parseFloat(holder.percent)
-      }));
+    if (securityData.top10_holders_ratio) {
+      const holderRatio = parseFloat(securityData.top10_holders_ratio);
+      console.log(`Found top10 holder ratio: ${holderRatio}%`);
       
-      // Sort by percentage (highest first)
-      holdersArray.sort((a, b) => b.percentage - a.percentage);
+      // Determine rating based on criteria
+      let rating = "N/A";
+      if (holderRatio < 40) {
+        rating = "Good";
+      } else if (holderRatio < 80) {
+        rating = "Moderate";
+      } else {
+        rating = "Poor";
+      }
       
-      // Take top 10 holders
-      topHolders = holdersArray.slice(0, 10);
-      
-      // Calculate top 10 holders percentage
-      holdersPercentage = topHolders.reduce((total, holder) => total + holder.percentage, 0);
-      console.log(`Calculated top 10 holders percentage: ${holdersPercentage}%`);
-      console.log(`Found ${topHolders.length} top holders`);
+      return {
+        tokenDistribution: `${holderRatio.toFixed(1)}%`,
+        tokenDistributionValue: holderRatio,
+        tokenDistributionRating: rating
+      };
     }
     
-    // Determine risk trend based on percentage
-    let trend = null;
-    if (holdersPercentage > 0) {
-      trend = holdersPercentage > 50 ? "up" : "down";
-    }
-    
-    console.log(`Top holders percentage: ${holdersPercentage > 0 ? holdersPercentage.toFixed(1) + '%' : 'N/A'}`);
-    
-    // Cache the result including the detailed holders data
-    try {
-      await supabase
-        .from('token_holders_cache')
-        .upsert({
-          token_address: tokenAddress.toLowerCase(),
-          percentage: holdersPercentage > 0 ? `${holdersPercentage.toFixed(1)}%` : "N/A",
-          value: holdersPercentage,
-          trend: trend,
-          holders_data: JSON.stringify(topHolders),
-          last_updated: new Date().toISOString()
-        });
-        
-      console.log('Saved holders data to cache');
-    } catch (cacheError) {
-      console.error('Error caching holders data:', cacheError);
-    }
-    
-    return {
-      topHoldersPercentage: holdersPercentage > 0 ? `${holdersPercentage.toFixed(1)}%` : "N/A",
-      topHoldersValue: holdersPercentage,
-      topHoldersTrend: trend,
-      topHolders: topHolders
+    console.log('No top10 holder ratio found');
+    return { 
+      tokenDistribution: "N/A",
+      tokenDistributionValue: 0,
+      tokenDistributionRating: "N/A"
     };
   } catch (error) {
-    console.error('Error fetching top holders data:', error);
+    console.error('Error fetching token distribution data:', error);
     return { 
-      topHoldersPercentage: "N/A", 
-      topHoldersValue: 0, 
-      topHoldersTrend: null,
-      topHolders: []
+      tokenDistribution: "N/A",
+      tokenDistributionValue: 0,
+      tokenDistributionRating: "N/A"
     };
   }
 }
 
-// Helper function to convert network name to chain ID for GoPlus API
-function getChainIdForNetwork(network: string): string | null {
-  const networkMap: Record<string, string> = {
-    'eth': '1', 
-    'ethereum': '1',
-    'bsc': '56', 
-    'binance-smart-chain': '56',
-    'polygon': '137', 
-    'polygon-pos': '137',
-    'avalanche': '43114',
-    'arbitrum': '42161', 
-    'arbitrum-one': '42161',
-    'optimism': '10', 
-    'optimistic-ethereum': '10',
-    'fantom': '250',
-    'base': '8453'
-  };
+// New function to check burn mechanism
+async function getBurnMechanism(network: string, tokenAddress: string) {
+  if (!tokenAddress) {
+    console.log('No token address provided for burn mechanism data');
+    return { burnMechanism: "N/A" };
+  }
   
-  return networkMap[network.toLowerCase()] || null;
+  try {
+    console.log(`Getting burn mechanism data for ${tokenAddress} on network ${network}`);
+    
+    // Get chain ID for the network
+    const chainId = getChainIdForNetwork(network);
+    if (!chainId) {
+      console.log(`Unsupported network for burn mechanism data: ${network}`);
+      return { burnMechanism: "N/A" };
+    }
+    
+    // Use GoPlus Security API to get token security data
+    const url = `https://api.gopluslabs.io/api/v1/token_security/${chainId}?contract_address=${tokenAddress}`;
+    console.log(`Fetching burn mechanism data from GoPlus Security for chain ID ${chainId}`);
+    
+    const headers: HeadersInit = {
+      'Accept': 'application/json',
+    };
+    
+    if (GOPLUS_API_KEY) {
+      headers['API-Key'] = GOPLUS_API_KEY;
+      console.log('Using GoPlus API key for authentication');
+    } else {
+      console.log('No GoPlus API key found, proceeding without authentication');
+    }
+    
+    const response = await fetchWithRetry(url, { headers }, 3, 1000);
+    
+    if (!response.ok) {
+      console.error(`GoPlus API error: ${response.status}`);
+      return { burnMechanism: "N/A" };
+    }
+    
+    const data = await response.json();
+    console.log('GoPlus API response received for burn mechanism');
+    
+    if (data.code !== 1 || !data.result || !data.result[tokenAddress.toLowerCase()]) {
+      console.log('No burn mechanism data found');
+      return { burnMechanism: "N/A" };
+    }
+    
+    // Check for burn mechanism based on criteria
+    const securityData = data.result[tokenAddress.toLowerCase()];
+    
+    // Logic: If token cannot mint, cannot take back ownership, and ownership is renounced: "Yes"
+    const hasMintFunction = securityData.has_mint_function === "1";
+    const canTakeBackOwnership = securityData.can_take_back_ownership === "1";
+    const isOwnershipRenounced = securityData.owner_address === "0x0000000000000000000000000000000000000000" || 
+                                 securityData.owner_address === "0x000000000000000000000000000000000000dead";
+    
+    console.log(`Burn mechanism check - Mint: ${hasMintFunction}, Take Back: ${canTakeBackOwnership}, Renounced: ${isOwnershipRenounced}`);
+    
+    if (!hasMintFunction && !canTakeBackOwnership && isOwnershipRenounced) {
+      return { burnMechanism: "Yes" };
+    } else if (securityData.is_open_source !== "1" && securityData.is_open_source !== true) {
+      return { burnMechanism: "N/A" }; // Cannot determine for closed source contracts
+    } else {
+      return { burnMechanism: "No" };
+    }
+  } catch (error) {
+    console.error('Error fetching burn mechanism data:', error);
+    return { burnMechanism: "N/A" };
+  }
 }
 
-// Helper function to format currency
-function formatCurrency(value: number): string {
-  if (!value) return "N/A";
+// Helper function to format numbers nicely
+function formatNumber(value: number): string {
+  if (!value && value !== 0) return "N/A";
   
   if (value >= 1_000_000_000) {
-    return `$${(value / 1_000_000_000).toFixed(2)}B`;
+    return `${(value / 1_000_000_000).toFixed(2)}B`;
   } else if (value >= 1_000_000) {
-    return `$${(value / 1_000_000).toFixed(2)}M`;
+    return `${(value / 1_000_000).toFixed(2)}M`;
   } else if (value >= 1_000) {
-    return `$${(value / 1_000).toFixed(2)}K`;
+    return `${(value / 1_000).toFixed(2)}K`;
   } else {
-    return `$${value.toFixed(2)}`;
+    return value.toFixed(2);
   }
 }
 
@@ -612,7 +585,7 @@ async function getSecurityInfo(network: string, tokenAddress: string) {
     const response = await fetchWithRetry(url, { headers }, 3, 1000);
     
     if (!response.ok) {
-      console.error(`GoPlus API error: ${response.status}`);
+      console.error('GoPlus API error:', response.status);
       return { 
         ownershipRenounced: "N/A",
         freezeAuthority: "N/A",
@@ -816,7 +789,7 @@ Deno.serve(async (req) => {
   try {
     // Get token info from request body
     const requestBody = await req.json();
-    const { token, address, twitter, github, sources = {}, includeSecurity = false, includeLiquidity = false } = requestBody;
+    const { token, address, twitter, github, sources = {}, includeSecurity = false, includeLiquidity = false, includeTokenomics = true } = requestBody;
     
     if (!token) {
       return new Response(
@@ -827,7 +800,7 @@ Deno.serve(async (req) => {
     
     console.log(`Processing metrics for token: ${token}, address: ${address || 'N/A'}, twitter: ${twitter || 'N/A'}, github: ${github || 'N/A'}`);
     console.log(`Data sources: ${JSON.stringify(sources)}`);
-    console.log(`Include: Security=${includeSecurity}, Liquidity=${includeLiquidity}`);
+    console.log(`Include: Security=${includeSecurity}, Liquidity=${includeLiquidity}, Tokenomics=${includeTokenomics}`);
     
     // Create the cache tables if they don't exist
     try {
@@ -882,7 +855,7 @@ Deno.serve(async (req) => {
     try {
       // Fetch all metrics in parallel based on specified sources
       const fetchPromises = [
-        getTVL(token),
+        getTVL(token, network, contractAddress),
         getContractVerificationStatus(network, contractAddress),
         getTopHoldersData(network, contractAddress),
         getLiquidityLockInfo(network, contractAddress)
@@ -896,6 +869,13 @@ Deno.serve(async (req) => {
       // Only fetch liquidity info if requested
       if (includeLiquidity && contractAddress) {
         fetchPromises.push(getDexLiquidityData(network, contractAddress));
+      }
+      
+      // Add tokenomics data fetching
+      if (includeTokenomics && contractAddress) {
+        fetchPromises.push(getSupplyCap(token));
+        fetchPromises.push(getTokenDistribution(network, contractAddress));
+        fetchPromises.push(getBurnMechanism(network, contractAddress));
       }
       
       const results = await Promise.all(fetchPromises);
@@ -916,6 +896,18 @@ Deno.serve(async (req) => {
       
       if (includeLiquidity && contractAddress) {
         liquidityInfo = includeSecurity ? results[5] : results[4];
+      }
+      
+      // Extract tokenomics results if included
+      let supplyCap = undefined;
+      let tokenDistributionData = undefined;
+      let burnMechanism = undefined;
+      
+      if (includeTokenomics) {
+        const baseIndex = includeSecurity ? (includeLiquidity ? 6 : 5) : (includeLiquidity ? 5 : 4);
+        supplyCap = results[baseIndex];
+        tokenDistributionData = results[baseIndex + 1];
+        burnMechanism = results[baseIndex + 2];
       }
       
       // Construct metrics response
@@ -956,22 +948,84 @@ Deno.serve(async (req) => {
         socialFollowersFromCache: false
       };
       
-      // Add security metrics if available
-      if (securityInfo) {
-        Object.assign(metrics, securityInfo);
+      // Add tokenomics data to metrics
+      if (includeTokenomics) {
+        if (supplyCap) {
+          metrics.supplyCap = supplyCap.supplyCap;
+          metrics.supplyCapValue = supplyCap.supplyCapValue;
+          metrics.supplyCapExists = supplyCap.supplyCapExists;
+        } else {
+          metrics.supplyCap = "N/A";
+          metrics.supplyCapValue = 0;
+          metrics.supplyCapExists = false;
+        }
+        
+        if (tokenDistributionData) {
+          metrics.tokenDistribution = tokenDistributionData.tokenDistribution;
+          metrics.tokenDistributionValue = tokenDistributionData.tokenDistributionValue;
+          metrics.tokenDistributionRating = tokenDistributionData.tokenDistributionRating;
+        } else {
+          metrics.tokenDistribution = "N/A";
+          metrics.tokenDistributionValue = 0;
+          metrics.tokenDistributionRating = "N/A";
+        }
+        
+        if (burnMechanism) {
+          metrics.burnMechanism = burnMechanism.burnMechanism;
+        } else {
+          metrics.burnMechanism = "N/A";
+        }
+        
+        // Treasury Size is coming soon, no direct API source
+        metrics.treasurySize = "N/A";
+        metrics.treasurySizeValue = 0;
+        
+        // Calculate tokenomics score based on available metrics
+        let tokenomicsScore = 65; // Base score
+        
+        // Adjust score based on TVL
+        if (metrics.tvlValue > 1000000000) { // > $1B
+          tokenomicsScore += 15;
+        } else if (metrics.tvlValue > 100000000) { // > $100M
+          tokenomicsScore += 10;
+        } else if (metrics.tvlValue > 10000000) { // > $10M
+          tokenomicsScore += 5;
+        } else if (metrics.tvlValue < 1000000) { // < $1M
+          tokenomicsScore -= 5;
+        }
+        
+        // Adjust score based on supply cap
+        if (metrics.supplyCapExists) {
+          tokenomicsScore += 10;
+        }
+        
+        // Adjust score based on token distribution
+        if (metrics.tokenDistributionRating === "Good") {
+          tokenomicsScore += 10;
+        } else if (metrics.tokenDistributionRating === "Moderate") {
+          tokenomicsScore += 5;
+        } else if (metrics.tokenDistributionRating === "Poor") {
+          tokenomicsScore -= 10;
+        }
+        
+        // Adjust score based on burn mechanism
+        if (metrics.burnMechanism === "Yes") {
+          tokenomicsScore += 10;
+        }
+        
+        // Ensure score stays within 0-100 range
+        metrics.tokenomicsScore = Math.max(0, Math.min(100, tokenomicsScore));
+        console.log(`Calculated tokenomics score: ${metrics.tokenomicsScore}`);
+        
+        // Store tokenomics analysis in a structure matching the requested format
+        metrics.tokenomicsAnalysis = {
+          tvl_usd: metrics.tvlValue,
+          supply_cap: metrics.supplyCapValue,
+          token_distribution_rating: metrics.tokenDistributionRating,
+          treasury_estimate: null,
+          burn_mechanism: metrics.burnMechanism
+        };
       }
-      
-      // Add DEX liquidity metrics if available
-      if (liquidityInfo) {
-        Object.assign(metrics, liquidityInfo);
-        console.log(`Added DEX depth data: ${metrics.dexDepth}, value: ${metrics.dexDepthValue}`);
-      } else {
-        metrics.dexDepth = "Coming Soon";
-        metrics.dexDepthValue = 0;
-      }
-      
-      // Default CEX listings to "Coming Soon"
-      metrics.cexListings = "Coming Soon";
       
       // Cache the metrics
       try {
