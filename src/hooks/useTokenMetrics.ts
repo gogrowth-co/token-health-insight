@@ -134,13 +134,11 @@ export const useTokenMetrics = (
           return fallbackMetrics as TokenMetrics;
         }
         
-        // Show more helpful error message
+        // Show more helpful error messages in UI
         if ((error as Error).message?.includes('Failed to fetch')) {
-          toast({
-            title: "Connection error",
-            description: "Unable to connect to our servers. Please check your internet connection.",
-            variant: "destructive",
-          });
+          throw new Error('Unable to connect to our servers. Please check your internet connection.');
+        } else if ((error as Error).message?.includes('API error')) {
+          throw new Error('Error communicating with token metrics API. Please try again later.');
         }
         
         throw error;

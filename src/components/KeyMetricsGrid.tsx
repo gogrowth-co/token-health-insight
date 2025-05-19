@@ -1,4 +1,5 @@
-import { TrendingUp, TrendingDown, Loader2, AlertCircle, RefreshCw, Info } from "lucide-react";
+
+import { TrendingUp, TrendingDown, Loader2, AlertCircle, RefreshCw, Info, WifiOff, ServerCrash } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Tooltip,
@@ -40,6 +41,7 @@ export const KeyMetricsGrid = ({
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
   
   // Use the token ID passed in as tokenId prop first, fallback to token.id from API
   const effectiveTokenId = tokenId || token?.id || '';
@@ -79,19 +81,31 @@ export const KeyMetricsGrid = ({
   // Check if we have no data
   const noData = !metrics && !isLoading && !metricsLoading;
 
+  // Check if we have a connection error
+  useEffect(() => {
+    if (isError) {
+      const errorMessage = metricsError instanceof Error ? metricsError.message : 'Unknown error';
+      setConnectionError(errorMessage.includes('Failed to fetch') || errorMessage.includes('connect to our servers'));
+    } else {
+      setConnectionError(false);
+    }
+  }, [isError, metricsError]);
+
   // Show error toast once when an error occurs
   useEffect(() => {
     if (isError && metricsError) {
+      const errorMessage = metricsError instanceof Error ? metricsError.message : 'Unknown error';
+      
       toast({
-        title: "Error loading token metrics",
-        description: metricsError instanceof Error && metricsError.message.includes('Failed to fetch') 
+        title: connectionError ? "Connection error" : "Error loading token metrics",
+        description: connectionError 
           ? "We're having trouble connecting to our servers. Please check your internet connection and try again."
           : "We're having trouble fetching the latest data. Some metrics may be unavailable.",
         variant: "destructive",
       });
       console.error("Token metrics error:", metricsError);
     }
-  }, [isError, metricsError]);
+  }, [isError, metricsError, connectionError]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -144,13 +158,26 @@ export const KeyMetricsGrid = ({
         </Button>
       </div>
 
-      {isError && (
+      {isError && connectionError && (
+        <div className="col-span-full bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 flex items-center gap-2">
+          <WifiOff className="text-amber-500" size={20} />
+          <div className="text-sm text-amber-700">
+            Unable to connect to our servers. Please check your internet connection.
+            <button 
+              onClick={() => refetch()} 
+              className="ml-2 underline text-indigo-600 hover:text-indigo-800"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isError && !connectionError && (
         <div className="col-span-full bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-center gap-2">
-          <AlertCircle className="text-red-500" size={20} />
+          <ServerCrash className="text-red-500" size={20} />
           <div className="text-sm text-red-700">
-            {metricsError instanceof Error && metricsError.message.includes('Failed to fetch') 
-              ? "Unable to connect to our servers. Please check your internet connection."
-              : "Error loading metrics."}
+            Error loading metrics. Some data may be unavailable.
             <button 
               onClick={() => refetch()} 
               className="ml-2 underline text-indigo-600 hover:text-indigo-800"
