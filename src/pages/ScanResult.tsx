@@ -49,6 +49,7 @@ const ScanResult = () => {
   const priceFromQuery = searchParams.get("price");
   const contractAddressFromQuery = searchParams.get("contract_address");
   const blockchainFromQuery = searchParams.get("blockchain");
+  const twitterFromQuery = searchParams.get("twitter");
   
   // Keep track of token metadata from various sources
   const [tokenMetadata, setTokenMetadata] = useState<TokenMetadata>({
@@ -59,7 +60,8 @@ const ScanResult = () => {
     marketCap: marketCapFromQuery || undefined,
     price: priceFromQuery || undefined,
     contract_address: contractAddressFromQuery || undefined,
-    blockchain: blockchainFromQuery || undefined
+    blockchain: blockchainFromQuery || undefined,
+    twitter: twitterFromQuery || undefined
   });
   
   const [activeTab, setActiveTab] = useState("overview");
@@ -113,7 +115,8 @@ const ScanResult = () => {
         price: prev.price || (tokenInfo.current_price?.toString() || undefined),
         contract_address: prev.contract_address || tokenInfo.contract_address,
         blockchain: prev.blockchain || tokenInfo.blockchain,
-        twitter: tokenInfo.twitter
+        // Use either direct twitter property or get it from links.twitter_screen_name
+        twitter: prev.twitter || tokenInfo.twitter || tokenInfo.links?.twitter_screen_name
       }));
     }
     

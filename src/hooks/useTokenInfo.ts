@@ -41,6 +41,7 @@ export interface TokenInfo {
     price: number[];
   };
   platforms?: Record<string, string>; // Maps blockchain networks to contract addresses
+  twitter?: string; // Add twitter property to fix the error
 }
 
 export const useTokenInfo = (tokenIdentifier?: string | null, forceRefresh: boolean = false) => {
