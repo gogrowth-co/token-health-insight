@@ -1,4 +1,3 @@
-
 import { TrendingUp, TrendingDown, Loader2, AlertCircle, RefreshCw, Info } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -85,7 +84,9 @@ export const KeyMetricsGrid = ({
     if (isError && metricsError) {
       toast({
         title: "Error loading token metrics",
-        description: "We're having trouble fetching the latest data. Some metrics may be unavailable.",
+        description: metricsError instanceof Error && metricsError.message.includes('Failed to fetch') 
+          ? "We're having trouble connecting to our servers. Please check your internet connection and try again."
+          : "We're having trouble fetching the latest data. Some metrics may be unavailable.",
         variant: "destructive",
       });
       console.error("Token metrics error:", metricsError);
@@ -147,7 +148,9 @@ export const KeyMetricsGrid = ({
         <div className="col-span-full bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-center gap-2">
           <AlertCircle className="text-red-500" size={20} />
           <div className="text-sm text-red-700">
-            Error loading metrics. 
+            {metricsError instanceof Error && metricsError.message.includes('Failed to fetch') 
+              ? "Unable to connect to our servers. Please check your internet connection."
+              : "Error loading metrics."}
             <button 
               onClick={() => refetch()} 
               className="ml-2 underline text-indigo-600 hover:text-indigo-800"

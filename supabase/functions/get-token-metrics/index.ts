@@ -304,177 +304,96 @@ function getChainIdForNetwork(network: string): string | null {
   return networkMap[network.toLowerCase()] || null;
 }
 
-async function getSocialData(twitterHandle: string) {
-  if (!twitterHandle) return { socialFollowers: "N/A", socialFollowersCount: 0, socialFollowersChange: 0 };
-
+// Helper function to get GitHub activity data
+async function getGithubActivity(githubRepo: string) {
+  if (!githubRepo) return { githubActivity: "N/A", githubCommits: 0 };
+  
   try {
-    console.log(`Getting social data for Twitter handle: @${twitterHandle}`);
+    // Extract owner/repo from URL if it's a full URL
+    let owner = '';
+    let repo = '';
     
-    // Clean the handle - remove @ if present and trim spaces
-    const cleanHandle = twitterHandle.replace('@', '').trim();
-    
-    // Check if we have cached data for this handle
-    const { data: cachedData, error: cacheError } = await supabase
-      .from('social_metrics_cache')
-      .select('followers_count, previous_count, last_updated')
-      .eq('twitter_handle', cleanHandle)
-      .single();
-    
-    if (cachedData) {
-      console.log(`Found cached social data for @${cleanHandle}: ${cachedData.followers_count} followers`);
-      
-      // Check if cache is older than 24 hours
-      const cacheAge = new Date().getTime() - new Date(cachedData.last_updated).getTime();
-      const cacheAgeHours = cacheAge / (1000 * 60 * 60);
-      
-      if (cacheAgeHours < 24) {
-        console.log(`Using cached data (${cacheAgeHours.toFixed(1)} hours old)`);
-        
-        // Calculate % change if we have previous data
-        let change = 0;
-        if (cachedData.previous_count > 0) {
-          change = ((cachedData.followers_count - cachedData.previous_count) / cachedData.previous_count) * 100;
-        }
-        
-        // Format the followers count
-        const formattedFollowers = formatFollowerCount(cachedData.followers_count);
-        
-        return {
-          socialFollowers: formattedFollowers,
-          socialFollowersCount: cachedData.followers_count,
-          socialFollowersChange: change
-        };
-      } else {
-        console.log(`Cache is ${cacheAgeHours.toFixed(1)} hours old, refreshing data`);
-      }
-    } else {
-      console.log(`No cached social data for @${cleanHandle}`);
-    }
-    
-    // Try to fetch Twitter data using Apify
-    if (APIFY_API_KEY) {
+    if (githubRepo.includes('github.com')) {
       try {
-        console.log(`Fetching Twitter data for @${cleanHandle} using Apify`);
-        const followers = await fetchTwitterFollowersWithApify(cleanHandle);
-        
-        if (followers) {
-          // Store the previous count from cache or use current followers as initial value
-          const previousCount = cachedData ? cachedData.followers_count : followers;
-          
-          // Calculate change
-          let change = 0;
-          if (previousCount > 0 && previousCount !== followers) {
-            change = ((followers - previousCount) / previousCount) * 100;
-          }
-          
-          // Update cache
-          await supabase
-            .from('social_metrics_cache')
-            .upsert({
-              twitter_handle: cleanHandle,
-              followers_count: followers,
-              previous_count: previousCount,
-              last_updated: new Date().toISOString()
-            });
-          
-          console.log(`Updated Twitter data for @${cleanHandle}: ${followers} followers`);
-          
-          return {
-            socialFollowers: formatFollowerCount(followers),
-            socialFollowersCount: followers,
-            socialFollowersChange: change
-          };
-        } else {
-          console.log('Could not fetch follower count with Apify, using fallbacks');
+        const url = new URL(githubRepo);
+        const pathParts = url.pathname.split('/').filter(part => part);
+        if (pathParts.length >= 2) {
+          owner = pathParts[0];
+          repo = pathParts[1];
         }
-      } catch (error) {
-        console.error('Error fetching Twitter data from Apify:', error);
+      } catch (e) {
+        console.error("Error parsing GitHub URL:", e);
       }
     } else {
-      console.log('No Apify API key available, skipping Twitter data fetch');
-    }
-    
-    // Fallbacks for common tokens
-    const commonTokens: Record<string, { followers: number, change: number }> = {
-      'ethereum': { followers: 4300000, change: 2.3 },
-      'bitcoin': { followers: 5800000, change: 1.8 },
-      'solana': { followers: 2400000, change: 5.2 },
-      'cardano': { followers: 1200000, change: 0.5 },
-      'bnb': { followers: 3100000, change: 1.6 },
-      'ripple': { followers: 2200000, change: 0.9 },
-      'polygon': { followers: 780000, change: 3.2 },
-      'uniswap': { followers: 920000, change: 2.7 },
-      'aave': { followers: 430000, change: 1.4 },
-      'chainlink': { followers: 870000, change: 1.9 },
-      'pendle': { followers: 58400, change: 14.1 },
-      'pendle_fi': { followers: 58400, change: 14.1 }
-    };
-    
-    // Check if we have fallback data for this token
-    const tokenKey = cleanHandle.toLowerCase();
-    if (commonTokens[tokenKey]) {
-      const fallbackData = commonTokens[tokenKey];
-      console.log(`Using fallback data for ${tokenKey}: ${fallbackData.followers} followers`);
-      
-      // Store in cache with expiry
-      await supabase
-        .from('social_metrics_cache')
-        .upsert({
-          twitter_handle: cleanHandle,
-          followers_count: fallbackData.followers,
-          previous_count: Math.floor(fallbackData.followers / (1 + fallbackData.change / 100)),
-          last_updated: new Date().toISOString()
-        });
-      
-      return {
-        socialFollowers: formatFollowerCount(fallbackData.followers),
-        socialFollowersCount: fallbackData.followers,
-        socialFollowersChange: fallbackData.change
-      };
-    }
-    
-    // If we have cached data but it's old, still use it as a fallback
-    if (cachedData) {
-      console.log(`Using outdated cached data as fallback for @${cleanHandle}`);
-      let change = 0;
-      if (cachedData.previous_count > 0) {
-        change = ((cachedData.followers_count - cachedData.previous_count) / cachedData.previous_count) * 100;
+      // Assume format is already owner/repo
+      const parts = githubRepo.split('/');
+      if (parts.length >= 2) {
+        owner = parts[0];
+        repo = parts[1];
       }
-      
-      return {
-        socialFollowers: formatFollowerCount(cachedData.followers_count),
-        socialFollowersCount: cachedData.followers_count,
-        socialFollowersChange: change
-      };
     }
     
-    // As a last resort, use a reasonable default based on the name length
-    // This provides some variability but still realistic numbers
-    const baseFollowers = 10000;
-    const nameLength = cleanHandle.length;
-    const randomMultiplier = 0.5 + (Math.random() * 1.5); // Between 0.5 and 2
-    const defaultFollowers = Math.floor(baseFollowers * nameLength * randomMultiplier);
+    if (!owner || !repo) {
+      console.log(`Invalid GitHub repo format: ${githubRepo}`);
+      return { githubActivity: "N/A", githubCommits: 0 };
+    }
     
-    console.log(`Using generated follower count for @${cleanHandle}: ${defaultFollowers}`);
+    console.log(`Checking GitHub activity for ${owner}/${repo}`);
     
-    // Store in cache
-    await supabase
-      .from('social_metrics_cache')
-      .upsert({
-        twitter_handle: cleanHandle,
-        followers_count: defaultFollowers,
-        previous_count: defaultFollowers,
-        last_updated: new Date().toISOString()
-      });
+    // If GitHub API key is not available, return a default value
+    if (!GITHUB_API_KEY) {
+      console.log("No GitHub API key available, skipping GitHub activity check");
+      return { githubActivity: "N/A", githubCommits: 0 };
+    }
     
-    return { 
-      socialFollowers: formatFollowerCount(defaultFollowers), 
-      socialFollowersCount: defaultFollowers,
-      socialFollowersChange: 0
+    // Get commits from the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const dateString = thirtyDaysAgo.toISOString().split('T')[0];
+    
+    const url = `https://api.github.com/repos/${owner}/${repo}/commits?since=${dateString}&per_page=100`;
+    console.log(`Fetching GitHub commits from: ${url}`);
+    
+    const headers: HeadersInit = {
+      'Accept': 'application/vnd.github.v3+json'
     };
+    
+    if (GITHUB_API_KEY) {
+      headers['Authorization'] = `token ${GITHUB_API_KEY}`;
+    }
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      console.error(`GitHub API error: ${response.status}`);
+      return { githubActivity: "N/A", githubCommits: 0 };
+    }
+    
+    const commits = await response.json();
+    
+    // Count number of commits
+    const commitCount = Array.isArray(commits) ? commits.length : 0;
+    
+    console.log(`GitHub activity: ${commitCount} commits in last 30 days`);
+    
+    // Determine activity level
+    let activityLevel = "N/A";
+    if (commitCount > 50) {
+      activityLevel = "Very Active";
+    } else if (commitCount > 20) {
+      activityLevel = "Active";
+    } else if (commitCount > 5) {
+      activityLevel = "Moderate";
+    } else if (commitCount > 0) {
+      activityLevel = "Low";
+    } else {
+      activityLevel = "Inactive";
+    }
+    
+    return { githubActivity: activityLevel, githubCommits: commitCount };
   } catch (error) {
-    console.error('Error in getSocialData:', error);
-    return { socialFollowers: "N/A", socialFollowersCount: 0, socialFollowersChange: 0 };
+    console.error('Error fetching GitHub activity:', error);
+    return { githubActivity: "N/A", githubCommits: 0 };
   }
 }
 
@@ -673,7 +592,7 @@ Deno.serve(async (req) => {
       );
     }
     
-    console.log(`Processing metrics for token: ${token}, address: ${address || 'N/A'}, twitter: ${twitter || 'N/A'}`);
+    console.log(`Processing metrics for token: ${token}, address: ${address || 'N/A'}, twitter: ${twitter || 'N/A'}, github: ${github || 'N/A'}`);
     
     // Create the social_metrics_cache table if it doesn't exist
     await ensureSocialMetricsCacheExists();
@@ -725,67 +644,127 @@ Deno.serve(async (req) => {
     
     console.log(`Using final values for APIs: Contract=${contractAddress}, Twitter=${twitterHandle}, GitHub=${githubRepo}, Blockchain=${network}`);
     
-    // Fetch all metrics in parallel
-    const [tvlData, auditStatus, topHoldersData, socialData, githubData] = await Promise.all([
-      getTVL(network, contractAddress),
-      getContractVerificationStatus(network, contractAddress),
-      getTopHoldersData(network, contractAddress),
-      getSocialData(twitterHandle),
-      getGithubActivity(githubRepo)
-    ]);
-    
-    // Construct metrics response
-    const metrics: TokenMetricsResponse['metrics'] = {
-      // Market data from CoinGecko
-      marketCap: tokenData && tokenData.market_data && tokenData.market_data.market_cap 
-        ? formatCurrency(tokenData.market_data.market_cap.usd) 
-        : "N/A",
-      marketCapValue: tokenData && tokenData.market_data && tokenData.market_data.market_cap 
-        ? tokenData.market_data.market_cap.usd 
-        : 0,
-      marketCapChange24h: tokenData && tokenData.market_data && tokenData.market_data.market_cap_change_percentage_24h 
-        ? tokenData.market_data.market_cap_change_percentage_24h 
-        : 0,
-      currentPrice: tokenData && tokenData.market_data && tokenData.market_data.current_price 
-        ? tokenData.market_data.current_price.usd 
-        : 0,
-      priceChange24h: tokenData && tokenData.market_data && tokenData.market_data.price_change_percentage_24h 
-        ? tokenData.market_data.price_change_percentage_24h 
-        : 0,
+    try {
+      // Fetch all metrics in parallel
+      const [tvlData, auditStatus, topHoldersData, socialData, githubData] = await Promise.all([
+        getTVL(network, contractAddress),
+        getContractVerificationStatus(network, contractAddress),
+        getTopHoldersData(network, contractAddress),
+        getSocialData(twitterHandle),
+        getGithubActivity(githubRepo)
+      ]);
       
-      // TVL data
-      ...tvlData,
+      // Construct metrics response
+      const metrics: TokenMetricsResponse['metrics'] = {
+        // Market data from CoinGecko
+        marketCap: tokenData && tokenData.market_data && tokenData.market_data.market_cap 
+          ? formatCurrency(tokenData.market_data.market_cap.usd) 
+          : "N/A",
+        marketCapValue: tokenData && tokenData.market_data && tokenData.market_data.market_cap 
+          ? tokenData.market_data.market_cap.usd 
+          : 0,
+        marketCapChange24h: tokenData && tokenData.market_data && tokenData.market_data.market_cap_change_percentage_24h 
+          ? tokenData.market_data.market_cap_change_percentage_24h 
+          : 0,
+        currentPrice: tokenData && tokenData.market_data && tokenData.market_data.current_price 
+          ? tokenData.market_data.current_price.usd 
+          : 0,
+        priceChange24h: tokenData && tokenData.market_data && tokenData.market_data.price_change_percentage_24h 
+          ? tokenData.market_data.price_change_percentage_24h 
+          : 0,
+        
+        // TVL data
+        ...tvlData,
+        
+        // Contract verification status
+        auditStatus,
+        
+        // Top holders data
+        ...topHoldersData,
+        
+        // Social data
+        ...socialData,
+        
+        // GitHub data
+        ...githubData
+      };
       
-      // Contract verification status
-      auditStatus,
+      // Cache the metrics
+      await supabase
+        .from('token_metrics_cache')
+        .upsert({
+          token_id: token,
+          metrics,
+          last_updated: new Date().toISOString()
+        })
+        .eq('token_id', token);
       
-      // Top holders data
-      ...topHoldersData,
+      return new Response(
+        JSON.stringify({ 
+          metrics,
+          cacheHit: false
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (error) {
+      console.error("Error processing specific metrics:", error);
       
-      // Social data
-      ...socialData,
+      // Create a fallback response with basic metrics and error information
+      const fallbackMetrics: TokenMetricsResponse['metrics'] = {
+        marketCap: tokenData && tokenData.market_data && tokenData.market_data.market_cap 
+          ? formatCurrency(tokenData.market_data.market_cap.usd) 
+          : "N/A",
+        marketCapValue: tokenData && tokenData.market_data && tokenData.market_data.market_cap 
+          ? tokenData.market_data.market_cap.usd 
+          : 0,
+        marketCapChange24h: tokenData && tokenData.market_data && tokenData.market_data.market_cap_change_percentage_24h 
+          ? tokenData.market_data.market_cap_change_percentage_24h 
+          : 0,
+        currentPrice: tokenData && tokenData.market_data && tokenData.market_data.current_price 
+          ? tokenData.market_data.current_price.usd 
+          : 0,
+        priceChange24h: tokenData && tokenData.market_data && tokenData.market_data.price_change_percentage_24h 
+          ? tokenData.market_data.price_change_percentage_24h 
+          : 0,
+        liquidityLock: "N/A",
+        liquidityLockDays: 0,
+        topHoldersPercentage: "N/A",
+        topHoldersValue: 0,
+        topHoldersTrend: null,
+        tvl: "N/A",
+        tvlValue: 0,
+        tvlChange24h: 0,
+        auditStatus: "N/A",
+        socialFollowers: "N/A",
+        socialFollowersCount: 0,
+        socialFollowersChange: 0,
+        githubActivity: "N/A",
+        githubCommits: 0
+      };
       
-      // GitHub data
-      ...githubData
-    };
-    
-    // Cache the metrics
-    await supabase
-      .from('token_metrics_cache')
-      .upsert({
-        token_id: token,
-        metrics,
-        last_updated: new Date().toISOString()
-      })
-      .eq('token_id', token);
-    
-    return new Response(
-      JSON.stringify({ 
-        metrics,
-        cacheHit: false
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      // Cache the fallback metrics
+      try {
+        await supabase
+          .from('token_metrics_cache')
+          .upsert({
+            token_id: token,
+            metrics: fallbackMetrics,
+            last_updated: new Date().toISOString()
+          })
+          .eq('token_id', token);
+      } catch (cacheError) {
+        console.error("Error caching fallback metrics:", cacheError);
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          metrics: fallbackMetrics,
+          cacheHit: false,
+          error: "Partial data available due to API errors"
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
   } catch (error) {
     console.error("Error processing metrics:", error);
     return new Response(
