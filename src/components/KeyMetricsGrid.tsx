@@ -10,22 +10,25 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { TokenInfo } from "@/hooks/useTokenInfo";
-import { useTokenMetrics } from "@/hooks/useTokenMetrics";
+import { useTokenMetrics, TokenMetadata } from "@/hooks/useTokenMetrics";
 import { useEffect, useState } from "react";
 import { toast } from "@/components/ui/use-toast";
 
-interface TokenMetadata {
+interface TokenMetadataUI {
   id: string;
   name?: string;
   symbol?: string;
   logo?: string;
   blockchain?: string;
+  twitter?: string;
+  github?: string;
+  contract_address?: string;
 }
 
 interface KeyMetricsGridProps {
   token: TokenInfo | null;
   tokenId: string;
-  tokenMetadata?: TokenMetadata;
+  tokenMetadata?: TokenMetadataUI;
   isLoading?: boolean;
 }
 
@@ -43,6 +46,18 @@ export const KeyMetricsGrid = ({
   const effectiveTokenId = tokenId || token?.id || '';
   
   console.log(`Fetching token metrics for ${effectiveTokenId} (refresh: ${refreshTrigger}, force: ${forceRefresh})`);
+  console.log('Token metadata:', tokenMetadata);
+  
+  // Convert tokenMetadata to the format expected by useTokenMetrics
+  const tokenMetadataForHook: TokenMetadata = {
+    name: tokenMetadata?.name,
+    symbol: tokenMetadata?.symbol,
+    logo: tokenMetadata?.logo,
+    contract_address: tokenMetadata?.contract_address,
+    blockchain: tokenMetadata?.blockchain,
+    twitter: tokenMetadata?.twitter,
+    github: tokenMetadata?.github
+  };
   
   const { 
     data: metrics,
@@ -51,7 +66,13 @@ export const KeyMetricsGrid = ({
     isError,
     refetch,
     isRefetching
-  } = useTokenMetrics(effectiveTokenId, token, refreshTrigger, forceRefresh);
+  } = useTokenMetrics(
+    effectiveTokenId, 
+    token, 
+    refreshTrigger, 
+    forceRefresh, 
+    tokenMetadataForHook
+  );
 
   // Check if we're loading or have an error
   const showSkeletons = isLoading || metricsLoading;

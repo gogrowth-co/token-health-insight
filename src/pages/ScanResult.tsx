@@ -24,6 +24,7 @@ interface TokenMetadata {
   price?: string;
   contract_address?: string;
   blockchain?: string;
+  twitter?: string;
 }
 
 const ScanResult = () => {
@@ -111,7 +112,8 @@ const ScanResult = () => {
         marketCap: prev.marketCap || (tokenInfo.market_cap?.toString() || undefined),
         price: prev.price || (tokenInfo.current_price?.toString() || undefined),
         contract_address: prev.contract_address || tokenInfo.contract_address,
-        blockchain: prev.blockchain || tokenInfo.blockchain
+        blockchain: prev.blockchain || tokenInfo.blockchain,
+        twitter: tokenInfo.twitter
       }));
     }
     
@@ -216,7 +218,16 @@ const ScanResult = () => {
               token={tokenInfo} 
               isLoading={tokenLoading} 
               error={tokenError as Error}
-              tokenMetadata={tokenMetadata}
+              tokenMetadata={{
+                id: token,
+                name: tokenMetadata.name,
+                symbol: tokenMetadata.symbol,
+                logo: tokenMetadata.logo,
+                blockchain: tokenMetadata.blockchain,
+                twitter: tokenMetadata.twitter,
+                github: searchParams.get("github") || undefined,
+                contract_address: tokenMetadata.contract_address
+              }}
             />
             
             {/* Tabs Navigation */}
@@ -241,7 +252,21 @@ const ScanResult = () => {
             <TabsContent value="overview" className="space-y-8">
               {/* Key Metrics Section */}
               <section>
-                <KeyMetricsGrid token={tokenInfo} tokenId={token} isLoading={tokenLoading} />
+                <KeyMetricsGrid 
+                  token={tokenInfo} 
+                  tokenId={token} 
+                  isLoading={tokenLoading} 
+                  tokenMetadata={{
+                    id: token,
+                    name: tokenMetadata.name,
+                    symbol: tokenMetadata.symbol,
+                    logo: tokenMetadata.logo,
+                    blockchain: tokenMetadata.blockchain,
+                    twitter: tokenMetadata.twitter,
+                    github: searchParams.get("github") || undefined,
+                    contract_address: tokenMetadata.contract_address
+                  }}
+                />
               </section>
               
               {/* Categories Overview Section */}

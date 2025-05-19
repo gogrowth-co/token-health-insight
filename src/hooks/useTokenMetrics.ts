@@ -27,11 +27,22 @@ export interface TokenMetrics {
   githubCommits?: number;
 }
 
+export interface TokenMetadata {
+  name?: string;
+  symbol?: string;
+  logo?: string;
+  contract_address?: string;
+  blockchain?: string;
+  twitter?: string;
+  github?: string;
+}
+
 export const useTokenMetrics = (
   tokenIdentifier?: string | null,
   tokenInfo?: TokenInfo | null,
   refreshTrigger: number = 0,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  tokenMetadata?: TokenMetadata
 ) => {
   const normalizedToken = tokenIdentifier?.replace(/^\$/, '').toLowerCase() || '';
   
@@ -45,12 +56,13 @@ export const useTokenMetrics = (
       console.log(`Fetching token metrics for ${normalizedToken} (refresh: ${refreshTrigger}, force: ${forceRefresh})`);
       
       try {
-        // Get contract address and social handles from tokenInfo or URL params if available
-        const contractAddress = tokenInfo?.contract_address || '';
-        const twitterHandle = tokenInfo?.links?.twitter_screen_name || '';
-        const githubRepo = tokenInfo?.links?.github || '';
+        // Get contract address and social handles from tokenInfo or tokenMetadata if available
+        const contractAddress = tokenMetadata?.contract_address || tokenInfo?.contract_address || '';
+        const twitterHandle = tokenMetadata?.twitter || (tokenInfo?.links?.twitter_screen_name || '');
+        const githubRepo = tokenMetadata?.github || (tokenInfo?.links?.github || '');
+        const blockchain = tokenMetadata?.blockchain || tokenInfo?.blockchain || 'eth';
         
-        console.log(`Using data for metrics: Contract=${contractAddress}, Twitter=${twitterHandle}, GitHub=${githubRepo}`);
+        console.log(`Using data for metrics: Contract=${contractAddress}, Twitter=${twitterHandle}, GitHub=${githubRepo}, Blockchain=${blockchain}`);
         
         // Fetch metrics from our edge function
         const { data, error } = await supabase.functions.invoke('get-token-metrics', {
@@ -59,7 +71,7 @@ export const useTokenMetrics = (
             address: contractAddress,
             twitter: twitterHandle,
             github: githubRepo,
-            blockchain: tokenInfo?.blockchain || '',
+            blockchain: blockchain,
             forceRefresh: forceRefresh
           }
         });
