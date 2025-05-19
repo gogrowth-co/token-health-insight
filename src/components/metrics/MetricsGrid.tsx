@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { Info, Clock, Database, Twitter, ExternalLink, Shield, DollarSign, Percent, Users, Link, FileText } from "lucide-react";
+import { Info, Clock, Database, Twitter, Shield, DollarSign, Users } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { MetricTile, MetricTileSkeleton } from "./MetricTile";
 import { ErrorState } from "./ErrorState";
@@ -104,21 +104,6 @@ export const MetricsGrid = ({
           />
         )}
 
-        {/* Current Price - from CoinGecko */}
-        {showSkeletons ? (
-          <MetricTileSkeleton />
-        ) : (
-          <MetricTile 
-            label="Current Price" 
-            value={metrics?.currentPrice ? `$${metrics.currentPrice.toFixed(2)}` : "N/A"} 
-            trend={metrics?.priceChange24h && metrics.priceChange24h > 0 ? "up" : metrics?.priceChange24h ? "down" : undefined}
-            change={metrics?.priceChange24h ? `${Math.abs(metrics.priceChange24h).toFixed(1)}%` : undefined}
-            tooltip="Current token price in USD (CoinGecko)" 
-            error={isError}
-            icon={<DollarSign size={14} className="text-purple-500" />}
-          />
-        )}
-
         {/* Audit Status - from Etherscan */}
         {showSkeletons ? (
           <MetricTileSkeleton />
@@ -149,49 +134,6 @@ export const MetricsGrid = ({
           />
         )}
 
-        {/* Liquidity Lock - from Etherscan */}
-        {showSkeletons ? (
-          <MetricTileSkeleton />
-        ) : (
-          <MetricTile 
-            label="Liquidity Lock" 
-            value={metrics?.liquidityLock || "N/A"} 
-            tooltip="Duration that liquidity is locked for (Etherscan)"
-            error={isError}
-            icon={<Clock size={14} className="text-yellow-500" />}
-          />
-        )}
-
-        {/* Ownership Renounced - from GoPlus */}
-        {showSkeletons ? (
-          <MetricTileSkeleton />
-        ) : (
-          <MetricTile 
-            label="Ownership Renounced" 
-            value={metrics?.ownershipRenounced || "N/A"} 
-            trend={metrics?.ownershipRenounced === "Yes" ? "down" : metrics?.ownershipRenounced === "No" ? "up" : undefined}
-            change={metrics?.ownershipRenounced === "Yes" ? "Low Risk" : metrics?.ownershipRenounced === "No" ? "High Risk" : undefined}
-            tooltip="Whether contract ownership has been renounced (GoPlus)"
-            error={isError}
-            icon={<Link size={14} className="text-indigo-500" />}
-          />
-        )}
-
-        {/* Freeze Authority - from GoPlus */}
-        {showSkeletons ? (
-          <MetricTileSkeleton />
-        ) : (
-          <MetricTile 
-            label="Freeze Authority" 
-            value={metrics?.freezeAuthority || "N/A"} 
-            trend={metrics?.freezeAuthority === "No" ? "down" : metrics?.freezeAuthority === "Yes" ? "up" : undefined}
-            change={metrics?.freezeAuthority === "No" ? "Low Risk" : metrics?.freezeAuthority === "Yes" ? "High Risk" : undefined}
-            tooltip="Ability to freeze/blacklist wallets (GoPlus)"
-            error={isError}
-            icon={<FileText size={14} className="text-red-500" />}
-          />
-        )}
-
         {/* Social Followers - Coming Soon */}
         {showSkeletons ? (
           <MetricTileSkeleton />
@@ -205,6 +147,19 @@ export const MetricsGrid = ({
             error={isError}
             icon={<Twitter size={14} className="text-blue-400" />}
             comingSoon={true}
+          />
+        )}
+
+        {/* Liquidity Lock - from Etherscan */}
+        {showSkeletons ? (
+          <MetricTileSkeleton />
+        ) : (
+          <MetricTile 
+            label="Liquidity Lock" 
+            value={metrics?.liquidityLock || "N/A"} 
+            tooltip="Duration that liquidity is locked for (Etherscan)"
+            error={isError}
+            icon={<Clock size={14} className="text-yellow-500" />}
           />
         )}
       </div>
