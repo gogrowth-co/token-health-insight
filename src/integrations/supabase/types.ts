@@ -33,6 +33,33 @@ export type Database = {
         }
         Relationships: []
       }
+      social_metrics_cache: {
+        Row: {
+          created_at: string
+          followers_count: number
+          id: string
+          last_updated: string
+          previous_count: number
+          twitter_handle: string
+        }
+        Insert: {
+          created_at?: string
+          followers_count?: number
+          id?: string
+          last_updated?: string
+          previous_count?: number
+          twitter_handle: string
+        }
+        Update: {
+          created_at?: string
+          followers_count?: number
+          id?: string
+          last_updated?: string
+          previous_count?: number
+          twitter_handle?: string
+        }
+        Relationships: []
+      }
       subscribers: {
         Row: {
           created_at: string
@@ -95,6 +122,30 @@ export type Database = {
           data?: Json
           expires_at?: string
           last_updated?: string | null
+          token_id?: string
+        }
+        Relationships: []
+      }
+      token_metrics_cache: {
+        Row: {
+          created_at: string
+          id: string
+          last_updated: string
+          metrics: Json
+          token_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_updated?: string
+          metrics: Json
+          token_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_updated?: string
+          metrics?: Json
           token_id?: string
         }
         Relationships: []

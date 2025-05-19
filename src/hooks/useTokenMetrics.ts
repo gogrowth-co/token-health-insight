@@ -54,11 +54,12 @@ export const useTokenMetrics = (
       }
 
       console.log(`Fetching token metrics for ${normalizedToken} (refresh: ${refreshTrigger}, force: ${forceRefresh})`);
+      console.log('Token metadata:', tokenMetadata);
       
       try {
         // Get contract address and social handles from tokenInfo or tokenMetadata if available
         const contractAddress = tokenMetadata?.contract_address || tokenInfo?.contract_address || '';
-        const twitterHandle = tokenMetadata?.twitter || (tokenInfo?.links?.twitter_screen_name || '');
+        const twitterHandle = tokenMetadata?.twitter || (tokenInfo?.links?.twitter_screen_name || tokenInfo?.twitter || '');
         const githubRepo = tokenMetadata?.github || (tokenInfo?.links?.github || '');
         const blockchain = tokenMetadata?.blockchain || tokenInfo?.blockchain || 'eth';
         
