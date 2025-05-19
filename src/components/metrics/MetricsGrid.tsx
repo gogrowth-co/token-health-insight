@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { Info, Clock, Database, Twitter } from "lucide-react";
+import { Info, Clock, Database, Twitter, ExternalLink, Shield, DollarSign, Percent, Users } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { MetricTile, MetricTileSkeleton } from "./MetricTile";
 import { ErrorState } from "./ErrorState";
@@ -50,33 +50,13 @@ export const MetricsGrid = ({
       console.error("Token metrics error:", metricsError);
     }
   }, [isError, metricsError, connectionError]);
-
-  // Format the last update timestamp for social followers tooltip
-  const getSocialFollowersTooltip = () => {
-    return "Twitter followers count - Coming Soon";
-  };
-  
-  // Format the top holders tooltip
-  const getTopHoldersTooltip = () => {
-    const baseTooltip = "Percentage owned by top 10 addresses";
-    
-    if (metrics?.topHoldersPercentage === "N/A") {
-      return `${baseTooltip} - Data currently unavailable`;
-    }
-    
-    if (metrics?.fromCache) {
-      return `${baseTooltip} - Data from cache`;
-    }
-    
-    return baseTooltip;
-  };
-
-  const hasHolderData = metrics?.topHolders && metrics.topHolders.length > 0;
   
   // Toggle holders display
   const toggleTopHolders = () => {
     setShowTopHolders(!showTopHolders);
   };
+
+  const hasHolderData = metrics?.topHolders && metrics.topHolders.length > 0;
 
   return (
     <div className="space-y-4">
@@ -94,7 +74,7 @@ export const MetricsGrid = ({
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Market Cap */}
+        {/* Market Cap - from CoinGecko */}
         {showSkeletons ? (
           <MetricTileSkeleton />
         ) : (
@@ -103,41 +83,13 @@ export const MetricsGrid = ({
             value={metrics?.marketCap || "N/A"} 
             trend={metrics?.marketCapChange24h && metrics.marketCapChange24h > 0 ? "up" : metrics?.marketCapChange24h ? "down" : undefined} 
             change={metrics?.marketCapChange24h ? `${Math.abs(metrics.marketCapChange24h).toFixed(1)}%` : undefined}
-            tooltip="Total market value of circulating supply" 
+            tooltip="Total market value of circulating supply (CoinGecko)" 
             error={isError}
+            icon={<DollarSign size={14} className="text-green-500" />}
           />
         )}
 
-        {/* Liquidity Lock */}
-        {showSkeletons ? (
-          <MetricTileSkeleton />
-        ) : (
-          <MetricTile 
-            label="Liquidity Lock" 
-            value={metrics?.liquidityLock || "N/A"} 
-            tooltip="Duration that liquidity is locked for"
-            error={isError} 
-          />
-        )}
-
-        {/* Top Holders % */}
-        {showSkeletons ? (
-          <MetricTileSkeleton />
-        ) : (
-          <MetricTile 
-            label="Top 10 Holders" 
-            value={metrics?.topHoldersPercentage || "N/A"} 
-            trend={metrics?.topHoldersTrend || undefined}
-            change={metrics?.topHoldersTrend === "down" ? "Low Risk" : metrics?.topHoldersTrend === "up" ? "High Risk" : undefined}
-            tooltip={getTopHoldersTooltip()}
-            error={isError}
-            icon={metrics?.fromCache ? <Database size={14} className="text-gray-400" /> : undefined}
-            onClick={toggleTopHolders}
-            clickable={hasHolderData}
-          />
-        )}
-
-        {/* TVL */}
+        {/* TVL - from CoinGecko */}
         {showSkeletons ? (
           <MetricTileSkeleton />
         ) : (
@@ -146,24 +98,43 @@ export const MetricsGrid = ({
             value={metrics?.tvl || "N/A"} 
             trend={metrics?.tvlChange24h && metrics.tvlChange24h > 0 ? "up" : metrics?.tvlChange24h ? "down" : undefined}
             change={metrics?.tvlChange24h ? `${Math.abs(metrics.tvlChange24h).toFixed(1)}%` : undefined}
-            tooltip="Total Value Locked in protocol" 
+            tooltip="Total Value Locked in protocol (CoinGecko)" 
             error={isError}
+            icon={<DollarSign size={14} className="text-blue-500" />}
           />
         )}
 
-        {/* Audit Status */}
+        {/* Audit Status - from Etherscan */}
         {showSkeletons ? (
           <MetricTileSkeleton />
         ) : (
           <MetricTile 
             label="Audit Status" 
             value={metrics?.auditStatus || "N/A"} 
-            tooltip="Contract verification status" 
+            tooltip="Contract verification status (Etherscan)" 
             error={isError}
+            icon={<Shield size={14} className="text-purple-500" />}
           />
         )}
 
-        {/* Social Followers - Modified to show Coming Soon */}
+        {/* Top Holders % - from GoPlus */}
+        {showSkeletons ? (
+          <MetricTileSkeleton />
+        ) : (
+          <MetricTile 
+            label="Top 10 Holders" 
+            value={metrics?.topHoldersPercentage || "N/A"} 
+            trend={metrics?.topHoldersTrend || undefined}
+            change={metrics?.topHoldersTrend === "down" ? "Low Risk" : metrics?.topHoldersTrend === "up" ? "High Risk" : undefined}
+            tooltip="Percentage owned by top 10 addresses (GoPlus)"
+            error={isError}
+            icon={<Users size={14} className="text-orange-500" />}
+            onClick={toggleTopHolders}
+            clickable={hasHolderData}
+          />
+        )}
+
+        {/* Social Followers - Coming Soon */}
         {showSkeletons ? (
           <MetricTileSkeleton />
         ) : (
@@ -172,10 +143,23 @@ export const MetricsGrid = ({
             value="Coming Soon" 
             trend={undefined}
             change={undefined}
-            tooltip={getSocialFollowersTooltip()} 
+            tooltip="Twitter followers count - Coming Soon" 
             error={isError}
             icon={<Twitter size={14} className="text-blue-400" />}
             comingSoon={true}
+          />
+        )}
+
+        {/* Liquidity Lock - from Etherscan */}
+        {showSkeletons ? (
+          <MetricTileSkeleton />
+        ) : (
+          <MetricTile 
+            label="Liquidity Lock" 
+            value={metrics?.liquidityLock || "N/A"} 
+            tooltip="Duration that liquidity is locked for (Etherscan)"
+            error={isError}
+            icon={<Clock size={14} className="text-yellow-500" />}
           />
         )}
       </div>
@@ -192,12 +176,12 @@ export const MetricsGrid = ({
         />
       )}
       
-      {/* N/A fields explanation */}
+      {/* Data source information */}
       {!showSkeletons && (
         <div className="flex items-center gap-2 text-sm text-gray-500 mt-2">
           <Info size={14} />
           <span>
-            "N/A" indicates data is not available or not applicable for this token.
+            Data sources: CoinGecko, Etherscan, GoPlus Security API. "N/A" indicates data is not available.
             {metrics?.fromCache && <span className="ml-1"><Database size={14} className="inline mr-1" /> indicates data from cache.</span>}
           </span>
         </div>

@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { corsHeaders } from "../_shared/cors.ts";
 
@@ -6,14 +7,13 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
 const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// API keys (would be better to store these as secrets)
+// API keys 
 const ETHERSCAN_API_KEY = Deno.env.get('ETHERSCAN_API_KEY') || '';
 const GOPLUS_API_KEY = Deno.env.get('GOPLUS_API_KEY') || '';
-const GITHUB_API_KEY = Deno.env.get('GITHUB_API_KEY') || '';
 const APIFY_API_KEY = Deno.env.get('APIFY_API_KEY') || '';
 
 // Check API keys and log warnings
-console.log(`API key status: ETHERSCAN (${ETHERSCAN_API_KEY ? 'Present' : 'Missing'}), GOPLUS (${GOPLUS_API_KEY ? 'Present' : 'Missing'}), GITHUB (${GITHUB_API_KEY ? 'Present' : 'Missing'}), APIFY (${APIFY_API_KEY ? 'Present' : 'Missing'})`);
+console.log(`API key status: ETHERSCAN (${ETHERSCAN_API_KEY ? 'Present' : 'Missing'}), GOPLUS (${GOPLUS_API_KEY ? 'Present' : 'Missing'}), APIFY (${APIFY_API_KEY ? 'Present' : 'Missing'})`);
 
 interface TokenMetricsResponse {
   metrics: {
@@ -27,6 +27,11 @@ interface TokenMetricsResponse {
     topHoldersPercentage: string;
     topHoldersValue: number;
     topHoldersTrend: 'up' | 'down' | null;
+    topHolders?: Array<{
+      address: string;
+      percentage: number;
+      value?: string;
+    }>;
     tvl: string;
     tvlValue: number;
     tvlChange24h: number;
@@ -90,112 +95,123 @@ async function getTokenData(tokenId: string) {
   }
 }
 
-async function getTVL(network: string, tokenAddress: string) {
-  if (!tokenAddress) return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0, liquidityLock: "N/A", liquidityLockDays: 0 };
-  
+async function getTVL(tokenId: string) {
   try {
-    // Attempt to get pools data from GeckoTerminal
-    const url = `https://api.geckoterminal.com/api/v2/networks/${network}/tokens/${tokenAddress}/pools`;
-    console.log(`Fetching TVL data from: ${url}`);
+    console.log(`Fetching TVL data from CoinGecko for ${tokenId}`);
     
-    const response = await fetchWithRetry(url, {});
+    // First try getting TVL directly from CoinGecko
+    const response = await fetchWithRetry(
+      `https://api.coingecko.com/api/v3/coins/${tokenId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`, 
+      {
+        headers: {
+          'Accept': 'application/json',
+        }
+      }
+    );
     
     if (!response.ok) {
-      console.error(`GeckoTerminal API error: ${response.status}`);
-      throw new Error(`GeckoTerminal API error: ${response.status}`);
+      console.error(`CoinGecko API error: ${response.status}`);
+      throw new Error(`CoinGecko API error: ${response.status}`);
     }
     
     const data = await response.json();
     
-    if (!data.data || data.data.length === 0) {
-      console.log('No pool data found for token');
-      return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0, liquidityLock: "N/A", liquidityLockDays: 0 };
-    }
-    
-    // Calculate total TVL across all pools
-    let totalTVL = 0;
+    // Check if the token has TVL data
+    let tvlValue = 0;
     let tvlChange24h = 0;
-    let poolsWithData = 0;
-    let liquidityLocked = false;
-    let lockDuration = 0;
     
-    console.log(`Found ${data.data.length} pools for token`);
-    
-    for (const pool of data.data.slice(0, 5)) { // Limit to top 5 pools
-      const attributes = pool.attributes;
-      
-      // Add to TVL if reserve_in_usd is available
-      if (attributes.reserve_in_usd) {
-        totalTVL += parseFloat(attributes.reserve_in_usd);
-        
-        // Add to 24h change if available
-        if (attributes.reserve_change_24h) {
-          tvlChange24h += parseFloat(attributes.reserve_change_24h);
-          poolsWithData++;
-        }
-      }
-      
-      // Check for liquidity lock information
-      if (attributes.liquidity_locked_until || attributes.lock_duration) {
-        liquidityLocked = true;
-        
-        // Get the longest lock duration
-        if (attributes.lock_duration && parseInt(attributes.lock_duration) > lockDuration) {
-          lockDuration = parseInt(attributes.lock_duration);
-        } else if (attributes.liquidity_locked_until) {
-          // Calculate days remaining in lock
-          const lockDate = new Date(attributes.liquidity_locked_until);
-          const now = new Date();
-          const daysRemaining = Math.ceil((lockDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          
-          if (daysRemaining > lockDuration) {
-            lockDuration = daysRemaining > 0 ? daysRemaining : 0;
-          }
-        }
-      }
+    if (data.market_data && data.market_data.total_value_locked) {
+      tvlValue = data.market_data.total_value_locked.usd || 0;
+      tvlChange24h = data.market_data.total_value_locked_24h_percentage_change || 0;
     }
     
-    // Calculate average TVL change if we have data
-    if (poolsWithData > 0) {
-      tvlChange24h = tvlChange24h / poolsWithData;
-    }
-    
-    // Format TVL
-    const formattedTVL = formatCurrency(totalTVL);
-    
-    // Format liquidity lock status
-    let liquidityLockStatus = "Unlocked";
-    if (liquidityLocked && lockDuration > 0) {
-      if (lockDuration > 365) {
-        liquidityLockStatus = "365+ days";
-      } else {
-        liquidityLockStatus = `${lockDuration} days`;
-      }
-    }
-    
-    // For pendle token (special case), add locked liquidity
-    if (tokenAddress.toLowerCase() === "0x808507121b80c02388fad14726482e061b8da827") {
-      liquidityLockStatus = "180 days";
-      lockDuration = 180;
-    }
-    
-    console.log(`TVL: ${formattedTVL}, Liquidity Lock: ${liquidityLockStatus}, Lock Days: ${lockDuration}`);
-    
-    return {
-      tvl: formattedTVL,
-      tvlValue: totalTVL,
-      tvlChange24h: tvlChange24h,
-      liquidityLock: liquidityLockStatus,
-      liquidityLockDays: lockDuration
+    return { 
+      tvl: tvlValue > 0 ? formatCurrency(tvlValue) : "N/A", 
+      tvlValue, 
+      tvlChange24h 
     };
   } catch (error) {
     console.error('Error fetching TVL data:', error);
-    return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0, liquidityLock: "N/A", liquidityLockDays: 0 };
+    return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0 };
+  }
+}
+
+async function getLiquidityLockInfo(network: string, tokenAddress: string) {
+  if (!tokenAddress || network !== 'eth' || !ETHERSCAN_API_KEY) {
+    return { liquidityLock: "N/A", liquidityLockDays: 0 };
+  }
+  
+  try {
+    console.log(`Fetching liquidity lock info from Etherscan for ${tokenAddress}`);
+    
+    // Check for lock contracts or timelocks using Etherscan API
+    const url = `https://api.etherscan.io/api?module=account&action=txlist&address=${tokenAddress}&startblock=0&endblock=99999999&sort=desc&apikey=${ETHERSCAN_API_KEY}`;
+    
+    const response = await fetchWithRetry(url, {});
+    
+    if (!response.ok) {
+      throw new Error(`Etherscan API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.status !== '1' || !data.result) {
+      return { liquidityLock: "N/A", liquidityLockDays: 0 };
+    }
+    
+    // Look for common liquidity locker contracts in the transaction list
+    const lockerAddresses = [
+      '0x000000000000000000000000000000000000dead', // Dead address
+      '0x663a5c229c09b049e36dcc11a9dd1d7a4f3dc50d', // Unicrypt
+      '0x82ef791a91047d0c4c4fedd0cbe1c101ea9a5a9b', // Team Finance
+      '0x9709f9690aef44dd3ccf39b5fca9413c60d38e2d', // PinkLock
+    ];
+    
+    const lockTransactions = data.result.filter((tx: any) => 
+      lockerAddresses.some(addr => tx.to.toLowerCase() === addr.toLowerCase()) && 
+      tx.isError === '0'
+    );
+    
+    if (lockTransactions.length === 0) {
+      return { liquidityLock: "Not Found", liquidityLockDays: 0 };
+    }
+    
+    // Get the latest lock transaction
+    const latestLock = lockTransactions[0];
+    
+    // Estimate lock period based on contract and input data
+    let lockDays = 0;
+    let lockInfo = "Unknown Lock";
+    
+    if (latestLock.to.toLowerCase() === '0x000000000000000000000000000000000000dead') {
+      // If sent to dead address, it's permanent
+      lockDays = 36500; // 100 years
+      lockInfo = "Permanent";
+    } else if (latestLock.to.toLowerCase() === '0x663a5c229c09b049e36dcc11a9dd1d7a4f3dc50d') {
+      // Unicrypt typically has 6 month to 4 year locks
+      lockDays = 180; // Estimate 6 months as minimum
+      lockInfo = "180+ days (Unicrypt)";
+    } else if (latestLock.to.toLowerCase() === '0x82ef791a91047d0c4c4fedd0cbe1c101ea9a5a9b') {
+      // Team Finance typically has 30 day to 1 year locks
+      lockDays = 30; // Estimate 30 days as minimum
+      lockInfo = "30+ days (Team Finance)";
+    } else if (latestLock.to.toLowerCase() === '0x9709f9690aef44dd3ccf39b5fca9413c60d38e2d') {
+      // PinkLock typically has 30 day to 1 year locks
+      lockDays = 30; // Estimate 30 days as minimum
+      lockInfo = "30+ days (PinkLock)";
+    }
+    
+    return { liquidityLock: lockInfo, liquidityLockDays: lockDays };
+  } catch (error) {
+    console.error('Error fetching liquidity lock info:', error);
+    return { liquidityLock: "Error", liquidityLockDays: 0 };
   }
 }
 
 async function getContractVerificationStatus(network: string, tokenAddress: string) {
-  if (!tokenAddress || network !== 'eth') return "N/A";
+  if (!tokenAddress || network !== 'eth' || !ETHERSCAN_API_KEY) {
+    return "N/A";
+  }
   
   try {
     // Use Etherscan API to check contract verification
@@ -229,11 +245,15 @@ async function getContractVerificationStatus(network: string, tokenAddress: stri
   }
 }
 
-// Improved getTopHoldersData function with better error handling and caching
 async function getTopHoldersData(network: string, tokenAddress: string) {
   if (!tokenAddress) {
     console.log('No token address provided for holders data');
-    return { topHoldersPercentage: "N/A", topHoldersValue: 0, topHoldersTrend: null };
+    return { 
+      topHoldersPercentage: "N/A", 
+      topHoldersValue: 0, 
+      topHoldersTrend: null,
+      topHolders: []
+    };
   }
   
   try {
@@ -264,10 +284,22 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
         // Use cache if it's less than 24 hours old
         if (cacheAgeHours < 24) {
           console.log(`Cache hit for holders data: ${tokenAddress} (age: ${cacheAgeHours.toFixed(1)} hours)`);
+          
+          // Parse the holders data from the cached JSON string
+          let parsedHolders = [];
+          try {
+            if (cachedData.holders_data) {
+              parsedHolders = JSON.parse(cachedData.holders_data);
+            }
+          } catch (parseError) {
+            console.error('Error parsing cached holders data:', parseError);
+          }
+          
           return {
             topHoldersPercentage: cachedData.percentage,
             topHoldersValue: cachedData.value,
             topHoldersTrend: cachedData.trend,
+            topHolders: parsedHolders,
             fromCache: true
           };
         } else {
@@ -284,7 +316,12 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
     const chainId = getChainIdForNetwork(network);
     if (!chainId) {
       console.log(`Unsupported network for holders data: ${network}`);
-      return { topHoldersPercentage: "N/A", topHoldersValue: 0, topHoldersTrend: null };
+      return { 
+        topHoldersPercentage: "N/A", 
+        topHoldersValue: 0, 
+        topHoldersTrend: null,
+        topHolders: []
+      };
     }
     
     const url = `https://api.gopluslabs.io/api/v1/token_security/${chainId}?contract_address=${tokenAddress}`;
@@ -301,7 +338,7 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
       console.log('No GoPlus API key found, proceeding without authentication');
     }
     
-    const response = await fetchWithRetry(url, { headers });
+    const response = await fetchWithRetry(url, { headers }, 3, 1000);
     
     if (!response.ok) {
       console.error(`GoPlus API error: ${response.status}`);
@@ -315,41 +352,24 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
         
       if (staleCache) {
         console.log(`Using stale cache data for ${tokenAddress} as fallback due to API error`);
+        
+        // Parse the holders data from the cached JSON string
+        let parsedHolders = [];
+        try {
+          if (staleCache.holders_data) {
+            parsedHolders = JSON.parse(staleCache.holders_data);
+          }
+        } catch (parseError) {
+          console.error('Error parsing stale cached holders data:', parseError);
+        }
+        
         return {
           topHoldersPercentage: staleCache.percentage,
           topHoldersValue: staleCache.value,
           topHoldersTrend: staleCache.trend,
+          topHolders: parsedHolders,
           fromCache: true
         };
-      }
-      
-      // If GoPlus API fails, provide mock data for popular tokens
-      if (tokenAddress.toLowerCase() === "0x808507121b80c02388fad14726482e061b8da827") { // Pendle
-        const mockData = {
-          topHoldersPercentage: "42.5%",
-          topHoldersValue: 42.5,
-          topHoldersTrend: "down" as "up" | "down" | null,
-          fromCache: false
-        };
-        
-        // Cache the mock data
-        try {
-          await supabase
-            .from('token_holders_cache')
-            .upsert({
-              token_address: tokenAddress.toLowerCase(),
-              percentage: mockData.topHoldersPercentage,
-              value: mockData.topHoldersValue,
-              trend: mockData.topHoldersTrend,
-              last_updated: new Date().toISOString()
-            });
-            
-          console.log('Saved mock Pendle data to cache');
-        } catch (cacheError) {
-          console.error('Error saving mock data to cache:', cacheError);
-        }
-        
-        return mockData;
       }
       
       throw new Error(`GoPlus API error: ${response.status}`);
@@ -370,26 +390,56 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
         
       if (staleCache) {
         console.log(`Using stale cache data for ${tokenAddress} as fallback due to missing data`);
+        
+        // Parse the holders data from the cached JSON string
+        let parsedHolders = [];
+        try {
+          if (staleCache.holders_data) {
+            parsedHolders = JSON.parse(staleCache.holders_data);
+          }
+        } catch (parseError) {
+          console.error('Error parsing stale cached holders data:', parseError);
+        }
+        
         return {
           topHoldersPercentage: staleCache.percentage,
           topHoldersValue: staleCache.value,
           topHoldersTrend: staleCache.trend,
+          topHolders: parsedHolders,
           fromCache: true
         };
       }
       
-      return { topHoldersPercentage: "N/A", topHoldersValue: 0, topHoldersTrend: null };
+      return { 
+        topHoldersPercentage: "N/A", 
+        topHoldersValue: 0, 
+        topHoldersTrend: null,
+        topHolders: []
+      };
     }
     
     // Get top holders percentage if available
     const securityData = data.result[tokenAddress.toLowerCase()];
     let holdersPercentage = 0;
+    let topHolders = [];
     
     if (securityData.holder_count && securityData.holders) {
+      // Convert holders object to array and sort by percentage
+      const holdersArray = Object.entries(securityData.holders).map(([address, holder]: [string, any]) => ({
+        address,
+        percentage: parseFloat(holder.percent)
+      }));
+      
+      // Sort by percentage (highest first)
+      holdersArray.sort((a, b) => b.percentage - a.percentage);
+      
+      // Take top 10 holders
+      topHolders = holdersArray.slice(0, 10);
+      
       // Calculate top 10 holders percentage
-      const topHolders = Object.values(securityData.holders).slice(0, 10);
-      holdersPercentage = topHolders.reduce((total: number, holder: any) => total + parseFloat(holder.percent), 0);
+      holdersPercentage = topHolders.reduce((total, holder) => total + holder.percentage, 0);
       console.log(`Calculated top 10 holders percentage: ${holdersPercentage}%`);
+      console.log(`Found ${topHolders.length} top holders`);
     }
     
     // Determine risk trend based on percentage
@@ -400,7 +450,7 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
     
     console.log(`Top holders percentage: ${holdersPercentage > 0 ? holdersPercentage.toFixed(1) + '%' : 'N/A'}`);
     
-    // Cache the result
+    // Cache the result including the detailed holders data
     try {
       await supabase
         .from('token_holders_cache')
@@ -409,6 +459,7 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
           percentage: holdersPercentage > 0 ? `${holdersPercentage.toFixed(1)}%` : "N/A",
           value: holdersPercentage,
           trend: trend,
+          holders_data: JSON.stringify(topHolders),
           last_updated: new Date().toISOString()
         });
         
@@ -420,20 +471,17 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
     return {
       topHoldersPercentage: holdersPercentage > 0 ? `${holdersPercentage.toFixed(1)}%` : "N/A",
       topHoldersValue: holdersPercentage,
-      topHoldersTrend: trend
+      topHoldersTrend: trend,
+      topHolders: topHolders
     };
   } catch (error) {
     console.error('Error fetching top holders data:', error);
-    // Provide fallback data for specific tokens
-    if (tokenAddress.toLowerCase() === "0x808507121b80c02388fad14726482e061b8da827") { // Pendle
-      return {
-        topHoldersPercentage: "42.5%",
-        topHoldersValue: 42.5,
-        topHoldersTrend: "down" as "up" | "down" | null,
-        fromCache: false
-      };
-    }
-    return { topHoldersPercentage: "N/A", topHoldersValue: 0, topHoldersTrend: null };
+    return { 
+      topHoldersPercentage: "N/A", 
+      topHoldersValue: 0, 
+      topHoldersTrend: null,
+      topHolders: []
+    };
   }
 }
 
@@ -458,344 +506,6 @@ function getChainIdForNetwork(network: string): string | null {
   return networkMap[network.toLowerCase()] || null;
 }
 
-// Helper function to get GitHub activity data
-async function getGithubActivity(githubRepo: string) {
-  if (!githubRepo) return { githubActivity: "N/A", githubCommits: 0 };
-  
-  try {
-    // Extract owner/repo from URL if it's a full URL
-    let owner = '';
-    let repo = '';
-    
-    if (githubRepo.includes('github.com')) {
-      try {
-        const url = new URL(githubRepo);
-        const pathParts = url.pathname.split('/').filter(part => part);
-        if (pathParts.length >= 2) {
-          owner = pathParts[0];
-          repo = pathParts[1];
-        }
-      } catch (e) {
-        console.error("Error parsing GitHub URL:", e);
-      }
-    } else {
-      // Assume format is already owner/repo
-      const parts = githubRepo.split('/');
-      if (parts.length >= 2) {
-        owner = parts[0];
-        repo = parts[1];
-      }
-    }
-    
-    if (!owner || !repo) {
-      console.log(`Invalid GitHub repo format: ${githubRepo}`);
-      return { githubActivity: "N/A", githubCommits: 0 };
-    }
-    
-    console.log(`Checking GitHub activity for ${owner}/${repo}`);
-    
-    // If GitHub API key is not available, return a default value
-    if (!GITHUB_API_KEY) {
-      console.log("No GitHub API key available, skipping GitHub activity check");
-      return { githubActivity: "N/A", githubCommits: 0 };
-    }
-    
-    // Get commits from the last 30 days
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const dateString = thirtyDaysAgo.toISOString().split('T')[0];
-    
-    const url = `https://api.github.com/repos/${owner}/${repo}/commits?since=${dateString}&per_page=100`;
-    console.log(`Fetching GitHub commits from: ${url}`);
-    
-    const headers: HeadersInit = {
-      'Accept': 'application/vnd.github.v3+json'
-    };
-    
-    if (GITHUB_API_KEY) {
-      headers['Authorization'] = `token ${GITHUB_API_KEY}`;
-    }
-    
-    const response = await fetchWithRetry(url, { headers });
-    
-    if (!response.ok) {
-      console.error(`GitHub API error: ${response.status}`);
-      return { githubActivity: "N/A", githubCommits: 0 };
-    }
-    
-    const commits = await response.json();
-    
-    // Count number of commits
-    const commitCount = Array.isArray(commits) ? commits.length : 0;
-    
-    console.log(`GitHub activity: ${commitCount} commits in last 30 days`);
-    
-    // Determine activity level
-    let activityLevel = "N/A";
-    if (commitCount > 50) {
-      activityLevel = "Very Active";
-    } else if (commitCount > 20) {
-      activityLevel = "Active";
-    } else if (commitCount > 5) {
-      activityLevel = "Moderate";
-    } else if (commitCount > 0) {
-      activityLevel = "Low";
-    } else {
-      activityLevel = "Inactive";
-    }
-    
-    return { githubActivity: activityLevel, githubCommits: commitCount };
-  } catch (error) {
-    console.error('Error fetching GitHub activity:', error);
-    return { githubActivity: "N/A", githubCommits: 0 };
-  }
-}
-
-// Completely refactored function to fetch Twitter/social data with better caching, fallbacks, and multiple methods
-async function getSocialData(twitterHandle: string) {
-  if (!twitterHandle) return { socialFollowers: "N/A", socialFollowersCount: 0, socialFollowersChange: 0 };
-  
-  try {
-    console.log(`Fetching social data for Twitter handle: ${twitterHandle}`);
-    
-    // First, check if we have community data stored in our new table
-    const { data: communityData, error: communityError } = await supabase
-      .from('token_community_cache')
-      .select('*')
-      .eq('twitter_handle', twitterHandle.toLowerCase())
-      .single();
-    
-    // If we have data that's less than 24 hours old, use it
-    if (communityData && !communityError) {
-      const cacheTime = new Date(communityData.last_updated);
-      const now = new Date();
-      const cacheAgeHours = (now.getTime() - cacheTime.getTime()) / (1000 * 60 * 60);
-      
-      if (cacheAgeHours < 24) {
-        console.log(`Cache hit for Twitter follower count in token_community_cache: ${twitterHandle} (age: ${cacheAgeHours.toFixed(1)} hours)`);
-        
-        // Calculate growth percentage if we have previous data from social_metrics_cache
-        const { data: previousData } = await supabase
-          .from('social_metrics_cache')
-          .select('*')
-          .eq('twitter_handle', twitterHandle.toLowerCase())
-          .single();
-        
-        let growthPercent = 0;
-        if (previousData && previousData.followers_count > 0 && communityData.twitter_followers > 0) {
-          growthPercent = ((communityData.twitter_followers - previousData.followers_count) / previousData.followers_count) * 100;
-        }
-        
-        return {
-          socialFollowers: formatFollowerCount(communityData.twitter_followers),
-          socialFollowersCount: communityData.twitter_followers,
-          socialFollowersChange: growthPercent,
-          socialFollowersFromCache: true
-        };
-      } else {
-        console.log(`Cache expired for Twitter handle in token_community_cache: ${twitterHandle} (age: ${cacheAgeHours.toFixed(1)} hours)`);
-      }
-    }
-    
-    // Also check older cache table as fallback
-    const { data: oldCacheData, error: oldCacheError } = await supabase
-      .from('social_metrics_cache')
-      .select('*')
-      .eq('twitter_handle', twitterHandle.toLowerCase())
-      .single();
-    
-    // Try to get Twitter followers using Apify Twitter User Scraper
-    let followersCount = null;
-    
-    // Using the recommended Apify actor ID: apidojo~twitter-user-scraper
-    if (APIFY_API_KEY) {
-      try {
-        followersCount = await fetchTwitterFollowersWithApify(twitterHandle);
-        if (followersCount) {
-          console.log(`Successfully fetched Twitter follower count via Apify: ${followersCount}`);
-          
-          // Store in token_community_cache
-          await supabase
-            .from('token_community_cache')
-            .upsert({
-              token_id: twitterHandle.toLowerCase(), // Using handle as token_id for simplicity
-              twitter_handle: twitterHandle.toLowerCase(),
-              twitter_followers: followersCount,
-              twitter_scan_updated_at: new Date().toISOString(),
-              last_updated: new Date().toISOString()
-            }, {
-              onConflict: 'token_id, twitter_handle'
-            });
-          
-          // Also store in legacy cache for compatibility
-          if (!oldCacheData) {
-            await supabase
-              .from('social_metrics_cache')
-              .upsert({
-                twitter_handle: twitterHandle.toLowerCase(),
-                followers_count: followersCount,
-                previous_count: oldCacheData?.followers_count || followersCount,
-                last_updated: new Date().toISOString()
-              }, {
-                onConflict: 'twitter_handle'
-              });
-          }
-          
-          // Calculate growth percentage if we have previous data
-          let growthPercent = 0;
-          if (oldCacheData && oldCacheData.followers_count > 0) {
-            growthPercent = ((followersCount - oldCacheData.followers_count) / oldCacheData.followers_count) * 100;
-          }
-          
-          return {
-            socialFollowers: formatFollowerCount(followersCount),
-            socialFollowersCount: followersCount,
-            socialFollowersChange: growthPercent,
-            socialFollowersFromCache: false
-          };
-        }
-      } catch (apifyError) {
-        console.error('Error fetching from Apify:', apifyError);
-      }
-    }
-    
-    // If Apify failed but we have old cache data, use it as fallback
-    if (oldCacheData) {
-      console.log(`Apify fetch failed, using old cache data for ${twitterHandle} as fallback`);
-      return {
-        socialFollowers: formatFollowerCount(oldCacheData.followers_count),
-        socialFollowersCount: oldCacheData.followers_count,
-        socialFollowersChange: 0, // Don't show growth for stale data
-        socialFollowersFromCache: true
-      };
-    }
-    
-    return { socialFollowers: "N/A", socialFollowersCount: 0, socialFollowersChange: 0 };
-  } catch (error) {
-    console.error('Error fetching social data:', error);
-    return { socialFollowers: "N/A", socialFollowersCount: 0, socialFollowersChange: 0 };
-  }
-}
-
-// Updated function to fetch Twitter followers with Apify using the recommended actor ID
-async function fetchTwitterFollowersWithApify(twitterHandle: string): Promise<number | null> {
-  if (!APIFY_API_KEY) {
-    console.log('No Apify API key provided');
-    return null;
-  }
-  
-  try {
-    const cleanHandle = twitterHandle.replace('@', '').trim();
-    console.log(`Fetching Twitter data for: ${cleanHandle} using apidojo~twitter-user-scraper actor`);
-    
-    // Step 1: Start the actor run
-    const actorId = 'apidojo~twitter-user-scraper';
-    const runActorUrl = `https://api.apify.com/v2/acts/${actorId}/runs?token=${APIFY_API_KEY}`;
-    
-    const runResponse = await fetchWithRetry(runActorUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        "twitterHandles": [cleanHandle],
-        "getFollowers": true,
-        "maxItems": 1,
-        "includeUnavailableUsers": false
-      })
-    });
-    
-    if (!runResponse.ok) {
-      throw new Error(`Failed to start Apify task: ${runResponse.status} ${runResponse.statusText}`);
-    }
-    
-    const runData = await runResponse.json();
-    const runId = runData.data?.id;
-    
-    if (!runId) {
-      throw new Error('No run ID received from Apify');
-    }
-    
-    console.log(`Apify task started with run ID: ${runId}`);
-    
-    // Step 2: Wait for the run to finish
-    let statusResponse;
-    let statusData;
-    let attempts = 0;
-    const maxAttempts = 10;
-    const initialBackoff = 2000;
-    
-    while (attempts < maxAttempts) {
-      const backoff = initialBackoff * Math.pow(1.5, attempts);
-      await new Promise(resolve => setTimeout(resolve, backoff));
-      
-      const statusUrl = `https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_API_KEY}`;
-      statusResponse = await fetchWithRetry(statusUrl, {}, 1);
-      
-      if (!statusResponse.ok) {
-        attempts++;
-        continue;
-      }
-      
-      statusData = await statusResponse.json();
-      console.log(`Run status: ${statusData.data.status}, attempt ${attempts + 1}/${maxAttempts}`);
-      
-      if (statusData.data.status === 'SUCCEEDED') {
-        break;
-      }
-      
-      if (['FAILED', 'ABORTED', 'TIMED-OUT'].includes(statusData.data.status)) {
-        console.error(`Apify run failed with status: ${statusData.data.status}`);
-        return null;
-      }
-      
-      attempts++;
-    }
-    
-    if (attempts === maxAttempts) {
-      throw new Error('Timeout waiting for Apify run to complete');
-    }
-    
-    // Step 3: Get the dataset items
-    const datasetId = statusData.data.defaultDatasetId;
-    if (!datasetId) {
-      throw new Error('No dataset ID available in the run response');
-    }
-    
-    const dataUrl = `https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_API_KEY}`;
-    const dataResponse = await fetchWithRetry(dataUrl, {}, 2);
-    
-    if (!dataResponse.ok) {
-      throw new Error(`Failed to get dataset items: ${dataResponse.status} ${dataResponse.statusText}`);
-    }
-    
-    const profileData = await dataResponse.json();
-    console.log("Apify dataset response received:", JSON.stringify(profileData).substring(0, 200) + "...");
-    
-    if (!profileData || !Array.isArray(profileData) || profileData.length === 0) {
-      console.error('Empty or invalid dataset received from Apify');
-      return null;
-    }
-    
-    // Step 4: Extract the followers count
-    const userProfile = profileData[0];
-    if (!userProfile) {
-      console.error('No user profile found in dataset');
-      return null;
-    }
-    
-    const followersCount = userProfile.followersCount;
-    if (typeof followersCount !== 'number' || isNaN(followersCount)) {
-      console.error('Invalid or missing followers count:', followersCount);
-      return null;
-    }
-    
-    console.log(`Successfully extracted Twitter followers count: ${followersCount}`);
-    return followersCount;
-  } catch (error) {
-    console.error('Error fetching Twitter data from Apify:', error);
-    return null;
-  }
-}
-
 // Helper function to format currency
 function formatCurrency(value: number): string {
   if (!value) return "N/A";
@@ -811,52 +521,6 @@ function formatCurrency(value: number): string {
   }
 }
 
-// Helper function to format follower count
-function formatFollowerCount(count: number): string {
-  if (!count) return "N/A";
-  
-  if (count >= 1_000_000) {
-    return `${(count / 1_000_000).toFixed(1)}M`;
-  } else if (count >= 1_000) {
-    return `${(count / 1_000).toFixed(1)}K`;
-  } else {
-    return count.toString();
-  }
-}
-
-// Helper function to ensure token_community_cache table exists
-async function ensureTokenCommunityCacheExists() {
-  try {
-    const { error } = await supabase
-      .from('token_community_cache')
-      .select('count')
-      .limit(1);
-    
-    if (error && error.message.includes('relation "token_community_cache" does not exist')) {
-      console.log('Creating token_community_cache table');
-      await supabase.rpc('create_token_community_cache_table');
-    }
-  } catch (error) {
-    console.error('Error checking token_community_cache table:', error);
-  }
-}
-
-// Helper function to ensure social_metrics_cache table exists
-async function ensureSocialMetricsCacheExists() {
-  try {
-    const { error } = await supabase
-      .from('social_metrics_cache')
-      .select('count')
-      .limit(1);
-    
-    if (error) {
-      console.log('Error checking social_metrics_cache table:', error.message);
-    }
-  } catch (error) {
-    console.error('Error checking social_metrics_cache table:', error);
-  }
-}
-
 // Helper function to ensure token_holders_cache table exists
 async function ensureTokenHoldersCacheExists() {
   try {
@@ -869,12 +533,38 @@ async function ensureTokenHoldersCacheExists() {
     if (error && error.message.includes('relation "token_holders_cache" does not exist')) {
       console.log('Creating token_holders_cache table via RPC');
       await supabase.rpc('create_token_holders_cache_table');
-      console.log('Token holders cache table created');
+      
+      // Extend the table schema to include holders_data column
+      const { error: alterError } = await supabase.rpc('alter_token_holders_cache_add_holders_data');
+      if (alterError) {
+        console.error('Error adding holders_data column:', alterError);
+        // If the RPC doesn't exist, create the function
+        await supabase.rpc('create_alter_token_holders_cache_function');
+        // Try again
+        await supabase.rpc('alter_token_holders_cache_add_holders_data');
+      }
+      
+      console.log('Token holders cache table created with holders_data column');
     } else if (error) {
       console.error('Error checking token_holders_cache table:', error);
       throw error;
     } else {
       console.log('Token holders cache table exists');
+      
+      // Check if holders_data column exists
+      try {
+        const { error: queryError } = await supabase
+          .from('token_holders_cache')
+          .select('holders_data')
+          .limit(1);
+          
+        if (queryError && queryError.message.includes('column "holders_data" does not exist')) {
+          console.log('Adding holders_data column to token_holders_cache table');
+          await supabase.rpc('alter_token_holders_cache_add_holders_data');
+        }
+      } catch (columnError) {
+        console.error('Error checking for holders_data column:', columnError);
+      }
     }
   } catch (error) {
     console.error('Error in ensureTokenHoldersCacheExists:', error);
@@ -892,7 +582,7 @@ Deno.serve(async (req) => {
   try {
     // Get token info from request body
     const requestBody = await req.json();
-    const { token, address, twitter, github } = requestBody;
+    const { token, address, twitter, github, sources = {} } = requestBody;
     
     if (!token) {
       return new Response(
@@ -902,12 +592,11 @@ Deno.serve(async (req) => {
     }
     
     console.log(`Processing metrics for token: ${token}, address: ${address || 'N/A'}, twitter: ${twitter || 'N/A'}, github: ${github || 'N/A'}`);
+    console.log(`Data sources: ${JSON.stringify(sources)}`);
     
     // Create the cache tables if they don't exist
     try {
-      await ensureSocialMetricsCacheExists();
       await ensureTokenHoldersCacheExists();
-      await ensureTokenCommunityCacheExists();
     } catch (tableError) {
       console.error('Error ensuring cache tables exist:', tableError);
       // Continue anyway
@@ -948,27 +637,20 @@ Deno.serve(async (req) => {
     const tokenData = await getTokenData(token);
     
     // Default network is Ethereum
-    const network = requestBody.blockchain?.toLowerCase() || 'eth'; // In a real implementation, determine from token data
+    const network = requestBody.blockchain?.toLowerCase() || 'eth';
     
     // Get contract address from token data if not provided
     const contractAddress = address || (tokenData && tokenData.contract_address) || '';
     
-    // Get Twitter handle if not provided
-    const twitterHandle = twitter || (tokenData && tokenData.links && tokenData.links.twitter_screen_name) || '';
-
-    // Get GitHub repo if not provided
-    const githubRepo = github || (tokenData && tokenData.links && tokenData.links.repos_url && tokenData.links.repos_url.github && tokenData.links.repos_url.github[0]) || '';
-    
-    console.log(`Using final values for APIs: Contract=${contractAddress}, Twitter=${twitterHandle}, GitHub=${githubRepo}, Blockchain=${network}`);
+    console.log(`Using final values for APIs: Contract=${contractAddress}, Twitter=${twitter || 'N/A'}, GitHub=${github || 'N/A'}, Blockchain=${network}`);
     
     try {
-      // Fetch all metrics in parallel
-      const [tvlData, auditStatus, topHoldersData, socialData, githubData] = await Promise.all([
-        getTVL(network, contractAddress),
+      // Fetch all metrics in parallel based on specified sources
+      const [tvlData, auditStatus, topHoldersData, liquidityLockInfo] = await Promise.all([
+        getTVL(token),
         getContractVerificationStatus(network, contractAddress),
         getTopHoldersData(network, contractAddress),
-        getSocialData(twitterHandle),
-        getGithubActivity(githubRepo)
+        getLiquidityLockInfo(network, contractAddress)
       ]);
       
       // Construct metrics response
@@ -993,17 +675,20 @@ Deno.serve(async (req) => {
         // TVL data
         ...tvlData,
         
+        // Liquidity lock data
+        ...liquidityLockInfo,
+        
         // Contract verification status
         auditStatus,
         
         // Top holders data
         ...topHoldersData,
         
-        // Social data
-        ...socialData,
-        
-        // GitHub data
-        ...githubData
+        // Social followers (Coming Soon)
+        socialFollowers: "Coming Soon",
+        socialFollowersCount: 0,
+        socialFollowersChange: 0,
+        socialFollowersFromCache: false
       };
       
       // Cache the metrics
@@ -1025,7 +710,7 @@ Deno.serve(async (req) => {
         JSON.stringify({ 
           metrics,
           cacheHit: false,
-          socialFollowersFromCache: socialData.socialFollowersFromCache
+          socialFollowersFromCache: false
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -1054,23 +739,16 @@ Deno.serve(async (req) => {
         topHoldersPercentage: "N/A",
         topHoldersValue: 0,
         topHoldersTrend: null,
+        topHolders: [],
         tvl: "N/A",
         tvlValue: 0,
         tvlChange24h: 0,
         auditStatus: "N/A",
-        socialFollowers: "N/A",
+        socialFollowers: "Coming Soon",
         socialFollowersCount: 0,
         socialFollowersChange: 0,
         socialFollowersFromCache: false
       };
-      
-      // Special case for Pendle - provide mock data for the top holders
-      if (token === "pendle" || (contractAddress && contractAddress.toLowerCase() === "0x808507121b80c02388fad14726482e061b8da827")) {
-        fallbackMetrics.topHoldersPercentage = "42.5%";
-        fallbackMetrics.topHoldersValue = 42.5;
-        fallbackMetrics.topHoldersTrend = "down";
-        console.log('Added mock top holders data for Pendle token');
-      }
       
       // Cache the fallback metrics
       try {

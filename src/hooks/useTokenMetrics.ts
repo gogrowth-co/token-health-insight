@@ -83,7 +83,14 @@ export const useTokenMetrics = (
             github: githubRepo,
             blockchain: blockchain,
             forceRefresh: forceRefresh,
-            includeHolders: true // Make sure to request detailed holders data
+            includeHolders: true, // Make sure to request detailed holders data
+            sources: {
+              marketCap: 'coingecko',
+              tvl: 'coingecko',
+              auditStatus: 'etherscan',
+              topHolders: 'goplus',
+              liquidityLock: 'etherscan'
+            }
           }
         });
 
