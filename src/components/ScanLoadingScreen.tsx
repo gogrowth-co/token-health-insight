@@ -24,10 +24,11 @@ export function ScanLoadingScreen({ token, tokenMetadata }: ScanLoadingScreenPro
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("Initializing scan");
   
-  // Only fetch token info if no metadata was provided
-  const { data: tokenInfo } = !tokenMetadata?.name ? useTokenInfo(token) : { data: undefined };
+  // Always call useTokenInfo regardless of tokenMetadata
+  // but only use its result if tokenMetadata doesn't have name
+  const { data: tokenInfo } = useTokenInfo(token);
   
-  // Choose best available display data
+  // Choose best available display data - ensure consistent rendering
   const displayName = tokenMetadata?.name || tokenInfo?.name || "Loading token data...";
   const displaySymbol = tokenMetadata?.symbol || tokenInfo?.symbol?.toUpperCase();
   
@@ -35,6 +36,12 @@ export function ScanLoadingScreen({ token, tokenMetadata }: ScanLoadingScreenPro
   
   // Simulate scanning process with progress steps
   useEffect(() => {
+    if (!token) {
+      console.error("[ScanLoadingScreen] No token provided");
+      navigate("/");
+      return;
+    }
+
     const steps = [
       { progress: 10, text: "Fetching token data" },
       { progress: 25, text: "Analyzing smart contract" },

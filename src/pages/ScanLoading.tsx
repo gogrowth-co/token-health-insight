@@ -16,16 +16,17 @@ export default function ScanLoading() {
   // Get token from URL directly without normalization
   const token = searchParams.get("token") || "";
   
-  // Fetch token info as early as possible
-  const { data: tokenInfo, isLoading: tokenInfoLoading, error: tokenInfoError } = useTokenInfo(token);
-  
   // Store token metadata once received
   const [tokenMetadata, setTokenMetadata] = useState({
     id: token,
-    name: undefined,
-    symbol: undefined,
-    logo: undefined
+    name: searchParams.get("name") || undefined,
+    symbol: searchParams.get("symbol") || undefined,
+    logo: searchParams.get("logo") || undefined
   });
+
+  // Fetch token info only if no metadata name is present
+  const { data: tokenInfo, isLoading: tokenInfoLoading, error: tokenInfoError } = 
+    useTokenInfo(token && !tokenMetadata.name ? token : null);
   
   // Track page view and update metadata when available
   useEffect(() => {
@@ -44,15 +45,24 @@ export default function ScanLoading() {
     // Update metadata when token info is available
     if (tokenInfo && !tokenInfoLoading) {
       console.log("[ScanLoading] Token info received:", tokenInfo.name);
-      setTokenMetadata({
+      setTokenMetadata(prev => ({
         id: token,
-        name: tokenInfo.name || undefined,
-        symbol: tokenInfo.symbol?.toUpperCase() || undefined,
-        logo: tokenInfo.image || undefined
+        name: prev.name || tokenInfo.name || undefined,
+        symbol: prev.symbol || tokenInfo.symbol?.toUpperCase() || undefined,
+        logo: prev.logo || tokenInfo.image || undefined
+      }));
+    }
+    
+    if (tokenInfoError && !tokenInfoLoading && !tokenMetadata.name) {
+      console.error("[ScanLoading] Error fetching token info:", tokenInfoError);
+      toast({
+        title: "Error loading token data",
+        description: "We couldn't load information for this token. Please try again.",
+        variant: "destructive"
       });
     }
     
-  }, [token, tokenInfo, tokenInfoLoading, navigate]);
+  }, [token, tokenInfo, tokenInfoLoading, tokenInfoError, navigate, tokenMetadata.name]);
   
   // Redirect to auth page if not authenticated
   if (!authLoading && !user) {
