@@ -161,13 +161,21 @@ export const useTokenMetrics = (
             }
           }
           
-          // Handle freeze authority
-          if (data.securityData.can_take_back_ownership || 
-              data.securityData.has_mint_function || 
-              data.securityData.has_blacklist) {
+          // Handle freeze authority - use the enhanced logic from the edge function
+          if (data.securityData.is_blacklisted === "1" || data.securityData.has_blacklist === "1") {
             data.metrics.freezeAuthority = "Yes";
-          } else {
+          } else if (data.securityData.is_whitelisted === "1") {
+            data.metrics.freezeAuthority = "Yes";
+          } else if (data.securityData.can_take_back_ownership === "1") {
+            data.metrics.freezeAuthority = "Yes";
+          } else if (data.securityData.has_mint_function === "1") {
+            data.metrics.freezeAuthority = "Yes";
+          } else if (data.securityData.is_proxy === "1") {
+            data.metrics.freezeAuthority = "Possible";
+          } else if (data.securityData.is_open_source === true || data.securityData.is_open_source === "1") {
             data.metrics.freezeAuthority = "No";
+          } else {
+            data.metrics.freezeAuthority = "N/A";
           }
         } else {
           data.metrics.ownershipRenounced = "N/A";
@@ -194,6 +202,8 @@ export const useTokenMetrics = (
           securityScore += 15;
         } else if (data.metrics.freezeAuthority === "Yes") {
           securityScore -= 10;
+        } else if (data.metrics.freezeAuthority === "Possible") {
+          securityScore -= 5;
         }
         
         data.metrics.securityScore = securityScore;

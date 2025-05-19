@@ -642,23 +642,41 @@ async function getSecurityInfo(network: string, tokenAddress: string) {
       
       if (
         securityData.owner_address.toLowerCase() === zeroAddress.toLowerCase() ||
-        securityData.owner_address.toLowerCase() === deadAddress.toLowerCase()
+        securityData.owner_address.toLowerCase() === deadAddress.toLowerCase() || 
+        securityData.owner_type === "no_owner"
       ) {
         ownershipRenounced = "Yes";
       }
     }
     
-    // Check if contract can freeze/blacklist addresses
+    // Enhanced check for freeze authority using multiple indicators
     let freezeAuthority = "N/A";
-    if (securityData.is_blacklisted !== undefined) {
-      freezeAuthority = securityData.is_blacklisted === "1" ? "Yes" : "No";
-    } else if (securityData.can_take_back_ownership !== undefined) {
-      // Alternative check if is_blacklisted is not available
-      freezeAuthority = securityData.can_take_back_ownership === "1" ? "Yes" : "No";
-    } else if (securityData.is_proxy !== undefined) {
-      // Another alternative check
-      freezeAuthority = securityData.is_proxy === "1" ? "Possible" : "No";
+    
+    // Check for blacklist functionality first (direct indication of freeze capability)
+    if (securityData.is_blacklisted === "1" || securityData.has_blacklist === "1") {
+      freezeAuthority = "Yes"; 
     }
+    // Check for whitelist functionality (another form of address restriction)
+    else if (securityData.is_whitelisted === "1") {
+      freezeAuthority = "Yes";
+    }
+    // Check if contract can take back ownership (indirect ability to control)
+    else if (securityData.can_take_back_ownership === "1") {
+      freezeAuthority = "Yes";
+    }
+    // Check for mint function (ability to dilute value)
+    else if (securityData.has_mint_function === "1") {
+      freezeAuthority = "Yes";
+    }
+    // Check if proxy contract (could have upgradeable functions)
+    else if (securityData.is_proxy === "1") {
+      freezeAuthority = "Possible";
+    }
+    // If none of the above apply and we know it's open source code
+    else if (securityData.is_open_source === true || securityData.is_open_source === "1") {
+      freezeAuthority = "No";
+    }
+    // Default to N/A if we can't determine
     
     console.log(`Security metrics determined: Ownership Renounced - ${ownershipRenounced}, Freeze Authority - ${freezeAuthority}`);
     

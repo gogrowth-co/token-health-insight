@@ -123,13 +123,23 @@ export const SecurityMetricsSection = ({
               Freeze Authority
             </CardTitle>
             <CardDescription className="text-xs">
-              Contract can freeze or blacklist addresses (No = more secure)
+              Contract can freeze/blacklist addresses or has privileged functions
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Badge className={`${getSecurityStatus(metrics?.freezeAuthority === "No" ? "Yes" : "No").color}`}>
               {metrics?.freezeAuthority || "N/A"}
             </Badge>
+            {metrics?.freezeAuthority === "Yes" && (
+              <p className="text-xs mt-2 text-gray-500">
+                Contract has functions to blacklist addresses, take back ownership, or mint tokens.
+              </p>
+            )}
+            {metrics?.freezeAuthority === "Possible" && (
+              <p className="text-xs mt-2 text-gray-500">
+                Contract may have authority functions through proxy implementation.
+              </p>
+            )}
           </CardContent>
         </Card>
         
