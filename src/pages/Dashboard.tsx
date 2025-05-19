@@ -7,10 +7,26 @@ import { TokenInput } from "@/components/TokenInput";
 import { RecentScans } from "@/components/RecentScans";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Navigate, useSearchParams, useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Shield, Zap, Loader2 } from "lucide-react";
+import { CheckCircle, Shield, Zap, Loader2, History, Search } from "lucide-react";
 import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { CryptoTrivia } from "@/components/CryptoTrivia";
+
+interface LastScan {
+  id: string;
+  token_id: string;
+  token_name: string;
+  token_symbol: string;
+  created_at: string;
+  health_score: number | null;
+  metadata: {
+    image?: string;
+    blockchain?: string;
+    description?: string;
+  };
+}
 
 const Dashboard = () => {
   const { user, isLoading } = useAuth();
@@ -18,6 +34,8 @@ const Dashboard = () => {
   const [searchParams] = useSearchParams();
   const tokenParam = searchParams.get("token");
   const navigate = useNavigate();
+  const [lastScan, setLastScan] = useState<LastScan | null>(null);
+  const [isLoadingLastScan, setIsLoadingLastScan] = useState(false);
 
   // Effect to redirect to scan page if token is present
   useEffect(() => {
@@ -26,12 +44,49 @@ const Dashboard = () => {
     }
   }, [tokenParam, isLoading, navigate]);
 
+  // Fetch last scan
+  useEffect(() => {
+    const fetchLastScan = async () => {
+      if (!user) return;
+      
+      try {
+        setIsLoadingLastScan(true);
+        
+        const { data, error } = await supabase
+          .from('token_scans')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned" error
+          console.error('Error fetching last scan:', error);
+        } else if (data) {
+          setLastScan(data);
+        }
+      } catch (err) {
+        console.error('Error in last scan fetch:', err);
+      } finally {
+        setIsLoadingLastScan(false);
+      }
+    };
+    
+    fetchLastScan();
+  }, [user]);
+
   // Redirect to auth page if not authenticated
   if (!isLoading && !user) {
     return <Navigate to="/auth" />;
   }
 
   const isPro = status.tier === "Pro Monthly" || status.tier === "Pro Annual";
+
+  // Helper function to truncate description
+  const truncateDescription = (description: string, maxLength: number = 150) => {
+    if (description.length <= maxLength) return description;
+    return description.substring(0, maxLength) + '...';
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -98,10 +153,82 @@ const Dashboard = () => {
                   </CardContent>
                 </Card>
 
+                {/* Last Scan Card */}
+                <Card className="overflow-hidden">
+                  <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+                    <CardTitle className="flex items-center">
+                      <History className="mr-2 h-5 w-5" />
+                      Last Token Scan
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    {isLoadingLastScan ? (
+                      <div className="flex justify-center py-4">
+                        <Loader2 className="h-6 w-6 animate-spin text-brand-purple" />
+                      </div>
+                    ) : lastScan ? (
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-4">
+                          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center font-semibold text-gray-800 overflow-hidden flex-shrink-0">
+                            {lastScan.metadata?.image ? (
+                              <img 
+                                src={lastScan.metadata.image} 
+                                alt={lastScan.token_symbol} 
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              `$${lastScan.token_symbol.substring(0, 4)}`
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <h2 className="text-xl font-bold">{lastScan.token_name} ({lastScan.token_symbol})</h2>
+                              {lastScan.health_score ? (
+                                <Badge className={lastScan.health_score >= 80 ? "bg-green-500 text-white" : 
+                                  lastScan.health_score >= 60 ? "bg-yellow-500 text-white" : "bg-red-500 text-white"}>
+                                  {lastScan.health_score}/100
+                                </Badge>
+                              ) : null}
+                            </div>
+                            {lastScan.metadata?.blockchain && (
+                              <div className="mb-2">
+                                <span className="text-sm bg-gray-100 rounded px-2 py-1 inline-block">
+                                  {lastScan.metadata.blockchain}
+                                </span>
+                              </div>
+                            )}
+                            {lastScan.metadata?.description && (
+                              <p className="text-gray-600 text-sm mb-3">
+                                {truncateDescription(lastScan.metadata.description)}
+                              </p>
+                            )}
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-500">Scanned on {new Date(lastScan.created_at).toLocaleDateString()}</span>
+                              <Button asChild>
+                                <Link to={`/scan?token=${lastScan.token_id}`}>View Full Results</Link>
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-6">
+                        <p className="text-gray-500 mb-4">You haven't performed any token scans yet.</p>
+                        <Button asChild>
+                          <Link to="/token-search">Scan Your First Token</Link>
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
                 {/* New Scan Section */}
                 <Card className="overflow-hidden">
                   <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
-                    <CardTitle>Scan a Token</CardTitle>
+                    <CardTitle className="flex items-center">
+                      <Search className="mr-2 h-5 w-5" />
+                      Scan a Token
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6">
                     <TokenInput />
@@ -110,7 +237,10 @@ const Dashboard = () => {
                 
                 {/* Recent Scans Section */}
                 <div>
-                  <h2 className="text-xl font-semibold mb-4">Recent Scans</h2>
+                  <h2 className="text-xl font-semibold mb-4 flex items-center">
+                    <History className="mr-2 h-5 w-5" />
+                    Recent Scans
+                  </h2>
                   <RecentScans userId={user?.id} limit={5} />
                 </div>
                 
@@ -157,6 +287,11 @@ const Dashboard = () => {
                     </CardContent>
                   </Card>
                 )}
+                
+                {/* Crypto Trivia */}
+                <div className="mt-8">
+                  <CryptoTrivia />
+                </div>
               </div>
             )}
           </div>
