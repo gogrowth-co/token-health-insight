@@ -31,6 +31,7 @@ export const KeyMetricsGrid = ({
 }: KeyMetricsGridProps) => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [connectionError, setConnectionError] = useState(false);
+  const [forceRefresh, setForceRefresh] = useState(false);
   
   // Use the token ID passed in as tokenId prop first, fallback to token.id from API
   const effectiveTokenId = tokenId || token?.id || '';
@@ -49,9 +50,6 @@ export const KeyMetricsGrid = ({
     github: tokenMetadata?.github
   };
   
-  // Initialize forceRefresh state variable before using it
-  const [forceRefresh, setForceRefresh] = useState(false);
-  
   const { 
     data: metrics,
     isLoading: metricsLoading,
@@ -69,7 +67,14 @@ export const KeyMetricsGrid = ({
 
   // Use our custom hook for refresh functionality
   const { isRefreshing, handleRefresh } = useMetricsRefresh(
-    () => refetch().then(() => {}), // Convert refetch to return Promise<void>
+    async () => {
+      setForceRefresh(true);
+      try {
+        await refetch();
+      } finally {
+        setForceRefresh(false);
+      }
+    },
     setRefreshTrigger
   );
 
@@ -88,7 +93,12 @@ export const KeyMetricsGrid = ({
 
   // Properly type the refetch function to match what MetricsGrid expects
   const handleRefetchWrapper = async () => {
-    await refetch();
+    setForceRefresh(true);
+    try {
+      await refetch();
+    } finally {
+      setForceRefresh(false);
+    }
   };
 
   return (

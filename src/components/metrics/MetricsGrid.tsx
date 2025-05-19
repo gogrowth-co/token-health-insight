@@ -1,6 +1,6 @@
 
 import { useEffect } from "react";
-import { Info, Clock, Database } from "lucide-react";
+import { Info, Clock, Database, Twitter } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { MetricTile, MetricTileSkeleton } from "./MetricTile";
 import { ErrorState } from "./ErrorState";
@@ -170,7 +170,7 @@ export const MetricsGrid = ({
             change={metrics?.socialFollowersChange ? `${Math.abs(metrics.socialFollowersChange).toFixed(1)}%` : undefined}
             tooltip={getSocialFollowersTooltip()} 
             error={isError}
-            icon={metrics?.socialFollowersFromCache ? <Clock size={14} className="text-gray-400" /> : undefined}
+            icon={metrics?.socialFollowersFromCache ? <Clock size={14} className="text-gray-400" /> : <Twitter size={14} className="text-blue-400" />}
           />
         )}
       </div>

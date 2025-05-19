@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { corsHeaders } from "../_shared/cors.ts";
 
@@ -480,126 +479,115 @@ async function getSocialData(twitterHandle: string) {
   try {
     console.log(`Fetching social data for Twitter handle: ${twitterHandle}`);
     
-    // Check cache first to see if we have recent data
-    const { data: cachedData, error: cacheError } = await supabase
+    // First, check if we have community data stored in our new table
+    const { data: communityData, error: communityError } = await supabase
+      .from('token_community_cache')
+      .select('*')
+      .eq('twitter_handle', twitterHandle.toLowerCase())
+      .single();
+    
+    // If we have data that's less than 24 hours old, use it
+    if (communityData && !communityError) {
+      const cacheTime = new Date(communityData.last_updated);
+      const now = new Date();
+      const cacheAgeHours = (now.getTime() - cacheTime.getTime()) / (1000 * 60 * 60);
+      
+      if (cacheAgeHours < 24) {
+        console.log(`Cache hit for Twitter follower count in token_community_cache: ${twitterHandle} (age: ${cacheAgeHours.toFixed(1)} hours)`);
+        
+        // Calculate growth percentage if we have previous data from social_metrics_cache
+        const { data: previousData } = await supabase
+          .from('social_metrics_cache')
+          .select('*')
+          .eq('twitter_handle', twitterHandle.toLowerCase())
+          .single();
+        
+        let growthPercent = 0;
+        if (previousData && previousData.followers_count > 0 && communityData.twitter_followers > 0) {
+          growthPercent = ((communityData.twitter_followers - previousData.followers_count) / previousData.followers_count) * 100;
+        }
+        
+        return {
+          socialFollowers: formatFollowerCount(communityData.twitter_followers),
+          socialFollowersCount: communityData.twitter_followers,
+          socialFollowersChange: growthPercent,
+          socialFollowersFromCache: true
+        };
+      } else {
+        console.log(`Cache expired for Twitter handle in token_community_cache: ${twitterHandle} (age: ${cacheAgeHours.toFixed(1)} hours)`);
+      }
+    }
+    
+    // Also check older cache table as fallback
+    const { data: oldCacheData, error: oldCacheError } = await supabase
       .from('social_metrics_cache')
       .select('*')
       .eq('twitter_handle', twitterHandle.toLowerCase())
       .single();
     
-    // If we have cached data that's less than 24 hours old, use it
-    if (cachedData && !cacheError) {
-      const cacheTime = new Date(cachedData.last_updated);
-      const now = new Date();
-      const cacheAgeHours = (now.getTime() - cacheTime.getTime()) / (1000 * 60 * 60);
-      
-      if (cacheAgeHours < 24) {
-        console.log(`Cache hit for Twitter follower count: ${twitterHandle} (age: ${cacheAgeHours.toFixed(1)} hours)`);
-        
-        // Calculate growth percentage if we have previous data
-        let growthPercent = 0;
-        if (cachedData.previous_count > 0 && cachedData.followers_count > 0) {
-          growthPercent = ((cachedData.followers_count - cachedData.previous_count) / cachedData.previous_count) * 100;
-        }
-        
-        return {
-          socialFollowers: formatFollowerCount(cachedData.followers_count),
-          socialFollowersCount: cachedData.followers_count,
-          socialFollowersChange: growthPercent,
-          socialFollowersFromCache: true
-        };
-      } else {
-        console.log(`Cache expired for Twitter handle: ${twitterHandle} (age: ${cacheAgeHours.toFixed(1)} hours)`);
-      }
-    }
-    
-    // Try multiple approaches to get Twitter follower count
+    // Try to get Twitter followers using Apify Twitter User Scraper
     let followersCount = null;
     
-    // First approach - try Apify
+    // Using the recommended Apify actor ID: apidojo~twitter-user-scraper
     if (APIFY_API_KEY) {
       try {
         followersCount = await fetchTwitterFollowersWithApify(twitterHandle);
         if (followersCount) {
           console.log(`Successfully fetched Twitter follower count via Apify: ${followersCount}`);
+          
+          // Store in token_community_cache
+          await supabase
+            .from('token_community_cache')
+            .upsert({
+              token_id: twitterHandle.toLowerCase(), // Using handle as token_id for simplicity
+              twitter_handle: twitterHandle.toLowerCase(),
+              twitter_followers: followersCount,
+              twitter_scan_updated_at: new Date().toISOString(),
+              last_updated: new Date().toISOString()
+            }, {
+              onConflict: 'token_id, twitter_handle'
+            });
+          
+          // Also store in legacy cache for compatibility
+          if (!oldCacheData) {
+            await supabase
+              .from('social_metrics_cache')
+              .upsert({
+                twitter_handle: twitterHandle.toLowerCase(),
+                followers_count: followersCount,
+                previous_count: oldCacheData?.followers_count || followersCount,
+                last_updated: new Date().toISOString()
+              }, {
+                onConflict: 'twitter_handle'
+              });
+          }
+          
+          // Calculate growth percentage if we have previous data
+          let growthPercent = 0;
+          if (oldCacheData && oldCacheData.followers_count > 0) {
+            growthPercent = ((followersCount - oldCacheData.followers_count) / oldCacheData.followers_count) * 100;
+          }
+          
+          return {
+            socialFollowers: formatFollowerCount(followersCount),
+            socialFollowersCount: followersCount,
+            socialFollowersChange: growthPercent,
+            socialFollowersFromCache: false
+          };
         }
       } catch (apifyError) {
         console.error('Error fetching from Apify:', apifyError);
       }
     }
     
-    // Second approach - try Twitter API if we have keys (not implemented here)
-    // if (!followersCount && TWITTER_API_KEY) {
-    //   try {
-    //     followersCount = await fetchTwitterFollowersWithAPI(twitterHandle);
-    //   } catch (twitterApiError) {
-    //     console.error('Error fetching from Twitter API:', twitterApiError);
-    //   }
-    // }
-    
-    // Store result in database if we got data
-    if (followersCount) {
-      console.log(`Storing Twitter followers count: ${followersCount}`);
-      
-      // Get previous count for calculating growth
-      let previousCount = 0;
-      if (cachedData) {
-        previousCount = cachedData.followers_count;
-      }
-      
-      // Store new count in cache
-      await supabase
-        .from('social_metrics_cache')
-        .upsert({
-          twitter_handle: twitterHandle.toLowerCase(),
-          followers_count: followersCount,
-          previous_count: previousCount > 0 ? previousCount : followersCount,
-          last_updated: new Date().toISOString()
-        }, {
-          onConflict: 'twitter_handle'
-        });
-      
-      // Calculate growth percentage if we have previous data
-      let growthPercent = 0;
-      if (previousCount > 0 && followersCount > previousCount) {
-        growthPercent = ((followersCount - previousCount) / previousCount) * 100;
-      }
-      
+    // If Apify failed but we have old cache data, use it as fallback
+    if (oldCacheData) {
+      console.log(`Apify fetch failed, using old cache data for ${twitterHandle} as fallback`);
       return {
-        socialFollowers: formatFollowerCount(followersCount),
-        socialFollowersCount: followersCount,
-        socialFollowersChange: growthPercent,
-        socialFollowersFromCache: false
-      };
-    }
-    
-    // If nothing worked but we have any cache data, use it as fallback
-    if (cachedData) {
-      console.log(`All API calls failed, using cache data for ${twitterHandle} as fallback`);
-      return {
-        socialFollowers: formatFollowerCount(cachedData.followers_count),
-        socialFollowersCount: cachedData.followers_count,
+        socialFollowers: formatFollowerCount(oldCacheData.followers_count),
+        socialFollowersCount: oldCacheData.followers_count,
         socialFollowersChange: 0, // Don't show growth for stale data
         socialFollowersFromCache: true
-      };
-    }
-    
-    // Last resort - hardcoded values for popular tokens (for demo purposes)
-    const hardcodedFollowers: Record<string, number> = {
-      'uniswap': 952000,
-      'ethereum': 3200000,
-      'bitcoin': 5600000,
-      'binance': 10100000
-    };
-    
-    const normalizedHandle = twitterHandle.toLowerCase().replace('@', '');
-    if (hardcodedFollowers[normalizedHandle]) {
-      console.log(`Using hardcoded follower count for ${normalizedHandle}: ${hardcodedFollowers[normalizedHandle]}`);
-      return {
-        socialFollowers: formatFollowerCount(hardcodedFollowers[normalizedHandle]),
-        socialFollowersCount: hardcodedFollowers[normalizedHandle],
-        socialFollowersChange: 0,
-        socialFollowersFromCache: false
       };
     }
     
@@ -610,7 +598,7 @@ async function getSocialData(twitterHandle: string) {
   }
 }
 
-// Fixed implementation of Twitter followers fetch using Apify
+// Updated function to fetch Twitter followers with Apify using the recommended actor ID
 async function fetchTwitterFollowersWithApify(twitterHandle: string): Promise<number | null> {
   if (!APIFY_API_KEY) {
     console.log('No Apify API key provided');
@@ -619,57 +607,63 @@ async function fetchTwitterFollowersWithApify(twitterHandle: string): Promise<nu
   
   try {
     const cleanHandle = twitterHandle.replace('@', '').trim();
-    console.log(`Fetching Twitter data for: ${cleanHandle}`);
+    console.log(`Fetching Twitter data for: ${cleanHandle} using apidojo~twitter-user-scraper actor`);
     
-    // First try with the X Profile Scraper actor
-    const actorId = 'izrb8/x-profile-scraper';
+    // Step 1: Start the actor run
+    const actorId = 'apidojo~twitter-user-scraper';
     const runActorUrl = `https://api.apify.com/v2/acts/${actorId}/runs?token=${APIFY_API_KEY}`;
     
-    const response = await fetchWithRetry(runActorUrl, {
+    const runResponse = await fetchWithRetry(runActorUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        "handles": [cleanHandle],
-        "useChrome": true,
-        "maxRetries": 3,
-        "proxy": {
-          "useApifyProxy": true
-        }
+        "twitterHandles": [cleanHandle],
+        "getFollowers": true,
+        "maxItems": 1,
+        "includeUnavailableUsers": false
       })
     });
     
-    if (!response.ok) {
-      throw new Error(`Failed to start Apify task: ${response.status} ${response.statusText}`);
+    if (!runResponse.ok) {
+      throw new Error(`Failed to start Apify task: ${runResponse.status} ${runResponse.statusText}`);
     }
     
-    const data = await response.json();
-    const runId = data.data.id;
+    const runData = await runResponse.json();
+    const runId = runData.data?.id;
+    
+    if (!runId) {
+      throw new Error('No run ID received from Apify');
+    }
+    
     console.log(`Apify task started with run ID: ${runId}`);
     
-    // Wait for the run to finish (poll with exponential backoff)
+    // Step 2: Wait for the run to finish
     let statusResponse;
     let statusData;
     let attempts = 0;
-    const maxAttempts = 7;  // Higher number of attempts
-    const initialBackoff = 500; // Shorter initial backoff
+    const maxAttempts = 10;
+    const initialBackoff = 2000;
     
     while (attempts < maxAttempts) {
-      // Exponential backoff
       const backoff = initialBackoff * Math.pow(1.5, attempts);
       await new Promise(resolve => setTimeout(resolve, backoff));
       
-      statusResponse = await fetchWithRetry(`https://api.apify.com/v2/acts/runs/${runId}?token=${APIFY_API_KEY}`, {});
+      const statusUrl = `https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_API_KEY}`;
+      statusResponse = await fetchWithRetry(statusUrl, {}, 1);
+      
       if (!statusResponse.ok) {
         attempts++;
         continue;
       }
       
       statusData = await statusResponse.json();
+      console.log(`Run status: ${statusData.data.status}, attempt ${attempts + 1}/${maxAttempts}`);
+      
       if (statusData.data.status === 'SUCCEEDED') {
         break;
       }
       
-      if (statusData.data.status === 'FAILED' || statusData.data.status === 'ABORTED' || statusData.data.status === 'TIMED-OUT') {
+      if (['FAILED', 'ABORTED', 'TIMED-OUT'].includes(statusData.data.status)) {
         console.error(`Apify run failed with status: ${statusData.data.status}`);
         return null;
       }
@@ -681,9 +675,14 @@ async function fetchTwitterFollowersWithApify(twitterHandle: string): Promise<nu
       throw new Error('Timeout waiting for Apify run to complete');
     }
     
-    // Get the dataset items
+    // Step 3: Get the dataset items
     const datasetId = statusData.data.defaultDatasetId;
-    const dataResponse = await fetchWithRetry(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_API_KEY}`, {});
+    if (!datasetId) {
+      throw new Error('No dataset ID available in the run response');
+    }
+    
+    const dataUrl = `https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_API_KEY}`;
+    const dataResponse = await fetchWithRetry(dataUrl, {}, 2);
     
     if (!dataResponse.ok) {
       throw new Error(`Failed to get dataset items: ${dataResponse.status} ${dataResponse.statusText}`);
@@ -692,35 +691,26 @@ async function fetchTwitterFollowersWithApify(twitterHandle: string): Promise<nu
     const profileData = await dataResponse.json();
     console.log("Apify dataset response received:", JSON.stringify(profileData).substring(0, 200) + "...");
     
-    // Find the user profile with follower count
-    if (profileData && profileData.length > 0) {
-      // Look for profile with matching username
-      const profile = profileData.find((item: any) => 
-        item.handle?.toLowerCase() === cleanHandle.toLowerCase() ||
-        item.username?.toLowerCase() === cleanHandle.toLowerCase()
-      );
-      
-      if (profile) {
-        // Look for followers count in various possible properties
-        const followersCount = profile.followersCount || profile.followers || profile.followerCount;
-        
-        if (followersCount !== undefined) {
-          console.log(`Found Twitter profile for ${cleanHandle} with ${followersCount} followers`);
-          return typeof followersCount === 'number' ? followersCount : parseInt(followersCount);
-        }
-      }
-      
-      // If no exact match with followers, try any profile with followers data
-      for (const item of profileData) {
-        const followersCount = item.followersCount || item.followers || item.followerCount;
-        if (followersCount !== undefined) {
-          console.log(`Using closest match with ${followersCount} followers`);
-          return typeof followersCount === 'number' ? followersCount : parseInt(followersCount);
-        }
-      }
+    if (!profileData || !Array.isArray(profileData) || profileData.length === 0) {
+      console.error('Empty or invalid dataset received from Apify');
+      return null;
     }
     
-    throw new Error('Could not find Twitter follower count in Apify response');
+    // Step 4: Extract the followers count
+    const userProfile = profileData[0];
+    if (!userProfile) {
+      console.error('No user profile found in dataset');
+      return null;
+    }
+    
+    const followersCount = userProfile.followersCount;
+    if (typeof followersCount !== 'number' || isNaN(followersCount)) {
+      console.error('Invalid or missing followers count:', followersCount);
+      return null;
+    }
+    
+    console.log(`Successfully extracted Twitter followers count: ${followersCount}`);
+    return followersCount;
   } catch (error) {
     console.error('Error fetching Twitter data from Apify:', error);
     return null;
@@ -752,6 +742,23 @@ function formatFollowerCount(count: number): string {
     return `${(count / 1_000).toFixed(1)}K`;
   } else {
     return count.toString();
+  }
+}
+
+// Helper function to ensure token_community_cache table exists
+async function ensureTokenCommunityCacheExists() {
+  try {
+    const { error } = await supabase
+      .from('token_community_cache')
+      .select('count')
+      .limit(1);
+    
+    if (error && error.message.includes('relation "token_community_cache" does not exist')) {
+      console.log('Creating token_community_cache table');
+      await supabase.rpc('create_token_community_cache_table');
+    }
+  } catch (error) {
+    console.error('Error checking token_community_cache table:', error);
   }
 }
 
@@ -809,9 +816,10 @@ Deno.serve(async (req) => {
     
     console.log(`Processing metrics for token: ${token}, address: ${address || 'N/A'}, twitter: ${twitter || 'N/A'}, github: ${github || 'N/A'}`);
     
-    // Create the social_metrics_cache table if it doesn't exist
+    // Create the cache tables if they don't exist
     await ensureSocialMetricsCacheExists();
     await ensureTokenHoldersCacheExists();
+    await ensureTokenCommunityCacheExists();
     
     // Check cache first
     const { data: cachedMetrics, error: cacheError } = await supabase
