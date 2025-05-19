@@ -30,24 +30,27 @@ export interface TokenMetrics {
 export const useTokenMetrics = (
   tokenIdentifier?: string | null,
   tokenInfo?: TokenInfo | null,
-  refreshTrigger: number = 0
+  refreshTrigger: number = 0,
+  forceRefresh: boolean = false
 ) => {
   const normalizedToken = tokenIdentifier?.replace(/^\$/, '').toLowerCase() || '';
   
   return useQuery({
-    queryKey: ['tokenMetrics', normalizedToken, refreshTrigger],
+    queryKey: ['tokenMetrics', normalizedToken, refreshTrigger, forceRefresh],
     queryFn: async (): Promise<TokenMetrics> => {
       if (!normalizedToken) {
         throw new Error('Token identifier is required');
       }
 
-      console.log(`Fetching token metrics for ${normalizedToken} (refresh: ${refreshTrigger})`);
+      console.log(`Fetching token metrics for ${normalizedToken} (refresh: ${refreshTrigger}, force: ${forceRefresh})`);
       
       try {
-        // Get contract address and Twitter handle from tokenInfo if available
+        // Get contract address and social handles from tokenInfo or URL params if available
         const contractAddress = tokenInfo?.contract_address || '';
         const twitterHandle = tokenInfo?.links?.twitter_screen_name || '';
         const githubRepo = tokenInfo?.links?.github || '';
+        
+        console.log(`Using data for metrics: Contract=${contractAddress}, Twitter=${twitterHandle}, GitHub=${githubRepo}`);
         
         // Fetch metrics from our edge function
         const { data, error } = await supabase.functions.invoke('get-token-metrics', {
@@ -55,7 +58,9 @@ export const useTokenMetrics = (
             token: normalizedToken,
             address: contractAddress,
             twitter: twitterHandle,
-            github: githubRepo
+            github: githubRepo,
+            blockchain: tokenInfo?.blockchain || '',
+            forceRefresh: forceRefresh
           }
         });
 
@@ -69,7 +74,7 @@ export const useTokenMetrics = (
           throw new Error(data.error);
         }
 
-        console.log(`Successfully fetched metrics for ${normalizedToken}:`, data);
+        console.log(`Successfully fetched metrics for ${normalizedToken}:`, data.metrics);
         
         // If we have market cap from tokenInfo but not from metrics, use it
         if (tokenInfo?.market_cap && (!data.metrics.marketCapValue || data.metrics.marketCapValue === 0)) {
@@ -129,7 +134,7 @@ export const useTokenMetrics = (
       }
     },
     enabled: !!normalizedToken,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: forceRefresh ? 0 : 5 * 60 * 1000, // 0 if force refresh, otherwise 5 minutes
     gcTime: 15 * 60 * 1000, // 15 minutes
     retry: 1, // Retry failed requests once
   });

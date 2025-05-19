@@ -1,5 +1,5 @@
 
-import { TrendingUp, TrendingDown, Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { TrendingUp, TrendingDown, Loader2, AlertCircle, RefreshCw, Info } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Tooltip,
@@ -19,6 +19,7 @@ interface TokenMetadata {
   name?: string;
   symbol?: string;
   logo?: string;
+  blockchain?: string;
 }
 
 interface KeyMetricsGridProps {
@@ -36,11 +37,12 @@ export const KeyMetricsGrid = ({
 }: KeyMetricsGridProps) => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [forceRefresh, setForceRefresh] = useState(false);
   
   // Use the token ID passed in as tokenId prop first, fallback to token.id from API
   const effectiveTokenId = tokenId || token?.id || '';
   
-  console.log(`Fetching token metrics for ${effectiveTokenId} (refresh: ${refreshTrigger})`);
+  console.log(`Fetching token metrics for ${effectiveTokenId} (refresh: ${refreshTrigger}, force: ${forceRefresh})`);
   
   const { 
     data: metrics,
@@ -49,7 +51,7 @@ export const KeyMetricsGrid = ({
     isError,
     refetch,
     isRefetching
-  } = useTokenMetrics(effectiveTokenId, token, refreshTrigger);
+  } = useTokenMetrics(effectiveTokenId, token, refreshTrigger, forceRefresh);
 
   // Check if we're loading or have an error
   const showSkeletons = isLoading || metricsLoading;
@@ -71,6 +73,7 @@ export const KeyMetricsGrid = ({
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
+    setForceRefresh(true);
     try {
       await refetch();
       setRefreshTrigger(prev => prev + 1);
@@ -87,6 +90,10 @@ export const KeyMetricsGrid = ({
       });
     } finally {
       setIsRefreshing(false);
+      // Reset force refresh after a delay to prevent repeated forced refreshes
+      setTimeout(() => {
+        setForceRefresh(false);
+      }, 1000);
     }
   };
 
@@ -98,7 +105,7 @@ export const KeyMetricsGrid = ({
           size="sm"
           variant="outline"
           onClick={handleRefresh}
-          disabled={isRefreshing || isLoading}
+          disabled={isRefreshing || isLoading || isRefetching}
           className="flex items-center gap-1"
         >
           {(isRefreshing || isRefetching) ? (
@@ -211,6 +218,16 @@ export const KeyMetricsGrid = ({
           />
         )}
       </div>
+      
+      {/* N/A fields explanation */}
+      {!showSkeletons && (
+        <div className="flex items-center gap-2 text-sm text-gray-500 mt-2">
+          <Info size={14} />
+          <span>
+            "N/A" indicates data is not available or not applicable for this token.
+          </span>
+        </div>
+      )}
     </div>
   );
 };

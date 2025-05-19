@@ -39,6 +39,7 @@ interface TokenMetricsResponse {
 
 async function getTokenData(tokenId: string) {
   try {
+    console.log(`Fetching token data from CoinGecko for ${tokenId}`);
     const response = await fetch(`https://api.coingecko.com/api/v3/coins/${tokenId}?localization=false&tickers=false&market_data=true`, {
       headers: {
         'Accept': 'application/json',
@@ -46,6 +47,7 @@ async function getTokenData(tokenId: string) {
     });
     
     if (!response.ok) {
+      console.error(`CoinGecko API error: ${response.status}`);
       throw new Error(`CoinGecko API error: ${response.status}`);
     }
     
@@ -67,12 +69,14 @@ async function getTVL(network: string, tokenAddress: string) {
     const response = await fetch(url);
     
     if (!response.ok) {
+      console.error(`GeckoTerminal API error: ${response.status}`);
       throw new Error(`GeckoTerminal API error: ${response.status}`);
     }
     
     const data = await response.json();
     
     if (!data.data || data.data.length === 0) {
+      console.log('No pool data found for token');
       return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0, liquidityLock: "N/A", liquidityLockDays: 0 };
     }
     
@@ -82,6 +86,8 @@ async function getTVL(network: string, tokenAddress: string) {
     let poolsWithData = 0;
     let liquidityLocked = false;
     let lockDuration = 0;
+    
+    console.log(`Found ${data.data.length} pools for token`);
     
     for (const pool of data.data.slice(0, 5)) { // Limit to top 5 pools
       const attributes = pool.attributes;
@@ -111,7 +117,7 @@ async function getTVL(network: string, tokenAddress: string) {
           const daysRemaining = Math.ceil((lockDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
           
           if (daysRemaining > lockDuration) {
-            lockDuration = daysRemaining;
+            lockDuration = daysRemaining > 0 ? daysRemaining : 0;
           }
         }
       }
@@ -127,13 +133,15 @@ async function getTVL(network: string, tokenAddress: string) {
     
     // Format liquidity lock status
     let liquidityLockStatus = "Unlocked";
-    if (liquidityLocked) {
+    if (liquidityLocked && lockDuration > 0) {
       if (lockDuration > 365) {
         liquidityLockStatus = "365+ days";
       } else {
         liquidityLockStatus = `${lockDuration} days`;
       }
     }
+    
+    console.log(`TVL: ${formattedTVL}, Liquidity Lock: ${liquidityLockStatus}, Lock Days: ${lockDuration}`);
     
     return {
       tvl: formattedTVL,
@@ -159,19 +167,24 @@ async function getContractVerificationStatus(network: string, tokenAddress: stri
     const response = await fetch(url);
     
     if (!response.ok) {
+      console.error(`Etherscan API error: ${response.status}`);
       throw new Error(`Etherscan API error: ${response.status}`);
     }
     
     const data = await response.json();
     
     if (data.status !== '1' || !data.result || data.result.length === 0) {
+      console.log('No verification data found');
       return "Not Verified";
     }
     
     // Check if source code is available
     const sourceCode = data.result[0].SourceCode;
     
-    return sourceCode && sourceCode.length > 0 ? "Verified" : "Not Verified";
+    const isVerified = sourceCode && sourceCode.length > 0;
+    console.log(`Contract verification status: ${isVerified ? 'Verified' : 'Not Verified'}`);
+    
+    return isVerified ? "Verified" : "Not Verified";
   } catch (error) {
     console.error('Error checking contract verification:', error);
     return "N/A";
@@ -183,24 +196,34 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
   
   try {
     // Use GoPlus Security API to get top holders data
-    const chainId = network === 'eth' ? '1' : network === 'bsc' ? '56' : '1'; // Default to ETH
-    const url = `https://api.gopluslabs.io/api/v1/token_security/${chainId}?contract_address=${tokenAddress}`;
-    console.log('Fetching top holders data from GoPlus Security');
+    const chainId = getChainIdForNetwork(network);
+    if (!chainId) {
+      console.log(`Unsupported network for holders data: ${network}`);
+      return { topHoldersPercentage: "N/A", topHoldersValue: 0, topHoldersTrend: null };
+    }
     
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-        'API-Key': GOPLUS_API_KEY
-      }
-    });
+    const url = `https://api.gopluslabs.io/api/v1/token_security/${chainId}?contract_address=${tokenAddress}`;
+    console.log(`Fetching top holders data from GoPlus Security for chain ID ${chainId}`);
+    
+    const headers: HeadersInit = {
+      'Accept': 'application/json',
+    };
+    
+    if (GOPLUS_API_KEY) {
+      headers['API-Key'] = GOPLUS_API_KEY;
+    }
+    
+    const response = await fetch(url, { headers });
     
     if (!response.ok) {
+      console.error(`GoPlus API error: ${response.status}`);
       throw new Error(`GoPlus API error: ${response.status}`);
     }
     
     const data = await response.json();
     
     if (data.code !== 1 || !data.result || !data.result[tokenAddress.toLowerCase()]) {
+      console.log('No holder data found');
       return { topHoldersPercentage: "N/A", topHoldersValue: 0, topHoldersTrend: null };
     }
     
@@ -220,8 +243,10 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
       trend = holdersPercentage > 50 ? "up" : "down";
     }
     
+    console.log(`Top holders percentage: ${holdersPercentage > 0 ? holdersPercentage.toFixed(1) + '%' : 'N/A'}`);
+    
     return {
-      topHoldersPercentage: holdersPercentage > 0 ? `${holdersPercentage.toFixed(0)}%` : "N/A",
+      topHoldersPercentage: holdersPercentage > 0 ? `${holdersPercentage.toFixed(1)}%` : "N/A",
       topHoldersValue: holdersPercentage,
       topHoldersTrend: trend
     };
@@ -231,21 +256,41 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
   }
 }
 
+// Helper function to convert network name to chain ID for GoPlus API
+function getChainIdForNetwork(network: string): string | null {
+  const networkMap: Record<string, string> = {
+    'eth': '1', 
+    'ethereum': '1',
+    'bsc': '56', 
+    'binance-smart-chain': '56',
+    'polygon': '137', 
+    'polygon-pos': '137',
+    'avalanche': '43114',
+    'arbitrum': '42161', 
+    'arbitrum-one': '42161',
+    'optimism': '10', 
+    'optimistic-ethereum': '10',
+    'fantom': '250',
+    'base': '8453'
+  };
+  
+  return networkMap[network.toLowerCase()] || null;
+}
+
 async function getSocialData(twitterHandle: string) {
   if (!twitterHandle) return { socialFollowers: "N/A", socialFollowersCount: 0, socialFollowersChange: 0 };
   
   try {
-    // For now, we'll use a simplified approach
-    // In a real implementation, you would fetch this data from a Twitter scraper or API
-    
     // Check if we have cached data for this handle
-    const { data: cachedData } = await supabase
+    const { data: cachedData, error: cacheError } = await supabase
       .from('social_metrics_cache')
       .select('followers_count, previous_count, last_updated')
       .eq('twitter_handle', twitterHandle)
       .single();
     
     if (cachedData) {
+      console.log(`Found cached social data for @${twitterHandle}: ${cachedData.followers_count} followers`);
+      
       // Calculate % change if we have previous data
       let change = 0;
       if (cachedData.previous_count > 0) {
@@ -260,9 +305,11 @@ async function getSocialData(twitterHandle: string) {
         socialFollowersCount: cachedData.followers_count,
         socialFollowersChange: change
       };
+    } else {
+      console.log(`No cached social data for @${twitterHandle}`);
     }
     
-    // If no data is available, return placeholder (would be populated by real API call)
+    // For now, return placeholder (would be populated by real API call)
     return { socialFollowers: "N/A", socialFollowersCount: 0, socialFollowersChange: 0 };
   } catch (error) {
     console.error('Error fetching social data:', error);
@@ -317,6 +364,7 @@ async function getGithubActivity(githubRepo: string) {
     const response = await fetch(url, { headers });
     
     if (!response.ok) {
+      console.error(`GitHub API error: ${response.status}`);
       throw new Error(`GitHub API error: ${response.status}`);
     }
     
@@ -324,6 +372,8 @@ async function getGithubActivity(githubRepo: string) {
     
     // Count number of commits
     const commitCount = Array.isArray(commits) ? commits.length : 0;
+    
+    console.log(`GitHub activity: ${commitCount} commits in last 30 days`);
     
     // Determine activity level
     let activityLevel = "N/A";
@@ -393,7 +443,7 @@ Deno.serve(async (req) => {
       );
     }
     
-    console.log(`Processing metrics for token: ${token}, address: ${address}, twitter: ${twitter}`);
+    console.log(`Processing metrics for token: ${token}, address: ${address || 'N/A'}, twitter: ${twitter || 'N/A'}`);
     
     // Check cache first
     const { data: cachedMetrics, error: cacheError } = await supabase
@@ -418,6 +468,8 @@ Deno.serve(async (req) => {
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+      } else {
+        console.log(`Cache expired for token: ${token} (age: ${cacheAgeMinutes.toFixed(1)} minutes)`);
       }
     }
     
@@ -425,7 +477,7 @@ Deno.serve(async (req) => {
     const tokenData = await getTokenData(token);
     
     // Default network is Ethereum
-    const network = 'eth'; // In a real implementation, determine from token data
+    const network = requestBody.blockchain?.toLowerCase() || 'eth'; // In a real implementation, determine from token data
     
     // Get contract address from token data if not provided
     const contractAddress = address || (tokenData && tokenData.contract_address) || '';

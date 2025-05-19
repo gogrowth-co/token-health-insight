@@ -25,7 +25,11 @@ export default function ScanLoading() {
     marketCap: searchParams.get("market_cap") || undefined,
     price: searchParams.get("price") || undefined,
     contract_address: searchParams.get("contract_address") || undefined,
-    blockchain: searchParams.get("blockchain") || undefined
+    blockchain: searchParams.get("blockchain") || undefined,
+    description: searchParams.get("description") || undefined,
+    website: searchParams.get("website") || undefined,
+    twitter: searchParams.get("twitter") || undefined,
+    github: searchParams.get("github") || undefined
   });
 
   // Log initial state to help debugging
@@ -68,7 +72,11 @@ export default function ScanLoading() {
         marketCap: prev.marketCap || (tokenInfo.market_cap?.toString() || undefined),
         price: prev.price || (tokenInfo.current_price?.toString() || undefined),
         contract_address: prev.contract_address || tokenInfo.contract_address || undefined,
-        blockchain: prev.blockchain || tokenInfo.blockchain || undefined
+        blockchain: prev.blockchain || tokenInfo.blockchain || undefined,
+        description: prev.description || tokenInfo.description || undefined,
+        website: prev.website || (tokenInfo.links?.homepage?.[0] || undefined),
+        twitter: prev.twitter || tokenInfo.links?.twitter_screen_name || undefined,
+        github: prev.github || tokenInfo.links?.github || undefined
       }));
     }
     
@@ -98,8 +106,14 @@ export default function ScanLoading() {
     if (tokenMetadata.name) authParams.append('name', tokenMetadata.name);
     if (tokenMetadata.symbol) authParams.append('symbol', tokenMetadata.symbol);
     if (tokenMetadata.logo) authParams.append('logo', tokenMetadata.logo);
+    if (tokenMetadata.marketCap) authParams.append('market_cap', tokenMetadata.marketCap);
+    if (tokenMetadata.price) authParams.append('price', tokenMetadata.price);
     if (tokenMetadata.contract_address) authParams.append('contract_address', tokenMetadata.contract_address);
     if (tokenMetadata.blockchain) authParams.append('blockchain', tokenMetadata.blockchain);
+    if (tokenMetadata.description) authParams.append('description', tokenMetadata.description);
+    if (tokenMetadata.website) authParams.append('website', tokenMetadata.website);
+    if (tokenMetadata.twitter) authParams.append('twitter', tokenMetadata.twitter);
+    if (tokenMetadata.github) authParams.append('github', tokenMetadata.github);
     
     return <Navigate to={`/auth?${authParams.toString()}`} />;
   }
