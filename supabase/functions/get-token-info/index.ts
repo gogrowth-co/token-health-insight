@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { corsHeaders } from "../_shared/cors.ts";
 
@@ -42,6 +41,7 @@ interface TokenData {
   sparkline_7d?: {
     price: number[];
   };
+  platforms?: Record<string, string>; // Added to support multiple chain addresses
 }
 
 // Known major tokens by symbol - used to prioritize search results
@@ -347,6 +347,38 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
     // Create a default description if none exists
     const tokenDescription = fullData.description?.en || `${tokenName} is a cryptocurrency token with symbol ${tokenSymbol?.toUpperCase() || ''}.`;
     
+    // Extract primary contract address
+    // For Ethereum tokens, prioritize the Ethereum contract address
+    let contractAddress = fullData.contract_address || "";
+    
+    // If platforms data exists, try to extract addresses from there
+    if (fullData.platforms && Object.keys(fullData.platforms).length > 0) {
+      console.log("Found platforms data:", fullData.platforms);
+      
+      // Prioritize Ethereum address if available
+      if (fullData.platforms.ethereum) {
+        contractAddress = fullData.platforms.ethereum;
+      } 
+      // Otherwise use the first available address
+      else {
+        const firstPlatform = Object.keys(fullData.platforms)[0];
+        if (fullData.platforms[firstPlatform]) {
+          contractAddress = fullData.platforms[firstPlatform];
+        }
+      }
+    }
+    
+    // Clean up GitHub URL to get just the organization/repo part if it's a full URL
+    let githubUrl = fullData.links?.repos_url?.github?.[0] || "";
+    if (githubUrl && githubUrl.includes('github.com')) {
+      try {
+        const url = new URL(githubUrl);
+        githubUrl = url.pathname.replace(/^\//, ''); // Remove leading slash
+      } catch (e) {
+        // Keep original if it's not a valid URL
+      }
+    }
+    
     const tokenData: TokenData = {
       id: fullData.id,
       symbol: tokenSymbol,
@@ -376,12 +408,15 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
       links: {
         homepage: fullData.links?.homepage,
         twitter_screen_name: fullData.links?.twitter_screen_name,
-        github: fullData.links?.repos_url?.github?.[0]
+        github: githubUrl
       },
-      contract_address: fullData.contract_address
+      contract_address: contractAddress,
+      platforms: fullData.platforms || {}
     };
 
     console.log(`Successfully fetched full data for ${coinId} (${tokenName})`);
+    console.log(`Contract address: ${contractAddress}`);
+    console.log(`Social links: Homepage=${tokenData.links?.homepage?.[0] || 'none'}, Twitter=${tokenData.links?.twitter_screen_name || 'none'}, GitHub=${tokenData.links?.github || 'none'}`);
     
     // Cache the data for 1 minute
     const expiresAt = new Date(Date.now() + 60 * 1000).toISOString();

@@ -2,7 +2,8 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Globe, Twitter, Github, Copy, ExternalLink, Info, ChevronDown, ChevronUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Globe, Twitter, Github, Copy, ExternalLink, Info, ChevronDown, ChevronUp, Link2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenInfo } from "@/hooks/useTokenInfo";
@@ -37,6 +38,15 @@ export const TokenInfoCard = ({
   useEffect(() => {
     console.log("[TokenInfoCard] Rendering with metadata:", tokenMetadata);
     console.log("[TokenInfoCard] Token API data:", token);
+    
+    // Log specific fields we're interested in
+    if (token) {
+      console.log("[TokenInfoCard] Contract address:", token.contract_address);
+      console.log("[TokenInfoCard] Social links:", token.links);
+      if (token.platforms) {
+        console.log("[TokenInfoCard] Platforms:", token.platforms);
+      }
+    }
   }, [tokenMetadata, token]);
   
   const copyToClipboard = (text: string) => {
@@ -162,7 +172,43 @@ export const TokenInfoCard = ({
     });
   };
 
+  // Get contract address with fallbacks
   const contractAddress = token?.contract_address || "";
+  
+  // Determine blockchain from contract address or platforms data
+  const getBlockchainFromAddress = (): string => {
+    if (!token) return "";
+    
+    // Check if we have platforms data
+    if (token.platforms && Object.keys(token.platforms).length > 0) {
+      // If the contract address matches Ethereum platform address
+      if (token.platforms.ethereum && token.platforms.ethereum === contractAddress) {
+        return "ETH";
+      }
+      
+      // Check other common platforms
+      if (token.platforms.binance_smart_chain && token.platforms.binance_smart_chain === contractAddress) {
+        return "BSC";
+      }
+      
+      if (token.platforms.polygon_pos && token.platforms.polygon_pos === contractAddress) {
+        return "MATIC";
+      }
+      
+      if (token.platforms.solana && token.platforms.solana === contractAddress) {
+        return "SOL";
+      }
+      
+      // Default to first platform in the list
+      const firstPlatform = Object.keys(token.platforms)[0];
+      return firstPlatform.slice(0, 3).toUpperCase();
+    }
+    
+    // Default to Ethereum if we can't determine
+    return "ETH";
+  };
+
+  const blockchainLabel = getBlockchainFromAddress();
 
   return (
     <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
@@ -193,6 +239,11 @@ export const TokenInfoCard = ({
               
               {contractAddress && (
                 <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                  {blockchainLabel && (
+                    <Badge variant="outline" className="h-5 px-1 text-xs font-normal">
+                      {blockchainLabel}
+                    </Badge>
+                  )}
                   <span>{truncateAddress(contractAddress)}</span>
                   <TooltipProvider>
                     <Tooltip>
@@ -209,6 +260,29 @@ export const TokenInfoCard = ({
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
+                  
+                  {/* Link to blockchain explorer if we have a contract address */}
+                  {contractAddress && blockchainLabel === "ETH" && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <a
+                            href={`https://etherscan.io/token/${contractAddress}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            <Link2 size={14} />
+                          </a>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <div className="flex items-center gap-1">
+                            View on Etherscan <ExternalLink size={14} />
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </div>
               )}
               
@@ -248,7 +322,7 @@ export const TokenInfoCard = ({
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <a 
-                        href={website} 
+                        href={website.startsWith('http') ? website : `https://${website}`} 
                         target="_blank" 
                         rel="noopener noreferrer" 
                         className="text-gray-500 hover:text-indigo-600"
@@ -258,7 +332,7 @@ export const TokenInfoCard = ({
                     </TooltipTrigger>
                     <TooltipContent>
                       <div className="flex items-center gap-1">
-                        Website <ExternalLink size={14} />
+                        {website} <ExternalLink size={14} />
                       </div>
                     </TooltipContent>
                   </Tooltip>
@@ -280,7 +354,7 @@ export const TokenInfoCard = ({
                     </TooltipTrigger>
                     <TooltipContent>
                       <div className="flex items-center gap-1">
-                        Twitter/X <ExternalLink size={14} />
+                        @{twitter} <ExternalLink size={14} />
                       </div>
                     </TooltipContent>
                   </Tooltip>

@@ -36,6 +36,7 @@ export interface TokenInfo {
   sparkline_7d?: {
     price: number[];
   };
+  platforms?: Record<string, string>; // Added to support multiple chain addresses
 }
 
 export const useTokenInfo = (tokenIdentifier?: string | null) => {
@@ -70,6 +71,17 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
         }
         
         console.log(`[useTokenInfo] Received data for token: ${data.id || normalizedToken}, name: ${data.name || 'N/A'}`);
+        console.log('[useTokenInfo] Contract address:', data.contract_address);
+        console.log('[useTokenInfo] Platform addresses:', data.platforms);
+        
+        // Log social links for debugging
+        if (data.links) {
+          console.log('[useTokenInfo] Social links:', {
+            homepage: data.links.homepage,
+            twitter: data.links.twitter_screen_name,
+            github: data.links.github
+          });
+        }
         
         // Ensure we have default values for critical fields
         const tokenInfo: TokenInfo = {

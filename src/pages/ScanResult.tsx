@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -91,6 +92,8 @@ const ScanResult = () => {
   useEffect(() => {
     if (tokenInfo && !tokenLoading) {
       console.log(`[ScanResult] Received token info: ${tokenInfo.name || 'Unknown'} (${tokenInfo.symbol || '--'}) with id: ${tokenInfo.id || token}`);
+      console.log(`[ScanResult] Contract address: ${tokenInfo.contract_address || 'Not available'}`);
+      console.log(`[ScanResult] Social links:`, tokenInfo.links);
       
       // Only update fields that aren't already set from URL params
       setTokenMetadata(prev => ({
@@ -157,6 +160,13 @@ const ScanResult = () => {
     // Penalize if price is dropping significantly
     if (tokenInfo.price_change_percentage_24h && tokenInfo.price_change_percentage_24h < -10) {
       score -= 5;
+    }
+    
+    // Add bonus for having good documentation/links
+    if (tokenInfo.links) {
+      if (tokenInfo.links.homepage && tokenInfo.links.homepage[0]) score += 2;
+      if (tokenInfo.links.twitter_screen_name) score += 2;
+      if (tokenInfo.links.github) score += 3;
     }
     
     // Cap score between 0-100
