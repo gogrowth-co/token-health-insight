@@ -31,6 +31,7 @@ interface TokenMetricsResponse {
     socialFollowers: string;
     socialFollowersCount: number;
     socialFollowersChange: number;
+    socialFollowersFromCache?: boolean; 
     githubActivity?: string;
     githubCommits?: number;
   };
@@ -230,17 +231,6 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
     
     if (data.code !== 1 || !data.result || !data.result[tokenAddress.toLowerCase()]) {
       console.log('No holder data found');
-      
-      // Check for specific tokens to provide manual data
-      if (tokenAddress.toLowerCase() === "0x808507121b80c02388fad14726482e061b8da827") {
-        console.log('Providing manual data for Pendle token');
-        return {
-          topHoldersPercentage: "42.5%",
-          topHoldersValue: 42.5,
-          topHoldersTrend: "up"
-        };
-      }
-      
       return { topHoldersPercentage: "N/A", topHoldersValue: 0, topHoldersTrend: null };
     }
     
@@ -269,16 +259,6 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
     };
   } catch (error) {
     console.error('Error fetching top holders data:', error);
-    
-    // Provide manual data for specific tokens
-    if (tokenAddress.toLowerCase() === "0x808507121b80c02388fad14726482e061b8da827") {
-      return {
-        topHoldersPercentage: "42.5%",
-        topHoldersValue: 42.5,
-        topHoldersTrend: "up"
-      };
-    }
-    
     return { topHoldersPercentage: "N/A", topHoldersValue: 0, topHoldersTrend: null };
   }
 }
@@ -429,7 +409,8 @@ async function getSocialData(twitterHandle: string) {
         return {
           socialFollowers: formatFollowerCount(cachedData.followers_count),
           socialFollowersCount: cachedData.followers_count,
-          socialFollowersChange: growthPercent
+          socialFollowersChange: growthPercent,
+          socialFollowersFromCache: true
         };
       } else {
         console.log(`Cache expired for Twitter handle: ${twitterHandle} (age: ${cacheAgeHours.toFixed(1)} hours)`);
@@ -442,13 +423,14 @@ async function getSocialData(twitterHandle: string) {
     if (!APIFY_API_KEY) {
       console.log('No Apify API key available, using stale cache data if available');
       
-      // Fall back to stale cache if available instead of hardcoded values
+      // Fall back to stale cache if available
       if (cachedData) {
         console.log(`Using stale cache data for ${twitterHandle} as fallback`);
         return {
           socialFollowers: formatFollowerCount(cachedData.followers_count),
           socialFollowersCount: cachedData.followers_count,
-          socialFollowersChange: 0 // Don't show growth for stale data
+          socialFollowersChange: 0, // Don't show growth for stale data
+          socialFollowersFromCache: true
         };
       }
       
@@ -488,7 +470,8 @@ async function getSocialData(twitterHandle: string) {
       return {
         socialFollowers: formatFollowerCount(followersCount),
         socialFollowersCount: followersCount,
-        socialFollowersChange: growthPercent
+        socialFollowersChange: growthPercent,
+        socialFollowersFromCache: false
       };
     }
     
@@ -498,7 +481,8 @@ async function getSocialData(twitterHandle: string) {
       return {
         socialFollowers: formatFollowerCount(cachedData.followers_count),
         socialFollowersCount: cachedData.followers_count,
-        socialFollowersChange: 0 // Don't show growth for stale data
+        socialFollowersChange: 0, // Don't show growth for stale data
+        socialFollowersFromCache: true
       };
     }
     
@@ -860,8 +844,7 @@ Deno.serve(async (req) => {
         socialFollowers: "N/A",
         socialFollowersCount: 0,
         socialFollowersChange: 0,
-        githubActivity: "N/A",
-        githubCommits: 0
+        socialFollowersFromCache: false
       };
       
       // Cache the fallback metrics

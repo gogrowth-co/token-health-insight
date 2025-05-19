@@ -23,6 +23,7 @@ export interface TokenMetrics {
   socialFollowers: string;
   socialFollowersCount: number;
   socialFollowersChange: number;
+  socialFollowersFromCache?: boolean; 
   githubActivity?: string;
   githubCommits?: number;
 }
@@ -105,6 +106,11 @@ export const useTokenMetrics = (
           data.metrics.priceChange24h = tokenInfo.price_change_percentage_24h;
         }
         
+        // Add information about whether social followers data came from cache
+        if (data.socialFollowersFromCache !== undefined) {
+          data.metrics.socialFollowersFromCache = data.socialFollowersFromCache;
+        }
+        
         return data.metrics as TokenMetrics;
       } catch (error) {
         console.error('Exception fetching token metrics:', error);
@@ -128,7 +134,8 @@ export const useTokenMetrics = (
             auditStatus: 'N/A',
             socialFollowers: 'N/A',
             socialFollowersCount: 0,
-            socialFollowersChange: 0
+            socialFollowersChange: 0,
+            socialFollowersFromCache: false
           };
           
           return fallbackMetrics as TokenMetrics;

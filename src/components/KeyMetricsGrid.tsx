@@ -1,5 +1,5 @@
 
-import { TrendingUp, TrendingDown, Loader2, AlertCircle, RefreshCw, Info, WifiOff, ServerCrash } from "lucide-react";
+import { TrendingUp, TrendingDown, Loader2, AlertCircle, RefreshCw, Info, WifiOff, ServerCrash, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Tooltip,
@@ -143,7 +143,8 @@ export const KeyMetricsGrid = ({
     
     if (metrics?.socialFollowersChange) {
       const changeDirection = metrics.socialFollowersChange > 0 ? "increase" : "decrease";
-      return `${baseTooltip} - ${Math.abs(metrics.socialFollowersChange).toFixed(1)}% ${changeDirection} observed`;
+      const source = metrics.socialFollowersFromCache ? " (from cache)" : " (from API)";
+      return `${baseTooltip} - ${Math.abs(metrics.socialFollowersChange).toFixed(1)}% ${changeDirection} observed${source}`;
     }
     
     return baseTooltip;
@@ -282,6 +283,7 @@ export const KeyMetricsGrid = ({
             change={metrics?.socialFollowersChange ? `${Math.abs(metrics.socialFollowersChange).toFixed(1)}%` : undefined}
             tooltip={getSocialFollowersTooltip()} 
             error={isError}
+            icon={metrics?.socialFollowersFromCache ? <Clock size={14} className="text-gray-400" /> : undefined}
           />
         )}
       </div>
@@ -306,9 +308,10 @@ interface MetricTileProps {
   change?: string;
   tooltip: string;
   error?: boolean;
+  icon?: React.ReactNode;
 }
 
-const MetricTile = ({ label, value, trend, change, tooltip, error = false }: MetricTileProps) => {
+const MetricTile = ({ label, value, trend, change, tooltip, error = false, icon }: MetricTileProps) => {
   return (
     <Card className={`overflow-hidden ${error ? 'border-red-200 bg-red-50/30' : ''}`}>
       <CardContent className="p-4">
@@ -316,7 +319,10 @@ const MetricTile = ({ label, value, trend, change, tooltip, error = false }: Met
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <p className="text-sm text-gray-500 cursor-help">{label}</p>
+                <div className="flex items-center gap-1 cursor-help">
+                  <p className="text-sm text-gray-500">{label}</p>
+                  {icon && icon}
+                </div>
               </TooltipTrigger>
               <TooltipContent>
                 <p className="text-xs">{tooltip}</p>
