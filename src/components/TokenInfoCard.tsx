@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { Globe, Twitter, Github, Copy, ExternalLink, Info, ChevronDown, ChevronUp, Link2 } from "lucide-react";
+import { Globe, Twitter, Github, Copy, ExternalLink, Info, ChevronDown, ChevronUp, Link2, CalendarIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenInfo } from "@/hooks/useTokenInfo";
@@ -16,7 +16,8 @@ interface TokenMetadata {
   logo?: string;
   marketCap?: string;
   price?: string;
-  contract_address?: string; // Add contract address to metadata
+  contract_address?: string; 
+  blockchain?: string;
 }
 
 interface TokenInfoCardProps {
@@ -44,6 +45,8 @@ export const TokenInfoCard = ({
     if (token) {
       console.log("[TokenInfoCard] Contract address:", token.contract_address);
       console.log("[TokenInfoCard] Social links:", token.links);
+      console.log("[TokenInfoCard] Launch date:", token.genesis_date || "Not available");
+      console.log("[TokenInfoCard] Blockchain:", token.blockchain || "Not specified");
       if (token.platforms) {
         console.log("[TokenInfoCard] Platforms:", token.platforms);
       }
@@ -176,12 +179,24 @@ export const TokenInfoCard = ({
     });
   };
   
-  // Determine blockchain from contract address or platforms data
-  const getBlockchainFromAddress = (): string => {
-    if (!token) return "";
+  // Determine blockchain from various sources
+  const getBlockchainLabel = (): string => {
+    // First check if we have blockchain info directly
+    if (token?.blockchain) {
+      return token.blockchain.toUpperCase();
+    }
+    
+    // Next check metadata
+    if (tokenMetadata?.blockchain) {
+      return tokenMetadata.blockchain.toUpperCase();
+    }
+
+    if (!token?.platforms || Object.keys(token.platforms).length === 0) {
+      return "";
+    }
     
     // Check if we have platforms data
-    if (token.platforms && Object.keys(token.platforms).length > 0) {
+    if (token.platforms) {
       console.log("Found platforms data:", token.platforms);
       
       // Prioritize Ethereum address if available
@@ -208,10 +223,42 @@ export const TokenInfoCard = ({
     }
     
     // Default to Ethereum if we can't determine
-    return "ETH";
+    return contractAddress ? "ETH" : "";
   };
 
-  const blockchainLabel = getBlockchainFromAddress();
+  const blockchainLabel = getBlockchainLabel();
+
+  // Get explorer URL based on blockchain
+  const getExplorerUrl = (address: string, blockchain: string): string => {
+    if (!address) return "";
+    
+    const blockchainLower = blockchain.toLowerCase();
+    
+    if (blockchainLower === "eth" || blockchainLower.includes("ethereum")) {
+      return `https://etherscan.io/token/${address}`;
+    }
+    
+    if (blockchainLower === "bsc" || blockchainLower.includes("binance")) {
+      return `https://bscscan.com/token/${address}`;
+    }
+    
+    if (blockchainLower === "matic" || blockchainLower.includes("polygon")) {
+      return `https://polygonscan.com/token/${address}`;
+    }
+    
+    if (blockchainLower === "sol" || blockchainLower.includes("solana")) {
+      return `https://solscan.io/token/${address}`;
+    }
+    
+    if (blockchainLower === "avax" || blockchainLower.includes("avalanche")) {
+      return `https://snowtrace.io/token/${address}`;
+    }
+    
+    // Default to Etherscan
+    return `https://etherscan.io/token/${address}`;
+  };
+  
+  const explorerUrl = contractAddress ? getExplorerUrl(contractAddress, blockchainLabel) : "";
 
   return (
     <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
@@ -265,12 +312,12 @@ export const TokenInfoCard = ({
                   </TooltipProvider>
                   
                   {/* Link to blockchain explorer if we have a contract address */}
-                  {contractAddress && blockchainLabel === "ETH" && (
+                  {contractAddress && explorerUrl && (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <a
-                            href={`https://etherscan.io/token/${contractAddress}`}
+                            href={explorerUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-gray-400 hover:text-gray-600"
@@ -280,7 +327,7 @@ export const TokenInfoCard = ({
                         </TooltipTrigger>
                         <TooltipContent>
                           <div className="flex items-center gap-1">
-                            View on Etherscan <ExternalLink size={14} />
+                            View on {blockchainLabel} Explorer <ExternalLink size={14} />
                           </div>
                         </TooltipContent>
                       </Tooltip>
@@ -291,8 +338,9 @@ export const TokenInfoCard = ({
               
               {/* Display launch date if available */}
               {launchDate && (
-                <div className="text-xs text-gray-500">
-                  Launch: {formatDate(launchDate)}
+                <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-1">
+                  <CalendarIcon size={14} className="text-gray-400" />
+                  <span>Launched: {formatDate(launchDate)}</span>
                 </div>
               )}
             </div>
@@ -301,9 +349,15 @@ export const TokenInfoCard = ({
           {/* Description and Social Links */}
           <div className="flex-1 space-y-2">
             <div>
-              <p className="text-sm text-gray-600">
-                {showFullDescription ? description : summaryDescription}
-              </p>
+              {description ? (
+                <p className="text-sm text-gray-600">
+                  {showFullDescription ? description : summaryDescription}
+                </p>
+              ) : (
+                <p className="text-sm text-gray-500 italic">
+                  No description available
+                </p>
+              )}
               
               {description && summaryDescription !== description && description.length > summaryDescription.length && (
                 <button 

@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { corsHeaders } from "../_shared/cors.ts";
 
@@ -36,12 +37,16 @@ interface TokenData {
     homepage?: string[];
     twitter_screen_name?: string;
     github?: string;
+    repos_url?: {
+      github?: string[];
+    };
   };
   contract_address?: string;
   sparkline_7d?: {
     price: number[];
   };
-  platforms?: Record<string, string>; // Added to support multiple chain addresses
+  platforms?: Record<string, string>; // Maps blockchain networks to contract addresses
+  blockchain?: string; // Added to store primary blockchain
 }
 
 // Known major tokens by symbol - used to prioritize search results
@@ -110,16 +115,24 @@ Deno.serve(async (req) => {
     token = token.replace(/^\$/, '').toLowerCase().trim();
     console.log("Processing normalized token:", token);
 
-    // Check if we have cached token data
+    // Check if we have cached token data that's not too old (7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
     const { data: cachedData, error: cacheError } = await supabase
       .from('token_data_cache')
       .select('*')
       .eq('token_id', token)
       .single();
 
-    // If we have valid cached data that's not expired, return it
-    if (cachedData && !cacheError && new Date(cachedData.expires_at) > new Date()) {
-      console.log(`Cache hit for token: ${token}`);
+    // If we have valid cached data that's not expired AND not older than 7 days, return it
+    if (
+      cachedData && 
+      !cacheError && 
+      new Date(cachedData.expires_at) > new Date() && 
+      new Date(cachedData.last_updated) > sevenDaysAgo
+    ) {
+      console.log(`Cache hit for token: ${token} (not older than 7 days)`);
       
       // Ensure all required fields have fallbacks before returning
       const data = ensureRequiredFields(cachedData.data);
@@ -130,7 +143,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Cache miss for token: ${token}, fetching from CoinGecko`);
+    console.log(`Cache miss or stale data (>7 days) for token: ${token}, fetching from CoinGecko`);
 
     // Check if this is a known major token
     const knownTokenId = MAJOR_TOKENS[token];
@@ -228,6 +241,26 @@ function createFallbackToken(): TokenData {
   };
 }
 
+// Get primary blockchain from contract addresses
+function getPrimaryBlockchain(platforms: Record<string, string> | undefined, contractAddress?: string): string {
+  if (!platforms || Object.keys(platforms).length === 0) {
+    return "";
+  }
+  
+  // Prioritize known chains
+  const priorityChains = ["ethereum", "binance_smart_chain", "polygon_pos", "solana", "avalanche"];
+  
+  for (const chain of priorityChains) {
+    if (platforms[chain] && (!contractAddress || platforms[chain] === contractAddress)) {
+      return chain.split('_')[0].toUpperCase().substring(0, 3);
+    }
+  }
+  
+  // If no priority chain found, return the first one
+  const firstChain = Object.keys(platforms)[0];
+  return firstChain.substring(0, 3).toUpperCase();
+}
+
 // Fallback to search API if we don't find an exact match
 async function trySearchFallback(token: string): Promise<Response> {
   try {
@@ -321,7 +354,7 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
         last_updated: new Date(simplePriceData[coinId]?.last_updated_at * 1000).toISOString()
       };
 
-      // Cache the data for 1 minute
+      // Cache the data for 1 minute but mark it for refresh (7 day expiry)
       const expiresAt = new Date(Date.now() + 60 * 1000).toISOString();
       await supabase
         .from('token_data_cache')
@@ -350,10 +383,14 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
     // Extract primary contract address
     // For Ethereum tokens, prioritize the Ethereum contract address
     let contractAddress = fullData.contract_address || "";
+    let blockchain = "";
     
     // If platforms data exists, try to extract addresses from there
     if (fullData.platforms && Object.keys(fullData.platforms).length > 0) {
       console.log("Found platforms data:", fullData.platforms);
+      
+      // Get the primary blockchain
+      blockchain = getPrimaryBlockchain(fullData.platforms, contractAddress);
       
       // Prioritize Ethereum address if available
       if (fullData.platforms.ethereum) {
@@ -397,7 +434,7 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
       total_supply: fullData.market_data?.total_supply,
       max_supply: fullData.market_data?.max_supply,
       last_updated: fullData.last_updated,
-      genesis_date: fullData.genesis_date,
+      genesis_date: fullData.genesis_date, // Launch date
       ath: fullData.market_data?.ath?.usd,
       ath_change_percentage: fullData.market_data?.ath_change_percentage?.usd,
       ath_date: fullData.market_data?.ath_date?.usd,
@@ -408,17 +445,21 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
       links: {
         homepage: fullData.links?.homepage,
         twitter_screen_name: fullData.links?.twitter_screen_name,
-        github: githubUrl
+        github: githubUrl,
+        repos_url: fullData.links?.repos_url
       },
       contract_address: contractAddress,
-      platforms: fullData.platforms || {}
+      platforms: fullData.platforms || {},
+      blockchain: blockchain
     };
 
     console.log(`Successfully fetched full data for ${coinId} (${tokenName})`);
     console.log(`Contract address: ${contractAddress}`);
+    console.log(`Blockchain: ${blockchain}`);
+    console.log(`Launch date: ${fullData.genesis_date || 'Not available'}`);
     console.log(`Social links: Homepage=${tokenData.links?.homepage?.[0] || 'none'}, Twitter=${tokenData.links?.twitter_screen_name || 'none'}, GitHub=${tokenData.links?.github || 'none'}`);
     
-    // Cache the data for 1 minute
+    // Cache the data for 1 minute (but mark it as fresh for 7 days)
     const expiresAt = new Date(Date.now() + 60 * 1000).toISOString();
     await supabase
       .from('token_data_cache')
@@ -440,7 +481,15 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
           token_name: tokenData.name,
           token_address: tokenData.contract_address || null,
           health_score: null, // This would be calculated based on full scan
-          category_scores: null
+          category_scores: null,
+          metadata: {
+            blockchain: blockchain,
+            genesis_date: tokenData.genesis_date,
+            website: tokenData.links?.homepage?.[0] || null,
+            twitter: tokenData.links?.twitter_screen_name || null,
+            github: tokenData.links?.github || null,
+            image: tokenData.image || null,
+          }
         });
     } catch (error) {
       console.error("Error storing token scan:", error);

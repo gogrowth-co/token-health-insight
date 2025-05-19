@@ -23,6 +23,7 @@ interface TokenMetadata {
   marketCap?: string;
   price?: string;
   contract_address?: string;
+  blockchain?: string;
 }
 
 const ScanResult = () => {
@@ -46,6 +47,7 @@ const ScanResult = () => {
   const marketCapFromQuery = searchParams.get("market_cap");
   const priceFromQuery = searchParams.get("price");
   const contractAddressFromQuery = searchParams.get("contract_address");
+  const blockchainFromQuery = searchParams.get("blockchain");
   
   // Keep track of token metadata from various sources
   const [tokenMetadata, setTokenMetadata] = useState<TokenMetadata>({
@@ -55,7 +57,8 @@ const ScanResult = () => {
     logo: tokenLogoFromQuery || undefined,
     marketCap: marketCapFromQuery || undefined,
     price: priceFromQuery || undefined,
-    contract_address: contractAddressFromQuery || undefined
+    contract_address: contractAddressFromQuery || undefined,
+    blockchain: blockchainFromQuery || undefined
   });
   
   const [activeTab, setActiveTab] = useState("overview");
@@ -96,6 +99,8 @@ const ScanResult = () => {
       console.log(`[ScanResult] Received token info: ${tokenInfo.name || 'Unknown'} (${tokenInfo.symbol || '--'}) with id: ${tokenInfo.id || token}`);
       console.log(`[ScanResult] Contract address: ${tokenInfo.contract_address || 'Not available'}`);
       console.log(`[ScanResult] Social links:`, tokenInfo.links);
+      console.log(`[ScanResult] Blockchain: ${tokenInfo.blockchain || 'Not specified'}`);
+      console.log(`[ScanResult] Launch date: ${tokenInfo.genesis_date || 'Not available'}`);
       
       // Only update fields that aren't already set from URL params
       setTokenMetadata(prev => ({
@@ -105,7 +110,8 @@ const ScanResult = () => {
         logo: prev.logo || tokenInfo.image,
         marketCap: prev.marketCap || (tokenInfo.market_cap?.toString() || undefined),
         price: prev.price || (tokenInfo.current_price?.toString() || undefined),
-        contract_address: prev.contract_address || tokenInfo.contract_address
+        contract_address: prev.contract_address || tokenInfo.contract_address,
+        blockchain: prev.blockchain || tokenInfo.blockchain
       }));
     }
     
@@ -134,6 +140,8 @@ const ScanResult = () => {
     if (tokenMetadata.name) authQueryParams.append('name', tokenMetadata.name);
     if (tokenMetadata.symbol) authQueryParams.append('symbol', tokenMetadata.symbol);
     if (tokenMetadata.logo) authQueryParams.append('logo', tokenMetadata.logo);
+    if (tokenMetadata.contract_address) authQueryParams.append('contract_address', tokenMetadata.contract_address);
+    if (tokenMetadata.blockchain) authQueryParams.append('blockchain', tokenMetadata.blockchain);
     
     return <Navigate to={`/auth?${authQueryParams.toString()}`} />;
   }

@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useSearchParams, Navigate, useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
@@ -15,7 +16,7 @@ export default function ScanLoading() {
   // Get token from URL directly without normalization
   const token = searchParams.get("token") || "";
   
-  // Initialize token metadata from URL params
+  // Initialize token metadata from URL params with all possible fields
   const [tokenMetadata, setTokenMetadata] = useState({
     id: token,
     name: searchParams.get("name") || undefined,
@@ -23,7 +24,8 @@ export default function ScanLoading() {
     logo: searchParams.get("logo") || undefined,
     marketCap: searchParams.get("market_cap") || undefined,
     price: searchParams.get("price") || undefined,
-    contract_address: searchParams.get("contract_address") || undefined
+    contract_address: searchParams.get("contract_address") || undefined,
+    blockchain: searchParams.get("blockchain") || undefined
   });
 
   // Log initial state to help debugging
@@ -51,6 +53,8 @@ export default function ScanLoading() {
     // Update metadata when token info is available
     if (tokenInfo && !tokenInfoLoading) {
       console.log("[ScanLoading] Token info received:", tokenInfo.name);
+      console.log("[ScanLoading] Blockchain:", tokenInfo.blockchain || "Not specified");
+      console.log("[ScanLoading] Launch date:", tokenInfo.genesis_date || "Not available");
       
       // Only update fields that aren't already set from URL params
       setTokenMetadata(prev => ({
@@ -60,7 +64,8 @@ export default function ScanLoading() {
         logo: prev.logo || tokenInfo.image || undefined,
         marketCap: prev.marketCap || (tokenInfo.market_cap?.toString() || undefined),
         price: prev.price || (tokenInfo.current_price?.toString() || undefined),
-        contract_address: prev.contract_address || tokenInfo.contract_address || undefined
+        contract_address: prev.contract_address || tokenInfo.contract_address || undefined,
+        blockchain: prev.blockchain || tokenInfo.blockchain || undefined
       }));
     }
     
@@ -91,6 +96,7 @@ export default function ScanLoading() {
     if (tokenMetadata.symbol) authParams.append('symbol', tokenMetadata.symbol);
     if (tokenMetadata.logo) authParams.append('logo', tokenMetadata.logo);
     if (tokenMetadata.contract_address) authParams.append('contract_address', tokenMetadata.contract_address);
+    if (tokenMetadata.blockchain) authParams.append('blockchain', tokenMetadata.blockchain);
     
     return <Navigate to={`/auth?${authParams.toString()}`} />;
   }

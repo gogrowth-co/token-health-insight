@@ -27,10 +27,14 @@ export interface TokenInfo {
   atl_date?: string;
   genesis_date?: string; // Launch date of the token
   last_updated?: string;
+  blockchain?: string; // Stores the primary blockchain (ETH, BSC, etc.)
   links?: {
     homepage?: string[];
     twitter_screen_name?: string;
     github?: string;
+    repos_url?: {
+      github?: string[];
+    };
   };
   contract_address?: string;
   sparkline_7d?: {
@@ -72,7 +76,8 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
         
         console.log(`[useTokenInfo] Received data for token: ${data.id || normalizedToken}, name: ${data.name || 'N/A'}`);
         console.log('[useTokenInfo] Contract address:', data.contract_address);
-        console.log('[useTokenInfo] Platform addresses:', data.platforms);
+        console.log('[useTokenInfo] Blockchain:', data.blockchain || 'Not specified');
+        console.log('[useTokenInfo] Launch date:', data.genesis_date || 'Not available');
         
         // Log social links for debugging
         if (data.links) {
@@ -89,6 +94,8 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
           name: data.name || 'Unknown Token',
           symbol: data.symbol || "--",
           description: data.description || `${data.name || 'This token'} is a cryptocurrency token${data.symbol ? ` with symbol ${data.symbol.toUpperCase()}` : ''}.`,
+          blockchain: data.blockchain || "", // Store blockchain info if available
+          genesis_date: data.genesis_date || undefined, // Store launch date
           // Pass through all other data
           ...data
         };
