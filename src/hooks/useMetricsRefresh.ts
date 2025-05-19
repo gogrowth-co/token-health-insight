@@ -10,25 +10,50 @@ export function useMetricsRefresh(
   const [forceRefresh, setForceRefresh] = useState(false);
 
   const handleRefresh = async () => {
+    // Prevent multiple simultaneous refreshes
+    if (isRefreshing) {
+      return;
+    }
+    
     setIsRefreshing(true);
     setForceRefresh(true);
+    
     try {
-      await refetch();
+      // Show loading toast
+      toast({
+        title: "Refreshing metrics",
+        description: "Fetching the latest data...",
+      });
+      
+      // Increment the refresh trigger to force a new API call
       setRefreshTrigger(prev => prev + 1);
+      
+      // Execute the refetch function
+      await refetch();
+      
+      // Show success toast
       toast({
         title: "Metrics refreshed",
         description: "The latest token metrics have been loaded.",
       });
     } catch (error) {
       console.error("Error refreshing metrics:", error);
+      
+      // Show error toast with more helpful message
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const userFriendlyMessage = errorMessage.includes('Failed to fetch') || errorMessage.includes('connect to our servers')
+        ? "Network connection issue. Please check your internet and try again."
+        : "Unable to refresh metrics. Please try again later.";
+        
       toast({
         title: "Refresh failed",
-        description: "Unable to refresh metrics. Please try again later.",
+        description: userFriendlyMessage,
         variant: "destructive",
       });
     } finally {
       setIsRefreshing(false);
-      // Reset force refresh after a delay to prevent repeated forced refreshes
+      
+      // Reset force refresh after a delay
       setTimeout(() => {
         setForceRefresh(false);
       }, 1000);

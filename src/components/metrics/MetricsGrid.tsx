@@ -1,5 +1,6 @@
+
 import { useEffect } from "react";
-import { Info, Clock } from "lucide-react";
+import { Info, Clock, Database } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { MetricTile, MetricTileSkeleton } from "./MetricTile";
 import { ErrorState } from "./ErrorState";
@@ -59,6 +60,21 @@ export const MetricsGrid = ({
     
     return baseTooltip;
   };
+  
+  // Format the top holders tooltip
+  const getTopHoldersTooltip = () => {
+    const baseTooltip = "Percentage owned by top 10 addresses";
+    
+    if (metrics?.topHoldersPercentage === "N/A") {
+      return `${baseTooltip} - Data currently unavailable`;
+    }
+    
+    if (metrics?.fromCache) {
+      return `${baseTooltip} - Data from cache`;
+    }
+    
+    return baseTooltip;
+  };
 
   return (
     <div className="space-y-4">
@@ -111,8 +127,9 @@ export const MetricsGrid = ({
             value={metrics?.topHoldersPercentage || "N/A"} 
             trend={metrics?.topHoldersTrend || undefined}
             change={metrics?.topHoldersTrend === "down" ? "Low Risk" : metrics?.topHoldersTrend === "up" ? "High Risk" : undefined}
-            tooltip="Percentage owned by top 10 addresses" 
+            tooltip={getTopHoldersTooltip()}
             error={isError}
+            icon={metrics?.fromCache ? <Database size={14} className="text-gray-400" /> : undefined}
           />
         )}
 
@@ -164,6 +181,7 @@ export const MetricsGrid = ({
           <Info size={14} />
           <span>
             "N/A" indicates data is not available or not applicable for this token.
+            {metrics?.socialFollowersFromCache && <span className="ml-1"><Clock size={14} className="inline mr-1" />indicates data from cache.</span>}
           </span>
         </div>
       )}

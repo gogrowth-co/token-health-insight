@@ -26,6 +26,7 @@ export interface TokenMetrics {
   socialFollowersFromCache?: boolean; 
   githubActivity?: string;
   githubCommits?: number;
+  fromCache?: boolean;
 }
 
 export interface TokenMetadata {
@@ -106,7 +107,7 @@ export const useTokenMetrics = (
           data.metrics.priceChange24h = tokenInfo.price_change_percentage_24h;
         }
         
-        // Add information about whether social followers data came from cache
+        // Add information about whether data came from cache
         if (data.socialFollowersFromCache !== undefined) {
           data.metrics.socialFollowersFromCache = data.socialFollowersFromCache;
         }
@@ -154,6 +155,7 @@ export const useTokenMetrics = (
     enabled: !!normalizedToken,
     staleTime: forceRefresh ? 0 : 5 * 60 * 1000, // 0 if force refresh, otherwise 5 minutes
     gcTime: 15 * 60 * 1000, // 15 minutes
-    retry: 1, // Retry failed requests once
+    retry: 2, // Increase retries to 2
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff
   });
 };

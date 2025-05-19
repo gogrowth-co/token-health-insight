@@ -1,41 +1,46 @@
 
-import { WifiOff, ServerCrash } from "lucide-react";
+import { AlertTriangle, Wifi, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 interface ErrorStateProps {
   connectionError: boolean;
-  onRetry: () => void;
+  onRetry: () => Promise<void>;
 }
 
-export const ErrorState = ({ connectionError, onRetry }: ErrorStateProps) => {
-  if (connectionError) {
-    return (
-      <div className="col-span-full bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 flex items-center gap-2">
-        <WifiOff className="text-amber-500" size={20} />
-        <div className="text-sm text-amber-700">
-          Unable to connect to our servers. Please check your internet connection.
-          <button 
-            onClick={onRetry} 
-            className="ml-2 underline text-indigo-600 hover:text-indigo-800"
-          >
-            Try again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
+export const ErrorState: React.FC<ErrorStateProps> = ({ connectionError, onRetry }) => {
   return (
-    <div className="col-span-full bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-center gap-2">
-      <ServerCrash className="text-red-500" size={20} />
-      <div className="text-sm text-red-700">
-        Error loading metrics. Some data may be unavailable.
-        <button 
-          onClick={onRetry} 
-          className="ml-2 underline text-indigo-600 hover:text-indigo-800"
+    <Alert variant="destructive" className="mb-4">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertTitle className="flex items-center">
+        {connectionError ? (
+          <>
+            <Wifi className="mr-2 h-4 w-4" />
+            Connection Error
+          </>
+        ) : (
+          <>
+            <AlertTriangle className="mr-2 h-4 w-4" />
+            Data Fetch Error
+          </>
+        )}
+      </AlertTitle>
+      <AlertDescription className="flex flex-col space-y-2">
+        <p>
+          {connectionError 
+            ? "We're having trouble connecting to our servers. Please check your internet connection." 
+            : "We're having trouble loading some metrics data. This might be due to API rate limits or temporary service issues."}
+        </p>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="self-start flex items-center gap-1"
+          onClick={() => onRetry()} 
         >
-          Try again
-        </button>
-      </div>
-    </div>
+          <RefreshCw className="h-4 w-4 mr-1" /> 
+          Try Again
+        </Button>
+      </AlertDescription>
+    </Alert>
   );
 };
