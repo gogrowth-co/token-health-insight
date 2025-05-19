@@ -133,6 +133,22 @@ export const KeyMetricsGrid = ({
     }
   };
 
+  // Format the last update timestamp for social followers tooltip
+  const getSocialFollowersTooltip = () => {
+    const baseTooltip = "Twitter followers count";
+    
+    if (metrics?.socialFollowers === "N/A") {
+      return `${baseTooltip} - Data currently unavailable`;
+    }
+    
+    if (metrics?.socialFollowersChange) {
+      const changeDirection = metrics.socialFollowersChange > 0 ? "increase" : "decrease";
+      return `${baseTooltip} - ${Math.abs(metrics.socialFollowersChange).toFixed(1)}% ${changeDirection} observed`;
+    }
+    
+    return baseTooltip;
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -264,7 +280,7 @@ export const KeyMetricsGrid = ({
             value={metrics?.socialFollowers || "N/A"} 
             trend={metrics?.socialFollowersChange && metrics.socialFollowersChange > 0 ? "up" : metrics?.socialFollowersChange ? "down" : undefined}
             change={metrics?.socialFollowersChange ? `${Math.abs(metrics.socialFollowersChange).toFixed(1)}%` : undefined}
-            tooltip="Twitter followers - Data updated every 24h" 
+            tooltip={getSocialFollowersTooltip()} 
             error={isError}
           />
         )}

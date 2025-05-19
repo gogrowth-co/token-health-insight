@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { corsHeaders } from "../_shared/cors.ts";
 
@@ -441,22 +440,15 @@ async function getSocialData(twitterHandle: string) {
     
     // Skip if Apify API key is not available
     if (!APIFY_API_KEY) {
-      console.log('No Apify API key available, skipping Twitter follower count fetch');
+      console.log('No Apify API key available, using stale cache data if available');
       
-      // For specific known tokens, provide data even without API
-      if (twitterHandle.toLowerCase() === 'ethereum') {
+      // Fall back to stale cache if available instead of hardcoded values
+      if (cachedData) {
+        console.log(`Using stale cache data for ${twitterHandle} as fallback`);
         return {
-          socialFollowers: "3.2M",
-          socialFollowersCount: 3200000,
-          socialFollowersChange: 0.1
-        };
-      }
-      
-      if (twitterHandle.toLowerCase() === 'pendle_fi') {
-        return {
-          socialFollowers: "85.7K",
-          socialFollowersCount: 85700,
-          socialFollowersChange: 2.3
+          socialFollowers: formatFollowerCount(cachedData.followers_count),
+          socialFollowersCount: cachedData.followers_count,
+          socialFollowersChange: 0 // Don't show growth for stale data
         };
       }
       
@@ -500,20 +492,13 @@ async function getSocialData(twitterHandle: string) {
       };
     }
     
-    // Handle specific tokens if API call fails
-    if (twitterHandle.toLowerCase() === 'ethereum') {
+    // If API call fails, fall back to stale cache if available
+    if (cachedData) {
+      console.log(`API call failed, using stale cache data for ${twitterHandle} as fallback`);
       return {
-        socialFollowers: "3.2M",
-        socialFollowersCount: 3200000,
-        socialFollowersChange: 0.1
-      };
-    }
-    
-    if (twitterHandle.toLowerCase() === 'pendle_fi') {
-      return {
-        socialFollowers: "85.7K",
-        socialFollowersCount: 85700,
-        socialFollowersChange: 2.3
+        socialFollowers: formatFollowerCount(cachedData.followers_count),
+        socialFollowersCount: cachedData.followers_count,
+        socialFollowersChange: 0 // Don't show growth for stale data
       };
     }
     
@@ -538,31 +523,41 @@ async function fetchTwitterFollowersWithApify(twitterHandle: string): Promise<nu
     // First, try to use the Twitter Profile Scraper actor
     console.log("Using Twitter Profile Scraper actor (vdrmota~twitter-profile-scraper)");
     const profileScraper = `https://api.apify.com/v2/acts/vdrmota~twitter-profile-scraper/run-sync?token=${APIFY_API_KEY}`;
-    const profileResponse = await fetch(profileScraper, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        "usernames": [cleanHandle]
-      })
-    });
     
-    if (!profileResponse.ok) {
-      console.error(`API error: ${profileResponse.status} - ${profileResponse.statusText}`);
-      throw new Error(`Failed to run profile scraper: ${profileResponse.status}`);
-    }
-    
-    const profileData = await profileResponse.json();
-    console.log("Profile scraper response:", JSON.stringify(profileData));
-    
-    if (profileData && profileData.userDetails && profileData.userDetails[cleanHandle]) {
-      const followerCount = profileData.userDetails[cleanHandle].followers;
-      console.log(`Found ${followerCount} followers for ${cleanHandle} using profile scraper`);
-      return followerCount;
+    try {
+      const profileResponse = await fetch(profileScraper, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          "usernames": [cleanHandle],
+          "maxRetries": 3,
+          "proxyConfiguration": { "useApifyProxy": true }
+        })
+      });
+      
+      if (!profileResponse.ok) {
+        console.error(`API error: ${profileResponse.status} - ${profileResponse.statusText}`);
+        throw new Error(`Failed to run profile scraper: ${profileResponse.status}`);
+      }
+      
+      const profileData = await profileResponse.json();
+      console.log("Profile scraper response received");
+      
+      if (profileData && profileData.userDetails && profileData.userDetails[cleanHandle]) {
+        const followerCount = profileData.userDetails[cleanHandle].followers;
+        console.log(`Found ${followerCount} followers for ${cleanHandle} using profile scraper`);
+        return followerCount;
+      } else {
+        console.log("No follower data found in profile scraper response");
+      }
+    } catch (error) {
+      console.error("Error with profile scraper, falling back to alternative method:", error);
     }
     
     // If first method fails, try with apify/twitter-scraper actor
     console.log("Trying with alternative Twitter Scraper actor (apify/twitter-scraper)");
     const startTaskUrl = `https://api.apify.com/v2/acts/apify~twitter-scraper/runs?token=${APIFY_API_KEY}`;
+    
     const startResponse = await fetch(startTaskUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -626,7 +621,7 @@ async function fetchTwitterFollowersWithApify(twitterHandle: string): Promise<nu
     }
     
     const data = await dataResponse.json();
-    console.log("Dataset response:", JSON.stringify(data));
+    console.log("Dataset response received");
     
     // Find the user profile with follower count
     if (data && data.length > 0) {
