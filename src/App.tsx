@@ -16,6 +16,7 @@ import Dashboard from "./pages/Dashboard";
 import ScanResult from "./pages/ScanResult";
 import TokenConfirmationPage from "./pages/TokenConfirmationPage";
 import ScanLoading from "./pages/ScanLoading";
+import TokenSearchPage from "./pages/TokenSearchPage";
 import HowItWorks from "./pages/HowItWorks";
 import Docs from "./pages/Docs";
 import Terms from "./pages/Terms";
@@ -45,7 +46,9 @@ const App = () => {
                 <Route path="/scan/loading" element={<ScanLoading />} />
                 <Route path="/scan/:tokenId" element={<ScanResult />} />
                 <Route path="/scan" element={<ScanResult />} />
+                <Route path="/token/search" element={<TokenSearchPage />} />
                 <Route path="/subscription" element={<Subscription />} />
+                <Route path="/pricing" element={<Subscription />} />
                 <Route path="/how-it-works" element={<HowItWorks />} />
                 <Route path="/docs" element={<Docs />} />
                 <Route path="/terms" element={<Terms />} />
