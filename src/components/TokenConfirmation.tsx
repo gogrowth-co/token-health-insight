@@ -2,107 +2,150 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-import { Loader, Info, ArrowRight } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useTokenInfo } from "@/hooks/useTokenInfo";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Shield, AlertTriangle, Loader2 } from "lucide-react";
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import { Link } from "react-router-dom";
 
 interface TokenConfirmationProps {
   token: string;
+  canScan: boolean;
+  scanCount: number;
+  scanLimit: number;
+  tier: string | null;
 }
 
-export const TokenConfirmation = ({ token }: TokenConfirmationProps) => {
+export const TokenConfirmation = ({ token, canScan, scanCount, scanLimit, tier }: TokenConfirmationProps) => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const [isConfirming, setIsConfirming] = useState(false);
-  
-  // Clean token input (remove $ if present)
-  const cleanToken = token.replace(/^\$/, '');
-  
-  // Get basic token info to display
-  const { data: tokenInfo, isLoading, error } = useTokenInfo(cleanToken);
-  
-  const handleConfirm = () => {
-    setIsConfirming(true);
-    navigate(`/scan/loading?token=${encodeURIComponent(cleanToken)}`);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const { incrementScanCount } = useSubscription();
+  const isPro = tier === "Pro Monthly" || tier === "Pro Annual";
+
+  const handleScanStart = async () => {
+    setIsProcessing(true);
+    try {
+      // Increment scan count
+      const success = await incrementScanCount();
+      
+      if (success) {
+        // Redirect to scan loading page
+        navigate(`/scan/loading?token=${encodeURIComponent(token)}`);
+      } else {
+        // Scan limit reached, navigate to subscription page
+        navigate("/subscription");
+      }
+    } catch (error) {
+      console.error("Error starting scan:", error);
+      setIsProcessing(false);
+    }
   };
-  
-  const handleBack = () => {
-    navigate("/");
-  };
-  
+
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-      <h2 className="text-2xl font-bold mb-4">Confirm Token Scan</h2>
-      
-      <Alert className="mb-6">
-        <Info className="h-5 w-5" />
-        <AlertTitle>Beta Feature</AlertTitle>
-        <AlertDescription>
-          Token Health Scan is currently in beta. We only support scanning tokens on the Ethereum blockchain at this time.
-        </AlertDescription>
-      </Alert>
-      
-      <div className="space-y-4 mb-6">
-        <div className="flex flex-col">
-          <span className="text-sm text-gray-500">Token</span>
-          <span className="font-medium">
-            {isLoading ? (
-              <div className="flex items-center gap-2">
-                <Loader className="h-4 w-4 animate-spin" />
-                <span>Loading token information...</span>
-              </div>
-            ) : error ? (
-              <span className="text-red-500">Unable to verify token: {cleanToken}</span>
-            ) : (
-              <span>
-                {tokenInfo?.name || cleanToken.toUpperCase()} 
-                {tokenInfo?.symbol && `(${tokenInfo.symbol.toUpperCase()})`}
-              </span>
-            )}
-          </span>
+    <Card className="shadow-lg">
+      <CardHeader>
+        <CardTitle className="text-2xl">Confirm Token Scan</CardTitle>
+        <CardDescription>
+          You're about to scan token information for:
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-6">
+        {/* Token Display */}
+        <div className="p-4 bg-gray-50 border border-gray-200 rounded-md">
+          <code className="text-lg font-mono break-all">{token}</code>
         </div>
         
-        {tokenInfo?.contract_address && (
-          <div className="flex flex-col">
-            <span className="text-sm text-gray-500">Contract Address</span>
-            <span className="font-mono text-sm break-all">{tokenInfo.contract_address}</span>
+        {/* Scan Credit Information */}
+        <div className="p-4 bg-gray-50 border border-gray-200 rounded-md">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h3 className="font-semibold flex items-center">
+                {isPro && <Shield className="h-4 w-4 mr-1 text-brand-purple" />}
+                {tier} Plan Scan Credits
+              </h3>
+              <p className="text-sm text-gray-500">Resets daily</p>
+            </div>
+            <p className="text-lg font-bold">{scanCount} / {scanLimit}</p>
+          </div>
+          
+          <div className="w-full bg-gray-200 rounded-full h-2.5">
+            <div 
+              className="bg-brand-purple h-2.5 rounded-full" 
+              style={{ width: `${(scanCount / scanLimit) * 100}%` }}
+            ></div>
+          </div>
+        </div>
+        
+        {/* Warning if almost out of credits */}
+        {scanCount >= scanLimit - 1 && !isPro && (
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-md flex items-start">
+            <AlertTriangle className="h-5 w-5 text-amber-500 mr-2 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-amber-800">Almost out of scans</p>
+              <p className="text-sm text-amber-700">
+                You'll have {scanLimit - scanCount - 1} scan remaining after this one. 
+                <Link to="/subscription" className="text-brand-purple hover:underline ml-1">
+                  Upgrade to Pro for more.
+                </Link>
+              </p>
+            </div>
           </div>
         )}
         
-        <div className="flex flex-col">
-          <span className="text-sm text-gray-500">Network</span>
-          <span className="font-medium">Ethereum Mainnet</span>
+        {/* Scan limit reached */}
+        {!canScan && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-md flex items-start">
+            <AlertTriangle className="h-5 w-5 text-red-500 mr-2 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-red-800">Daily scan limit reached</p>
+              <p className="text-sm text-red-700">
+                You've used all your daily scans. 
+                <Link to="/subscription" className="text-brand-purple hover:underline ml-1">
+                  Upgrade to Pro for more.
+                </Link>
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="text-sm text-gray-500">
+          <p>This will analyze on-chain data for the specified token. Full analysis may take a moment to complete.</p>
         </div>
-      </div>
-      
-      <div className="flex flex-col sm:flex-row gap-3">
-        <Button 
-          variant="outline" 
-          onClick={handleBack} 
-          disabled={isConfirming}
-          className="flex-1 sm:flex-none"
+      </CardContent>
+
+      <CardFooter className="flex flex-col sm:flex-row gap-4">
+        <Button
+          variant="outline"
+          onClick={() => navigate("/")}
+          disabled={isProcessing}
+          className="w-full sm:w-auto"
         >
-          Go Back
+          Cancel
         </Button>
-        <Button 
-          onClick={handleConfirm} 
-          disabled={isConfirming || isLoading}
-          className="flex-1 sm:flex-none"
-        >
-          {isConfirming ? (
-            <>
-              <Loader className="mr-2 h-4 w-4 animate-spin" />
-              Preparing Scan
-            </>
-          ) : (
-            <>
-              Confirm & Continue
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </>
-          )}
-        </Button>
-      </div>
-    </div>
+        
+        {canScan ? (
+          <Button
+            onClick={handleScanStart}
+            disabled={isProcessing}
+            className="w-full sm:w-auto"
+          >
+            {isProcessing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
+              </>
+            ) : (
+              <>Start Scan</>
+            )}
+          </Button>
+        ) : (
+          <Button
+            asChild
+            className="w-full sm:w-auto"
+          >
+            <Link to="/subscription">Upgrade to Pro</Link>
+          </Button>
+        )}
+      </CardFooter>
+    </Card>
   );
 };

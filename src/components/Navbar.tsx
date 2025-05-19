@@ -3,14 +3,19 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import { Crown } from "lucide-react";
 
 export const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const { status } = useSubscription();
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
+
+  const isPro = status.tier === "Pro Monthly" || status.tier === "Pro Annual";
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-sm border-b border-gray-200">
@@ -36,6 +41,13 @@ export const Navbar = () => {
             <>
               <Link to="/dashboard" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
                 Dashboard
+              </Link>
+              <Link 
+                to="/subscription" 
+                className="text-gray-600 hover:text-gray-900 text-sm font-medium flex items-center"
+              >
+                {isPro && <Crown className="h-4 w-4 mr-1 text-amber-500" />}
+                Subscription {isPro && <span className="ml-1 text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full">Pro</span>}
               </Link>
               <Button variant="outline" onClick={() => signOut()}>
                 Sign Out
@@ -102,6 +114,15 @@ export const Navbar = () => {
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Dashboard
+                </Link>
+                <Link
+                  to="/subscription"
+                  className="block text-gray-600 hover:text-gray-900 text-base font-medium flex items-center"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {isPro && <Crown className="h-4 w-4 mr-1 text-amber-500" />}
+                  Subscription
+                  {isPro && <span className="ml-1 text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full">Pro</span>}
                 </Link>
                 <Button 
                   variant="outline" 
