@@ -363,7 +363,7 @@ async function getSocialData(twitterHandle: string) {
           
           // Calculate change
           let change = 0;
-          if (previousCount > 0) {
+          if (previousCount > 0 && previousCount !== followers) {
             change = ((followers - previousCount) / previousCount) * 100;
           }
           
@@ -607,85 +607,6 @@ async function fetchTwitterFollowersWithApify(twitterHandle: string): Promise<nu
   } catch (error) {
     console.error('Error fetching Twitter data from Apify:', error);
     return null;
-  }
-}
-
-async function getGithubActivity(githubRepo: string) {
-  if (!githubRepo) return { githubActivity: "N/A", githubCommits: 0 };
-  
-  try {
-    // Extract owner/repo from URL if it's a full URL
-    let owner = '';
-    let repo = '';
-    
-    if (githubRepo.includes('github.com')) {
-      const url = new URL(githubRepo);
-      const pathParts = url.pathname.split('/').filter(part => part);
-      if (pathParts.length >= 2) {
-        owner = pathParts[0];
-        repo = pathParts[1];
-      }
-    } else {
-      // Assume format is already owner/repo
-      const parts = githubRepo.split('/');
-      if (parts.length >= 2) {
-        owner = parts[0];
-        repo = parts[1];
-      }
-    }
-    
-    if (!owner || !repo) {
-      return { githubActivity: "N/A", githubCommits: 0 };
-    }
-    
-    // Get commits from the last 30 days
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const dateString = thirtyDaysAgo.toISOString().split('T')[0];
-    
-    const url = `https://api.github.com/repos/${owner}/${repo}/commits?since=${dateString}&per_page=100`;
-    console.log(`Fetching GitHub commits from: ${url}`);
-    
-    const headers: HeadersInit = {
-      'Accept': 'application/vnd.github.v3+json'
-    };
-    
-    if (GITHUB_API_KEY) {
-      headers['Authorization'] = `token ${GITHUB_API_KEY}`;
-    }
-    
-    const response = await fetch(url, { headers });
-    
-    if (!response.ok) {
-      console.error(`GitHub API error: ${response.status}`);
-      throw new Error(`GitHub API error: ${response.status}`);
-    }
-    
-    const commits = await response.json();
-    
-    // Count number of commits
-    const commitCount = Array.isArray(commits) ? commits.length : 0;
-    
-    console.log(`GitHub activity: ${commitCount} commits in last 30 days`);
-    
-    // Determine activity level
-    let activityLevel = "N/A";
-    if (commitCount > 50) {
-      activityLevel = "Very Active";
-    } else if (commitCount > 20) {
-      activityLevel = "Active";
-    } else if (commitCount > 5) {
-      activityLevel = "Moderate";
-    } else if (commitCount > 0) {
-      activityLevel = "Low";
-    } else {
-      activityLevel = "Inactive";
-    }
-    
-    return { githubActivity: activityLevel, githubCommits: commitCount };
-  } catch (error) {
-    console.error('Error fetching GitHub activity:', error);
-    return { githubActivity: "N/A", githubCommits: 0 };
   }
 }
 

@@ -234,7 +234,7 @@ export const KeyMetricsGrid = ({
             value={metrics?.socialFollowers || "N/A"} 
             trend={metrics?.socialFollowersChange && metrics.socialFollowersChange > 0 ? "up" : metrics?.socialFollowersChange ? "down" : undefined}
             change={metrics?.socialFollowersChange ? `${Math.abs(metrics.socialFollowersChange).toFixed(1)}%` : undefined}
-            tooltip="Total followers across social platforms" 
+            tooltip="Twitter followers - Data updated every 24h" 
             error={isError}
           />
         )}
