@@ -1,9 +1,8 @@
-
 import { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
-import { Navigate, useParams, useSearchParams } from "react-router-dom";
+import { Navigate, useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,23 +15,63 @@ import { useTokenInfo } from "@/hooks/useTokenInfo";
 import { toast } from "@/components/ui/use-toast";
 import { ShieldCheck, CircleCheck, CircleDot, CircleX, CircleHelp, TrendingUp, FileCode, Users, Calendar } from "lucide-react";
 
+interface TokenMetadata {
+  id: string;
+  name?: string;
+  symbol?: string;
+  logo?: string;
+}
+
 const ScanResult = () => {
   const {
     user,
     isLoading: authLoading
   } = useAuth();
   
+  const navigate = useNavigate();
   const { tokenId } = useParams();
   const [searchParams] = useSearchParams();
+  
   // Get token from URL params - use exactly as provided without normalization
   const tokenFromQuery = searchParams.get("token");
   const token = tokenId || tokenFromQuery || "";
+  
+  // Get any additional metadata passed in query params
+  const tokenNameFromQuery = searchParams.get("name");
+  const tokenSymbolFromQuery = searchParams.get("symbol");
+  const tokenLogoFromQuery = searchParams.get("logo");
+  
+  // Keep track of token metadata from various sources
+  const [tokenMetadata, setTokenMetadata] = useState<TokenMetadata>({
+    id: token,
+    name: tokenNameFromQuery || undefined,
+    symbol: tokenSymbolFromQuery || undefined,
+    logo: tokenLogoFromQuery || undefined
+  });
+  
   const [activeTab, setActiveTab] = useState("overview");
-
+  
   // Log the token being used for this scan
   useEffect(() => {
     console.log(`[ScanResult] Viewing results for token: ${token}`);
-  }, [token]);
+    
+    // Verify we have a token
+    if (!token) {
+      console.warn("[ScanResult] No token ID provided");
+      toast({
+        title: "Missing token",
+        description: "Please select a token to scan",
+        variant: "destructive"
+      });
+      navigate("/");
+      return;
+    }
+    
+    // Update metadata from URL params if available
+    if (tokenNameFromQuery || tokenSymbolFromQuery || tokenLogoFromQuery) {
+      console.log(`[ScanResult] Using metadata from URL: ${tokenNameFromQuery || 'N/A'} (${tokenSymbolFromQuery || 'N/A'})`);
+    }
+  }, [token, tokenNameFromQuery, tokenSymbolFromQuery, tokenLogoFromQuery, navigate]);
 
   // Fetch token info - pass token directly without client-side normalization
   const {
@@ -41,28 +80,42 @@ const ScanResult = () => {
     error: tokenError
   } = useTokenInfo(token);
 
-  // Log what we got back from the API
+  // Update metadata when tokenInfo is loaded
   useEffect(() => {
-    if (tokenInfo) {
+    if (tokenInfo && !tokenLoading) {
       console.log(`[ScanResult] Received token info: ${tokenInfo.name} (${tokenInfo.symbol}) with id: ${tokenInfo.id}`);
+      
+      // Only update fields that aren't already set from URL params
+      setTokenMetadata(prev => ({
+        id: token,
+        name: prev.name || tokenInfo.name,
+        symbol: prev.symbol || tokenInfo.symbol?.toUpperCase(),
+        logo: prev.logo || tokenInfo.image
+      }));
     }
-    if (tokenError) {
+    
+    if (tokenError && !tokenLoading) {
       console.error(`[ScanResult] Token info error:`, tokenError);
+      
+      // Show toast for errors only if we don't have alternative metadata
+      if (!tokenMetadata.name) {
+        toast({
+          title: "Error loading token data",
+          description: "We couldn't fetch information for this token. Please check the token symbol and try again.",
+          variant: "destructive"
+        });
+      }
     }
-  }, [tokenInfo, tokenError]);
-
-  // Show toast for errors
-  if (tokenError && !tokenLoading) {
-    toast({
-      title: "Error loading token data",
-      description: "We couldn't fetch information for this token. Please check the token symbol and try again.",
-      variant: "destructive"
-    });
-  }
+  }, [tokenInfo, tokenError, tokenLoading, tokenMetadata.name, token]);
 
   // Redirect to auth page if not authenticated
   if (!authLoading && !user) {
     return <Navigate to={`/auth?token=${encodeURIComponent(token)}`} />;
+  }
+  
+  // Redirect to home if no token provided
+  if (!token) {
+    return <Navigate to="/" />;
   }
 
   // Function to calculate health score based on actual token metrics
@@ -97,9 +150,9 @@ const ScanResult = () => {
     setActiveTab(value);
   };
 
-  // Display name and symbol information
-  const tokenName = tokenInfo?.name || "Loading...";
-  const tokenSymbol = tokenInfo?.symbol?.toUpperCase() || token.replace(/^\$/, '').toUpperCase();
+  // Display name and symbol information - use best available source
+  const tokenName = tokenMetadata.name || tokenInfo?.name || token.replace(/^\$/, '').toUpperCase();
+  const tokenSymbol = tokenMetadata.symbol || tokenInfo?.symbol?.toUpperCase() || token.replace(/^\$/, '').toUpperCase();
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -119,7 +172,12 @@ const ScanResult = () => {
             </div>
             
             {/* Token Info Card */}
-            <TokenInfoCard token={tokenInfo} isLoading={tokenLoading} error={tokenError as Error} />
+            <TokenInfoCard 
+              token={tokenInfo} 
+              isLoading={tokenLoading} 
+              error={tokenError as Error}
+              tokenMetadata={tokenMetadata}
+            />
             
             {/* Tabs Navigation */}
             <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-6">

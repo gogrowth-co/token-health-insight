@@ -8,16 +8,25 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TokenInfo } from "@/hooks/useTokenInfo";
 import { formatCurrency, formatPercentage, formatDate, withFallback } from "@/lib/utils";
 
+interface TokenMetadata {
+  id: string;
+  name?: string;
+  symbol?: string;
+  logo?: string;
+}
+
 interface TokenInfoCardProps {
   token?: TokenInfo;
   isLoading: boolean;
   error?: Error | null;
+  tokenMetadata?: TokenMetadata;
 }
 
 export const TokenInfoCard = ({
   token,
   isLoading,
-  error
+  error,
+  tokenMetadata
 }: TokenInfoCardProps) => {
   const [copied, setCopied] = useState(false);
   const [showFullDescription, setShowFullDescription] = useState(false);
@@ -44,7 +53,7 @@ export const TokenInfoCard = ({
   };
 
   // If there's an error, display error card
-  if (error) {
+  if (error && !tokenMetadata?.name) {
     return (
       <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
         <CardContent className="p-6">
@@ -57,8 +66,8 @@ export const TokenInfoCard = ({
     );
   }
 
-  // If loading, display skeleton
-  if (isLoading) {
+  // If loading and no metadata, display skeleton
+  if (isLoading && !tokenMetadata?.name) {
     return (
       <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
         <CardContent className="p-6">
@@ -86,8 +95,8 @@ export const TokenInfoCard = ({
     );
   }
 
-  // If no token data, show appropriate message
-  if (!token) {
+  // If no token data and no metadata, show appropriate message
+  if (!token && !tokenMetadata?.name) {
     return (
       <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
         <CardContent className="p-6">
@@ -100,18 +109,23 @@ export const TokenInfoCard = ({
     );
   }
 
+  // Merge token data with metadata, preferring metadata when available
+  const displayName = tokenMetadata?.name || token?.name || "Unknown Token";
+  const displaySymbol = tokenMetadata?.symbol || token?.symbol?.toUpperCase() || "--";
+  const displayImage = tokenMetadata?.logo || token?.image;
+
   // Format social links with fallbacks
-  const website = token.links?.homepage?.[0] || "";
-  const twitter = token.links?.twitter_screen_name || "";
-  const github = token.links?.github || "";
+  const website = token?.links?.homepage?.[0] || "";
+  const twitter = token?.links?.twitter_screen_name || "";
+  const github = token?.links?.github || "";
   
   // Ensure we have a description
-  const description = withFallback(token.description, `${token.name || 'This token'} is a cryptocurrency token${token.symbol ? ` with symbol ${token.symbol?.toUpperCase() || ''}` : ''}.`);
+  const description = withFallback(token?.description, `${displayName || 'This token'} is a cryptocurrency token${displaySymbol ? ` with symbol ${displaySymbol || ''}` : ''}.`);
   
   const summaryDescription = summarizeDescription(description);
   
   // Get launch date with fallback
-  const launchDate = token.genesis_date || token.ath_date;
+  const launchDate = token?.genesis_date || token?.ath_date;
 
   // Format price according to its scale
   const formatTokenPrice = (price?: number) => {
@@ -136,6 +150,8 @@ export const TokenInfoCard = ({
     });
   };
 
+  const contractAddress = token?.contract_address || "";
+
   return (
     <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
       <CardContent className="p-6">
@@ -143,34 +159,34 @@ export const TokenInfoCard = ({
           {/* Token Logo and Basic Info */}
           <div className="flex items-start gap-4">
             <Avatar className="h-16 w-16 rounded-lg border">
-              {token.image ? (
-                <AvatarImage src={token.image} alt={`${token.name} logo`} />
+              {displayImage ? (
+                <AvatarImage src={displayImage} alt={`${displayName} logo`} />
               ) : (
                 <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-xl">
-                  {token.symbol?.substring(0, 2).toUpperCase() || '--'}
+                  {displaySymbol?.substring(0, 2).toUpperCase() || '--'}
                 </AvatarFallback>
               )}
             </Avatar>
             
             <div className="space-y-1">
-              <h3 className="font-semibold text-lg">{token.name || 'Unknown Token'}</h3>
+              <h3 className="font-semibold text-lg">{displayName}</h3>
               <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                <span className="font-medium">${token.symbol?.toUpperCase() || '--'}</span>
-                {token.market_cap_rank && (
+                <span className="font-medium">${displaySymbol}</span>
+                {token?.market_cap_rank && (
                   <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">
                     Rank #{token.market_cap_rank}
                   </span>
                 )}
               </div>
               
-              {token.contract_address && (
+              {contractAddress && (
                 <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                  <span>{truncateAddress(token.contract_address)}</span>
+                  <span>{truncateAddress(contractAddress)}</span>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button 
-                          onClick={() => copyToClipboard(token.contract_address || '')} 
+                          onClick={() => copyToClipboard(contractAddress)} 
                           className="text-gray-400 hover:text-gray-600"
                         >
                           <Copy size={14} />
@@ -284,9 +300,9 @@ export const TokenInfoCard = ({
               {/* Price information (right aligned) */}
               <div className="ml-auto text-right">
                 <div className="text-lg font-semibold">
-                  {formatTokenPrice(token.current_price)}
+                  {formatTokenPrice(token?.current_price)}
                 </div>
-                {token.price_change_percentage_24h !== undefined ? (
+                {token?.price_change_percentage_24h !== undefined ? (
                   <div className={`text-sm ${token.price_change_percentage_24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {formatPercentage(token.price_change_percentage_24h)}
                   </div>

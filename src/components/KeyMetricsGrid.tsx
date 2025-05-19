@@ -14,15 +14,33 @@ import { useTokenMetrics } from "@/hooks/useTokenMetrics";
 import { useEffect, useState } from "react";
 import { toast } from "@/components/ui/use-toast";
 
+interface TokenMetadata {
+  id: string;
+  name?: string;
+  symbol?: string;
+  logo?: string;
+}
+
 interface KeyMetricsGridProps {
   token: TokenInfo | null;
   tokenId: string;
+  tokenMetadata?: TokenMetadata;
   isLoading?: boolean;
 }
 
-export const KeyMetricsGrid = ({ token, tokenId, isLoading = false }: KeyMetricsGridProps) => {
+export const KeyMetricsGrid = ({ 
+  token, 
+  tokenId, 
+  tokenMetadata,
+  isLoading = false 
+}: KeyMetricsGridProps) => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Use the token ID passed in as tokenId prop first, fallback to token.id from API
+  const effectiveTokenId = tokenId || token?.id || '';
+  
+  console.log(`Fetching token metrics for ${effectiveTokenId} (refresh: ${refreshTrigger})`);
   
   const { 
     data: metrics,
@@ -31,7 +49,7 @@ export const KeyMetricsGrid = ({ token, tokenId, isLoading = false }: KeyMetrics
     isError,
     refetch,
     isRefetching
-  } = useTokenMetrics(tokenId, token, refreshTrigger);
+  } = useTokenMetrics(effectiveTokenId, token, refreshTrigger);
 
   // Check if we're loading or have an error
   const showSkeletons = isLoading || metricsLoading;

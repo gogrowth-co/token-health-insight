@@ -7,25 +7,33 @@ import { CryptoTrivia } from "@/components/CryptoTrivia";
 import { X, Loader } from "lucide-react";
 import { useTokenInfo } from "@/hooks/useTokenInfo";
 
-interface ScanLoadingScreenProps {
-  token: string;
+interface TokenMetadata {
+  id: string;
+  name?: string;
+  symbol?: string;
+  logo?: string;
 }
 
-export function ScanLoadingScreen({ token }: ScanLoadingScreenProps) {
+interface ScanLoadingScreenProps {
+  token: string;
+  tokenMetadata?: TokenMetadata;
+}
+
+export function ScanLoadingScreen({ token, tokenMetadata }: ScanLoadingScreenProps) {
   const navigate = useNavigate();
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("Initializing scan");
   
-  // We don't want to modify the token ID from CoinGecko at all
-  // Just pass it directly to the hook to maintain consistency
-  const { data: tokenInfo } = useTokenInfo(token);
+  // Only fetch token info if no metadata was provided
+  const { data: tokenInfo } = !tokenMetadata?.name ? useTokenInfo(token) : { data: undefined };
   
-  console.log(`[ScanLoading] Processing token: ${token}, resolved name: ${tokenInfo?.name || 'Pending...'}`);
+  // Choose best available display data
+  const displayName = tokenMetadata?.name || tokenInfo?.name || "Loading token data...";
+  const displaySymbol = tokenMetadata?.symbol || tokenInfo?.symbol?.toUpperCase();
   
-  const displayName = tokenInfo?.name || token.toUpperCase();
-  const displaySymbol = tokenInfo?.symbol?.toUpperCase();
+  console.log(`[ScanLoading] Processing token: ${token}, resolved name: ${displayName}`);
   
-  // Simulate scanning process
+  // Simulate scanning process with progress steps
   useEffect(() => {
     const steps = [
       { progress: 10, text: "Fetching token data" },
@@ -49,20 +57,36 @@ export function ScanLoadingScreen({ token }: ScanLoadingScreenProps) {
         stepIndex++;
       } else {
         clearInterval(intervalId);
+        
         // Navigate to results page after completing - maintain token ID exactly as is
         console.log(`[ScanLoading] Scan complete, navigating to results with token: ${token}`);
+        
+        // Pass token metadata in URL to ensure consistency
+        const queryParams = new URLSearchParams({
+          token: token
+        });
+        
+        // Add optional metadata if available
+        if (tokenMetadata?.name) queryParams.append('name', tokenMetadata.name);
+        if (tokenMetadata?.symbol) queryParams.append('symbol', tokenMetadata.symbol);
+        if (tokenMetadata?.logo) queryParams.append('logo', tokenMetadata.logo);
+        
+        // Navigate with all params
         setTimeout(() => {
-          navigate(`/scan?token=${encodeURIComponent(token)}`);
+          navigate(`/scan?${queryParams.toString()}`);
         }, 1000);
       }
     }, 2200); // Each step takes ~2.2 seconds
     
     return () => clearInterval(intervalId);
-  }, [token, navigate]);
+  }, [token, navigate, tokenMetadata]);
   
   const handleCancel = () => {
     navigate("/");
   };
+  
+  // Determine if we should show loading state or actual token data
+  const isLoadingToken = displayName === "Loading token data..." || !displayName;
   
   return (
     <div className="flex flex-col max-w-3xl mx-auto">
@@ -77,9 +101,15 @@ export function ScanLoadingScreen({ token }: ScanLoadingScreenProps) {
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-2">
             <Loader className="h-4 w-4 animate-spin text-indigo-600" />
-            <p className="text-lg font-medium">
-              {displayName} {displaySymbol && `(${displaySymbol})`}
-            </p>
+            {isLoadingToken ? (
+              <div className="flex items-center">
+                <div className="h-5 w-32 bg-gray-200 animate-pulse rounded"></div>
+              </div>
+            ) : (
+              <p className="text-lg font-medium">
+                {displayName} {displaySymbol && `(${displaySymbol})`}
+              </p>
+            )}
           </div>
           
           <Progress value={progress} className="h-2 mb-3" />

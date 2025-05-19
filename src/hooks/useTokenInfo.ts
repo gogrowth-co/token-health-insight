@@ -1,3 +1,4 @@
+
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -74,7 +75,7 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
         const tokenInfo: TokenInfo = {
           id: data.id || normalizedToken,
           name: data.name || 'Unknown Token',
-          symbol: data.symbol || '--',
+          symbol: data.symbol || "--",
           description: data.description || `${data.name || 'This token'} is a cryptocurrency token${data.symbol ? ` with symbol ${data.symbol.toUpperCase()}` : ''}.`,
           // Pass through all other data
           ...data
