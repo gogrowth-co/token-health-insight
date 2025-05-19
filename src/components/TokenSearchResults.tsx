@@ -39,6 +39,7 @@ export function TokenSearchResults({ query, isAuthenticated }: TokenSearchResult
         if (token.name) queryParams.append('name', token.name);
         if (token.symbol) queryParams.append('symbol', token.symbol);
         if (token.image) queryParams.append('logo', token.image);
+        if (token.contract_address) queryParams.append('contract_address', token.contract_address);
         
         navigate(`/auth?${queryParams.toString()}`);
         return;
@@ -65,13 +66,15 @@ export function TokenSearchResults({ query, isAuthenticated }: TokenSearchResult
         if (token.image) queryParams.append('logo', token.image);
         if (token.market_cap) queryParams.append('market_cap', token.market_cap.toString());
         if (token.current_price) queryParams.append('price', token.current_price.toString());
+        if (token.contract_address) queryParams.append('contract_address', token.contract_address);
         
         console.log(`[TokenSearch] Navigating to scan with token metadata:`, 
           JSON.stringify({
             id: token.id,
             name: token.name,
             symbol: token.symbol,
-            image: token.image
+            image: token.image,
+            contract_address: token.contract_address
           }));
           
         // Redirect to scan loading page with complete metadata

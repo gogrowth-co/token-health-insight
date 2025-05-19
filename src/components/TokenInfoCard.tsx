@@ -16,6 +16,7 @@ interface TokenMetadata {
   logo?: string;
   marketCap?: string;
   price?: string;
+  contract_address?: string; // Add contract address to metadata
 }
 
 interface TokenInfoCardProps {
@@ -136,6 +137,9 @@ export const TokenInfoCard = ({
   const displayPrice = tokenMetadata?.price ? Number(tokenMetadata.price) : token?.current_price;
   const displayMarketCap = tokenMetadata?.marketCap ? Number(tokenMetadata.marketCap) : token?.market_cap;
 
+  // Get contract address with fallbacks - prioritize metadata from search result
+  const contractAddress = tokenMetadata?.contract_address || token?.contract_address || "";
+
   // Format social links with fallbacks
   const website = token?.links?.homepage?.[0] || "";
   const twitter = token?.links?.twitter_screen_name || "";
@@ -171,9 +175,6 @@ export const TokenInfoCard = ({
       maximumFractionDigits: 2
     });
   };
-
-  // Get contract address with fallbacks
-  const contractAddress = token?.contract_address || "";
   
   // Determine blockchain from contract address or platforms data
   const getBlockchainFromAddress = (): string => {
@@ -181,7 +182,9 @@ export const TokenInfoCard = ({
     
     // Check if we have platforms data
     if (token.platforms && Object.keys(token.platforms).length > 0) {
-      // If the contract address matches Ethereum platform address
+      console.log("Found platforms data:", token.platforms);
+      
+      // Prioritize Ethereum address if available
       if (token.platforms.ethereum && token.platforms.ethereum === contractAddress) {
         return "ETH";
       }
@@ -386,7 +389,7 @@ export const TokenInfoCard = ({
               {/* Price information (right aligned) */}
               <div className="ml-auto text-right">
                 <div className="text-lg font-semibold">
-                  {formatTokenPrice(token?.current_price)}
+                  {formatTokenPrice(displayPrice)}
                 </div>
                 {token?.price_change_percentage_24h !== undefined ? (
                   <div className={`text-sm ${token.price_change_percentage_24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>

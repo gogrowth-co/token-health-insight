@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -23,6 +22,7 @@ interface TokenMetadata {
   logo?: string;
   marketCap?: string;
   price?: string;
+  contract_address?: string;
 }
 
 const ScanResult = () => {
@@ -45,6 +45,7 @@ const ScanResult = () => {
   const tokenLogoFromQuery = searchParams.get("logo");
   const marketCapFromQuery = searchParams.get("market_cap");
   const priceFromQuery = searchParams.get("price");
+  const contractAddressFromQuery = searchParams.get("contract_address");
   
   // Keep track of token metadata from various sources
   const [tokenMetadata, setTokenMetadata] = useState<TokenMetadata>({
@@ -53,7 +54,8 @@ const ScanResult = () => {
     symbol: tokenSymbolFromQuery || undefined,
     logo: tokenLogoFromQuery || undefined,
     marketCap: marketCapFromQuery || undefined,
-    price: priceFromQuery || undefined
+    price: priceFromQuery || undefined,
+    contract_address: contractAddressFromQuery || undefined
   });
   
   const [activeTab, setActiveTab] = useState("overview");
@@ -102,7 +104,8 @@ const ScanResult = () => {
         symbol: prev.symbol || tokenInfo.symbol?.toUpperCase(),
         logo: prev.logo || tokenInfo.image,
         marketCap: prev.marketCap || (tokenInfo.market_cap?.toString() || undefined),
-        price: prev.price || (tokenInfo.current_price?.toString() || undefined)
+        price: prev.price || (tokenInfo.current_price?.toString() || undefined),
+        contract_address: prev.contract_address || tokenInfo.contract_address
       }));
     }
     

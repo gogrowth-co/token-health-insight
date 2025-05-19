@@ -36,7 +36,7 @@ export interface TokenInfo {
   sparkline_7d?: {
     price: number[];
   };
-  platforms?: Record<string, string>; // Added to support multiple chain addresses
+  platforms?: Record<string, string>; // Maps blockchain networks to contract addresses
 }
 
 export const useTokenInfo = (tokenIdentifier?: string | null) => {

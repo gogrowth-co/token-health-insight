@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useSearchParams, Navigate, useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
@@ -23,7 +22,8 @@ export default function ScanLoading() {
     symbol: searchParams.get("symbol") || undefined,
     logo: searchParams.get("logo") || undefined,
     marketCap: searchParams.get("market_cap") || undefined,
-    price: searchParams.get("price") || undefined
+    price: searchParams.get("price") || undefined,
+    contract_address: searchParams.get("contract_address") || undefined
   });
 
   // Log initial state to help debugging
@@ -59,7 +59,8 @@ export default function ScanLoading() {
         symbol: prev.symbol || tokenInfo.symbol?.toUpperCase() || undefined,
         logo: prev.logo || tokenInfo.image || undefined,
         marketCap: prev.marketCap || (tokenInfo.market_cap?.toString() || undefined),
-        price: prev.price || (tokenInfo.current_price?.toString() || undefined)
+        price: prev.price || (tokenInfo.current_price?.toString() || undefined),
+        contract_address: prev.contract_address || tokenInfo.contract_address || undefined
       }));
     }
     
@@ -89,6 +90,7 @@ export default function ScanLoading() {
     if (tokenMetadata.name) authParams.append('name', tokenMetadata.name);
     if (tokenMetadata.symbol) authParams.append('symbol', tokenMetadata.symbol);
     if (tokenMetadata.logo) authParams.append('logo', tokenMetadata.logo);
+    if (tokenMetadata.contract_address) authParams.append('contract_address', tokenMetadata.contract_address);
     
     return <Navigate to={`/auth?${authParams.toString()}`} />;
   }
