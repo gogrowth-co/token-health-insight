@@ -1,12 +1,14 @@
+
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { SecurityMetricsSection } from "@/components/SecurityMetricsSection";
 import { LiquidityMetricsSection } from "@/components/LiquidityMetricsSection";
-import { CategorySection } from "@/components/CategorySection";
+import { TokenomicsMetricsSection } from "@/components/TokenomicsMetricsSection";
+import { CommunityMetricsSection } from "@/components/CommunityMetricsSection";
+import { DevelopmentMetricsSection } from "@/components/DevelopmentMetricsSection";
 import { CategoriesOverview } from "@/components/scan-result/CategoriesOverview";
 import { ProUpgradeCTA } from "@/components/scan-result/ProUpgradeCTA";
 import { TokenInfo } from "@/hooks/useTokenInfo";
 import { TokenMetrics } from "@/hooks/useTokenMetrics";
-import { TrendingUp, CircleDot, Users, FileCode } from "lucide-react";
 import { useRef, useEffect } from "react";
 
 interface TokenMetadataUI {
@@ -84,7 +86,7 @@ export const CategoryTabs = ({
           />
         </TabsContent>
         
-        {/* Liquidity Tab - Now using LiquidityMetricsSection */}
+        {/* Liquidity Tab */}
         <TabsContent value="liquidity">
           <LiquidityMetricsSection
             metrics={tokenMetrics}
@@ -93,53 +95,30 @@ export const CategoryTabs = ({
           />
         </TabsContent>
         
-        {/* Other Tabs */}
+        {/* Tokenomics Tab */}
         <TabsContent value="tokenomics">
-          <CategorySection 
-            title="Tokenomics Analysis" 
-            icon={<CircleDot />} 
-            description="Token supply, distribution, and monetary policy" 
-            score={65} 
-            items={[
-              { name: "TVL", status: tokenMetrics?.tvl || "N/A", tooltip: "Total Value Locked" },
-              { name: "Supply Cap", status: "Coming Soon", tooltip: "Maximum supply cap" },
-              { name: "Token Distribution", status: "Coming Soon", tooltip: "Token distribution across stakeholders" },
-              { name: "Treasury Size", status: "Coming Soon", tooltip: "Project treasury holdings" },
-              { name: "Burn Mechanism", status: "Coming Soon", tooltip: "Token burn mechanism" }
-            ]} 
+          <TokenomicsMetricsSection
+            metrics={tokenMetrics}
+            isLoading={metricsLoading}
+            error={metricsError as Error | null}
           />
         </TabsContent>
         
+        {/* Community Tab */}
         <TabsContent value="community">
-          <CategorySection 
-            title="Community Analysis" 
-            icon={<Users />} 
-            description="Social engagement and growth metrics" 
-            score={85} 
-            items={[
-              { name: "Social Followers", status: "Coming Soon", tooltip: "Total social media followers" },
-              { name: "Verified Account", status: "Coming Soon", tooltip: "Official account verification" },
-              { name: "Growth Rate", status: "Coming Soon", tooltip: "Follower growth rate" },
-              { name: "Active Channels", status: "Coming Soon", tooltip: "Number of active community channels" },
-              { name: "Team Visibility", status: "Coming Soon", tooltip: "Team engagement with community" }
-            ]} 
+          <CommunityMetricsSection
+            metrics={tokenMetrics}
+            isLoading={metricsLoading}
+            error={metricsError as Error | null}
           />
         </TabsContent>
         
+        {/* Development Tab */}
         <TabsContent value="development">
-          <CategorySection 
-            title="Development Analysis" 
-            icon={<FileCode />} 
-            description="Code activity and technical progress" 
-            score={70} 
-            items={[
-              { name: "GitHub Activity", status: "Coming Soon", tooltip: "Code repository activity" },
-              { name: "Last Commit Date", status: "Coming Soon", tooltip: "Most recent code commit" },
-              { name: "Commit Frequency", status: "Coming Soon", tooltip: "Regular code contributions" },
-              { name: "Roadmap Progress", status: "Coming Soon", tooltip: "Development progress on roadmap" },
-              { name: "Contributors Count", status: "Coming Soon", tooltip: "Number of active code contributors" },
-              { name: "Open Source", status: "Coming Soon", tooltip: "Open source status" }
-            ]} 
+          <DevelopmentMetricsSection
+            metrics={tokenMetrics}
+            isLoading={metricsLoading}
+            error={metricsError as Error | null}
           />
         </TabsContent>
       </div>
