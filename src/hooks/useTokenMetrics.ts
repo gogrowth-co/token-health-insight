@@ -47,6 +47,11 @@ export interface TokenMetrics {
   dexDepth?: string;
   dexDepthValue?: number;
   cexListings?: string;
+  
+  // Additional section scores
+  tokenomicsScore?: number;
+  communityScore?: number;
+  developmentScore?: number;
 }
 
 export interface TokenMetadata {

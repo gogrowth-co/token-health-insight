@@ -1,4 +1,3 @@
-
 import { Users, AlertCircle, MessageSquare, TrendingUp, Info } from "lucide-react";
 import { TokenMetrics } from "@/hooks/useTokenMetrics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +18,7 @@ export const CommunityMetricsSection = ({
   error
 }: CommunityMetricsSectionProps) => {
   // Community score calculation
-  const communityScore = metrics?.communityScore || 85;
+  const communityScore = metrics?.communityScore ?? 85;
   
   // Helper function to determine the status icon and color
   const getStatusInfo = (value?: string, type?: string) => {

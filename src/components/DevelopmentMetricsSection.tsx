@@ -1,4 +1,3 @@
-
 import { FileCode, AlertCircle, Github, Calendar, Info, Code, Users } from "lucide-react";
 import { TokenMetrics } from "@/hooks/useTokenMetrics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +18,7 @@ export const DevelopmentMetricsSection = ({
   error
 }: DevelopmentMetricsSectionProps) => {
   // Development score calculation
-  const developmentScore = metrics?.developmentScore || 70;
+  const developmentScore = metrics?.developmentScore ?? 70;
   
   // Helper function to determine the status icon and color
   const getStatusInfo = (value?: string, type?: string) => {

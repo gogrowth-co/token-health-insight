@@ -18,7 +18,7 @@ export const TokenomicsMetricsSection = ({
   error
 }: TokenomicsMetricsSectionProps) => {
   // Tokenomics score calculation
-  const tokenomicsScore = metrics?.tokenomicsScore || 65;
+  const tokenomicsScore = metrics?.tokenomicsScore ?? 65;
   
   // Helper function to determine the status icon and color
   const getStatusInfo = (value?: string, type?: string) => {

@@ -17,6 +17,13 @@ export interface TokenMetrics {
   socialFollowers: string;
   socialFollowersCount: number;
   socialFollowersChange: number;
+  
+  // Section scores
+  securityScore?: number;
+  liquidityScore?: number;
+  tokenomicsScore?: number;
+  communityScore?: number;
+  developmentScore?: number;
 }
 
 export interface TokenMetricsResponse {
