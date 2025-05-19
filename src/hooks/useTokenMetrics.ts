@@ -59,8 +59,8 @@ export const useTokenMetrics = (
       try {
         // Get contract address and social handles from tokenInfo or tokenMetadata if available
         const contractAddress = tokenMetadata?.contract_address || tokenInfo?.contract_address || '';
-        const twitterHandle = tokenMetadata?.twitter || (tokenInfo?.links?.twitter_screen_name || tokenInfo?.twitter || '');
-        const githubRepo = tokenMetadata?.github || (tokenInfo?.links?.github || '');
+        const twitterHandle = tokenMetadata?.twitter || tokenInfo?.links?.twitter_screen_name || tokenInfo?.twitter || '';
+        const githubRepo = tokenMetadata?.github || tokenInfo?.links?.github || '';
         const blockchain = tokenMetadata?.blockchain || tokenInfo?.blockchain || 'eth';
         
         console.log(`Using data for metrics: Contract=${contractAddress}, Twitter=${twitterHandle}, GitHub=${githubRepo}, Blockchain=${blockchain}`);

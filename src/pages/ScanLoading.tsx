@@ -35,7 +35,17 @@ export default function ScanLoading() {
   // Log initial state to help debugging
   useEffect(() => {
     console.log("[ScanLoading] Initial token metadata:", tokenMetadata);
-  }, []);
+    
+    // Log Twitter handle specifically for debugging
+    if (tokenMetadata.twitter) {
+      console.log(`[ScanLoading] Twitter handle from URL: ${tokenMetadata.twitter}`);
+    }
+    
+    // Log GitHub repo specifically for debugging
+    if (tokenMetadata.github) {
+      console.log(`[ScanLoading] GitHub repo from URL: ${tokenMetadata.github}`);
+    }
+  }, [tokenMetadata]);
   
   // Fetch token info regardless of metadata for fallback purposes - force refresh to get latest data
   const { data: tokenInfo, isLoading: tokenInfoLoading, error: tokenInfoError } = useTokenInfo(token, true);
@@ -62,6 +72,8 @@ export default function ScanLoading() {
       console.log("[ScanLoading] Contract address:", tokenInfo.contract_address || "Not available");
       console.log("[ScanLoading] Social links:", tokenInfo.links);
       console.log("[ScanLoading] Description available:", !!tokenInfo.description);
+      console.log("[ScanLoading] Twitter:", tokenInfo.links?.twitter_screen_name || "Not available");
+      console.log("[ScanLoading] GitHub:", tokenInfo.links?.github || "Not available");
       
       // Only update fields that aren't already set from URL params
       setTokenMetadata(prev => ({

@@ -25,6 +25,7 @@ interface TokenMetadata {
   contract_address?: string;
   blockchain?: string;
   twitter?: string;
+  github?: string;
 }
 
 const ScanResult = () => {
@@ -50,6 +51,7 @@ const ScanResult = () => {
   const contractAddressFromQuery = searchParams.get("contract_address");
   const blockchainFromQuery = searchParams.get("blockchain");
   const twitterFromQuery = searchParams.get("twitter");
+  const githubFromQuery = searchParams.get("github");
   
   // Keep track of token metadata from various sources
   const [tokenMetadata, setTokenMetadata] = useState<TokenMetadata>({
@@ -61,7 +63,8 @@ const ScanResult = () => {
     price: priceFromQuery || undefined,
     contract_address: contractAddressFromQuery || undefined,
     blockchain: blockchainFromQuery || undefined,
-    twitter: twitterFromQuery || undefined
+    twitter: twitterFromQuery || undefined,
+    github: githubFromQuery || undefined
   });
   
   const [activeTab, setActiveTab] = useState("overview");
@@ -87,7 +90,15 @@ const ScanResult = () => {
     if (tokenNameFromQuery || tokenSymbolFromQuery || tokenLogoFromQuery) {
       console.log(`[ScanResult] Using metadata from URL: ${tokenNameFromQuery || 'N/A'} (${tokenSymbolFromQuery || 'N/A'})`);
     }
-  }, [token, tokenNameFromQuery, tokenSymbolFromQuery, tokenLogoFromQuery, navigate, tokenMetadata]);
+    
+    if (twitterFromQuery) {
+      console.log(`[ScanResult] Twitter handle from URL: ${twitterFromQuery}`);
+    }
+    
+    if (githubFromQuery) {
+      console.log(`[ScanResult] GitHub repo from URL: ${githubFromQuery}`);
+    }
+  }, [token, tokenNameFromQuery, tokenSymbolFromQuery, tokenLogoFromQuery, navigate, tokenMetadata, twitterFromQuery, githubFromQuery]);
 
   // Fetch token info - pass token directly without client-side normalization
   const {
@@ -116,7 +127,8 @@ const ScanResult = () => {
         contract_address: prev.contract_address || tokenInfo.contract_address,
         blockchain: prev.blockchain || tokenInfo.blockchain,
         // Use either direct twitter property or get it from links.twitter_screen_name
-        twitter: prev.twitter || tokenInfo.twitter || tokenInfo.links?.twitter_screen_name
+        twitter: prev.twitter || tokenInfo.twitter || tokenInfo.links?.twitter_screen_name,
+        github: prev.github || tokenInfo.links?.github
       }));
     }
     
@@ -147,6 +159,8 @@ const ScanResult = () => {
     if (tokenMetadata.logo) authQueryParams.append('logo', tokenMetadata.logo);
     if (tokenMetadata.contract_address) authQueryParams.append('contract_address', tokenMetadata.contract_address);
     if (tokenMetadata.blockchain) authQueryParams.append('blockchain', tokenMetadata.blockchain);
+    if (tokenMetadata.twitter) authQueryParams.append('twitter', tokenMetadata.twitter);
+    if (tokenMetadata.github) authQueryParams.append('github', tokenMetadata.github);
     
     return <Navigate to={`/auth?${authQueryParams.toString()}`} />;
   }
@@ -228,7 +242,7 @@ const ScanResult = () => {
                 logo: tokenMetadata.logo,
                 blockchain: tokenMetadata.blockchain,
                 twitter: tokenMetadata.twitter,
-                github: searchParams.get("github") || undefined,
+                github: tokenMetadata.github,
                 contract_address: tokenMetadata.contract_address
               }}
             />
@@ -266,7 +280,7 @@ const ScanResult = () => {
                     logo: tokenMetadata.logo,
                     blockchain: tokenMetadata.blockchain,
                     twitter: tokenMetadata.twitter,
-                    github: searchParams.get("github") || undefined,
+                    github: tokenMetadata.github,
                     contract_address: tokenMetadata.contract_address
                   }}
                 />
