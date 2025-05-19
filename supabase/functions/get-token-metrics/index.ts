@@ -693,6 +693,119 @@ async function getSecurityInfo(network: string, tokenAddress: string) {
   }
 }
 
+// New function to get DEX depth and liquidity data from GeckoTerminal
+async function getDexLiquidityData(network: string, tokenAddress: string) {
+  if (!tokenAddress) {
+    console.log('No token address provided for DEX liquidity data');
+    return { 
+      dexDepth: "N/A", 
+      dexDepthValue: 0
+    };
+  }
+  
+  try {
+    console.log(`Getting DEX liquidity data for ${tokenAddress} on network ${network}`);
+    
+    // Map network to GeckoTerminal network ID
+    const geckoNetwork = mapNetworkToGeckoTerminal(network);
+    if (!geckoNetwork) {
+      console.log(`Unsupported network for GeckoTerminal: ${network}`);
+      return { 
+        dexDepth: "N/A", 
+        dexDepthValue: 0
+      };
+    }
+    
+    // Fetch pools data from GeckoTerminal API
+    const url = `https://api.geckoterminal.com/api/v2/networks/${geckoNetwork}/tokens/${tokenAddress.toLowerCase()}/pools`;
+    console.log(`Fetching DEX liquidity data from GeckoTerminal: ${url}`);
+    
+    const response = await fetchWithRetry(url, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    }, 3, 1000);
+    
+    if (!response.ok) {
+      console.error(`GeckoTerminal API error: ${response.status}`);
+      return { 
+        dexDepth: "Coming Soon", 
+        dexDepthValue: 0
+      };
+    }
+    
+    const data = await response.json();
+    console.log('GeckoTerminal API response received');
+    
+    if (!data.data || data.data.length === 0) {
+      console.log('No pools found');
+      return { 
+        dexDepth: "Low", 
+        dexDepthValue: 0
+      };
+    }
+    
+    // Calculate total liquidity across all pools
+    let totalLiquidity = 0;
+    
+    for (const pool of data.data) {
+      if (pool.attributes && pool.attributes.reserve_in_usd) {
+        const poolLiquidity = parseFloat(pool.attributes.reserve_in_usd);
+        if (!isNaN(poolLiquidity)) {
+          totalLiquidity += poolLiquidity;
+        }
+      }
+    }
+    
+    console.log(`Total DEX liquidity: $${totalLiquidity.toFixed(2)}`);
+    
+    // Determine depth category
+    let depthCategory = "N/A";
+    
+    if (totalLiquidity >= 500000) {
+      depthCategory = "Good";
+    } else if (totalLiquidity >= 50000) {
+      depthCategory = "Moderate";
+    } else if (totalLiquidity > 0) {
+      depthCategory = "Low";
+    } else {
+      depthCategory = "N/A";
+    }
+    
+    return {
+      dexDepth: depthCategory,
+      dexDepthValue: totalLiquidity
+    };
+  } catch (error) {
+    console.error('Error fetching DEX liquidity data:', error);
+    return { 
+      dexDepth: "Coming Soon", 
+      dexDepthValue: 0
+    };
+  }
+}
+
+// Helper to map network to GeckoTerminal network ID
+function mapNetworkToGeckoTerminal(network: string): string | null {
+  const networkMap: Record<string, string> = {
+    'eth': 'eth', 
+    'ethereum': 'eth',
+    'bsc': 'bsc', 
+    'binance-smart-chain': 'bsc',
+    'polygon': 'polygon', 
+    'polygon-pos': 'polygon',
+    'avalanche': 'avalanche',
+    'arbitrum': 'arbitrum', 
+    'arbitrum-one': 'arbitrum',
+    'optimism': 'optimism', 
+    'optimistic-ethereum': 'optimism',
+    'fantom': 'fantom',
+    'base': 'base'
+  };
+  
+  return networkMap[network.toLowerCase()] || null;
+}
+
 // Main handler
 Deno.serve(async (req) => {
   // Handle CORS
@@ -703,7 +816,7 @@ Deno.serve(async (req) => {
   try {
     // Get token info from request body
     const requestBody = await req.json();
-    const { token, address, twitter, github, sources = {}, includeSecurity = false } = requestBody;
+    const { token, address, twitter, github, sources = {}, includeSecurity = false, includeLiquidity = false } = requestBody;
     
     if (!token) {
       return new Response(
@@ -714,6 +827,7 @@ Deno.serve(async (req) => {
     
     console.log(`Processing metrics for token: ${token}, address: ${address || 'N/A'}, twitter: ${twitter || 'N/A'}, github: ${github || 'N/A'}`);
     console.log(`Data sources: ${JSON.stringify(sources)}`);
+    console.log(`Include: Security=${includeSecurity}, Liquidity=${includeLiquidity}`);
     
     // Create the cache tables if they don't exist
     try {
@@ -779,10 +893,30 @@ Deno.serve(async (req) => {
         fetchPromises.push(getSecurityInfo(network, contractAddress));
       }
       
+      // Only fetch liquidity info if requested
+      if (includeLiquidity && contractAddress) {
+        fetchPromises.push(getDexLiquidityData(network, contractAddress));
+      }
+      
       const results = await Promise.all(fetchPromises);
       
       // Extract results
-      const [tvlData, auditStatus, topHoldersData, liquidityLockInfo, securityInfo] = results;
+      const tvlData = results[0];
+      const auditStatus = results[1];
+      const topHoldersData = results[2];
+      const liquidityLockInfo = results[3];
+      
+      // Extract optional results
+      let securityInfo = undefined;
+      let liquidityInfo = undefined;
+      
+      if (includeSecurity) {
+        securityInfo = results[4];
+      }
+      
+      if (includeLiquidity && contractAddress) {
+        liquidityInfo = includeSecurity ? results[5] : results[4];
+      }
       
       // Construct metrics response
       const metrics: any = {
@@ -826,6 +960,18 @@ Deno.serve(async (req) => {
       if (securityInfo) {
         Object.assign(metrics, securityInfo);
       }
+      
+      // Add DEX liquidity metrics if available
+      if (liquidityInfo) {
+        Object.assign(metrics, liquidityInfo);
+        console.log(`Added DEX depth data: ${metrics.dexDepth}, value: ${metrics.dexDepthValue}`);
+      } else {
+        metrics.dexDepth = "Coming Soon";
+        metrics.dexDepthValue = 0;
+      }
+      
+      // Default CEX listings to "Coming Soon"
+      metrics.cexListings = "Coming Soon";
       
       // Cache the metrics
       try {
@@ -885,7 +1031,10 @@ Deno.serve(async (req) => {
         socialFollowersChange: 0,
         socialFollowersFromCache: false,
         ownershipRenounced: "N/A",
-        freezeAuthority: "N/A"
+        freezeAuthority: "N/A",
+        dexDepth: "Coming Soon",
+        dexDepthValue: 0,
+        cexListings: "Coming Soon"
       };
       
       // Cache the fallback metrics

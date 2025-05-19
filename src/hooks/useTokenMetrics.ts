@@ -1,4 +1,3 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { TokenInfo } from './useTokenInfo';
@@ -42,6 +41,12 @@ export interface TokenMetrics {
   multiSigWallet?: string;
   bugBounty?: string;
   securityScore?: number;
+  
+  // Liquidity metrics
+  liquidityScore?: number;
+  dexDepth?: string;
+  dexDepthValue?: number;
+  cexListings?: string;
 }
 
 export interface TokenMetadata {
@@ -93,13 +98,15 @@ export const useTokenMetrics = (
             forceRefresh: forceRefresh,
             includeHolders: true, // Make sure to request detailed holders data
             includeSecurity: true, // Request security data
+            includeLiquidity: true, // Request liquidity data
             sources: {
               marketCap: 'coingecko',
               tvl: 'coingecko',
               auditStatus: 'etherscan',
               topHolders: 'goplus',
               liquidityLock: 'etherscan',
-              security: 'goplus'
+              security: 'goplus',
+              liquidity: 'geckoterminal'
             }
           }
         });
@@ -208,6 +215,49 @@ export const useTokenMetrics = (
         
         data.metrics.securityScore = securityScore;
         
+        // Set default values for liquidity metrics if they don't exist
+        if (!data.metrics.dexDepth) {
+          data.metrics.dexDepth = "Coming Soon";
+        }
+        
+        if (!data.metrics.cexListings) {
+          data.metrics.cexListings = "Coming Soon";
+        }
+        
+        // Calculate a simple liquidity score based on available metrics
+        let liquidityScore = 65; // Base score
+        
+        // Adjust liquidity score based on market cap
+        if (data.metrics.marketCapValue > 1000000000) { // > $1B
+          liquidityScore += 15;
+        } else if (data.metrics.marketCapValue > 100000000) { // > $100M
+          liquidityScore += 10;
+        } else if (data.metrics.marketCapValue > 10000000) { // > $10M
+          liquidityScore += 5;
+        } else if (data.metrics.marketCapValue < 1000000) { // < $1M
+          liquidityScore -= 10;
+        }
+        
+        // Adjust liquidity score based on liquidity lock
+        if (data.metrics.liquidityLockDays > 180) {
+          liquidityScore += 10;
+        } else if (data.metrics.liquidityLockDays > 30) {
+          liquidityScore += 5;
+        } else if (data.metrics.liquidityLock === "Not Found" || data.metrics.liquidityLock === "Unlocked") {
+          liquidityScore -= 15;
+        }
+        
+        // Adjust liquidity score based on holder distribution
+        if (data.metrics.topHoldersValue > 0) {
+          if (data.metrics.topHoldersValue > 80) {
+            liquidityScore -= 15; // Concentrated holders (risky)
+          } else if (data.metrics.topHoldersValue < 40) {
+            liquidityScore += 10; // Well distributed
+          }
+        }
+        
+        data.metrics.liquidityScore = liquidityScore;
+        
         return data.metrics as TokenMetrics;
       } catch (error) {
         console.error('Exception fetching token metrics:', error);
@@ -239,6 +289,9 @@ export const useTokenMetrics = (
             multiSigWallet: 'Coming Soon',
             bugBounty: 'Coming Soon',
             securityScore: 50,
+            liquidityScore: 65,
+            dexDepth: 'Coming Soon',
+            cexListings: 'Coming Soon',
             topHolders: []
           };
           

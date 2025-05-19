@@ -1,5 +1,6 @@
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { SecurityMetricsSection } from "@/components/SecurityMetricsSection";
+import { LiquidityMetricsSection } from "@/components/LiquidityMetricsSection";
 import { CategorySection } from "@/components/CategorySection";
 import { CategoriesOverview } from "@/components/scan-result/CategoriesOverview";
 import { ProUpgradeCTA } from "@/components/scan-result/ProUpgradeCTA";
@@ -83,23 +84,16 @@ export const CategoryTabs = ({
           />
         </TabsContent>
         
-        {/* Other Tabs */}
+        {/* Liquidity Tab - Now using LiquidityMetricsSection */}
         <TabsContent value="liquidity">
-          <CategorySection 
-            title="Liquidity Analysis" 
-            icon={<TrendingUp />} 
-            description="Assessment of market depth, trading volume, and holder distribution" 
-            score={82} 
-            items={[
-              { name: "Liquidity Lock", status: tokenMetrics?.liquidityLock || "N/A", tooltip: "LP tokens lock status" },
-              { name: "Market Cap", status: tokenMetrics?.marketCap || "N/A", tooltip: "Total market capitalization" },
-              { name: "CEX Listings", status: "Coming Soon", tooltip: "Listed on centralized exchanges" },
-              { name: "DEX Depth", status: "Coming Soon", tooltip: "Liquidity depth on decentralized exchanges" },
-              { name: "Holder Distribution", status: tokenMetrics?.topHoldersPercentage || "N/A", tooltip: "Top holders percentage" }
-            ]} 
+          <LiquidityMetricsSection
+            metrics={tokenMetrics}
+            isLoading={metricsLoading}
+            error={metricsError as Error | null}
           />
         </TabsContent>
         
+        {/* Other Tabs */}
         <TabsContent value="tokenomics">
           <CategorySection 
             title="Tokenomics Analysis" 
