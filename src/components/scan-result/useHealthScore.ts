@@ -61,6 +61,12 @@ export function useHealthScore(tokenMetrics?: TokenMetrics, tokenInfo?: TokenInf
       } else if (tokenMetrics.freezeAuthority === "Yes") {
         score -= 5;
       }
+      
+      // If the security score is available, use it to adjust the overall score
+      if (tokenMetrics.securityScore !== undefined) {
+        // Weight the security score as 30% of the total
+        score = Math.round(score * 0.7 + tokenMetrics.securityScore * 0.3);
+      }
     }
     
     // Use token info as fallback or additional data
@@ -82,6 +88,20 @@ export function useHealthScore(tokenMetrics?: TokenMetrics, tokenInfo?: TokenInf
         if (tokenInfo.links.github) score += 3;
       }
     }
+    
+    // Log the calculated score for debugging
+    console.log("Health Score Calculation:", { 
+      baseScore: 65,
+      marketCapValue: tokenMetrics?.marketCapValue,
+      tvlValue: tokenMetrics?.tvlValue,
+      auditStatus: tokenMetrics?.auditStatus,
+      liquidityLockDays: tokenMetrics?.liquidityLockDays,
+      topHoldersValue: tokenMetrics?.topHoldersValue,
+      ownershipRenounced: tokenMetrics?.ownershipRenounced,
+      freezeAuthority: tokenMetrics?.freezeAuthority,
+      securityScore: tokenMetrics?.securityScore,
+      finalScore: Math.max(0, Math.min(100, score))
+    });
     
     // Cap score between 0-100
     return Math.max(0, Math.min(100, score));
