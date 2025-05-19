@@ -39,7 +39,7 @@ export interface TokenInfo {
 }
 
 export const useTokenInfo = (tokenIdentifier?: string | null) => {
-  const normalizedToken = tokenIdentifier?.replace(/^\$/, '').toLowerCase() || '';
+  const normalizedToken = tokenIdentifier?.replace(/^\$/, '').toLowerCase().trim() || '';
 
   return useQuery({
     queryKey: ['tokenInfo', normalizedToken],
@@ -64,8 +64,18 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
           console.error('No data returned from token info endpoint');
           throw new Error('No data returned from token info endpoint');
         }
-
-        return data as TokenInfo;
+        
+        // Ensure we have default values for critical fields
+        const tokenInfo: TokenInfo = {
+          id: data.id || '',
+          name: data.name || 'Unknown Token',
+          symbol: data.symbol || '--',
+          description: data.description || `${data.name || 'This token'} is a cryptocurrency token${data.symbol ? ` with symbol ${data.symbol.toUpperCase()}` : ''}.`,
+          // Pass through all other data
+          ...data
+        };
+        
+        return tokenInfo;
       } catch (error) {
         console.error('Exception fetching token info:', error);
         throw error;

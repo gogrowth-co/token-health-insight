@@ -6,7 +6,7 @@ import { Globe, Twitter, Github, Copy, ExternalLink, Info, ChevronDown, ChevronU
 import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenInfo } from "@/hooks/useTokenInfo";
-import { formatCurrency, formatPercentage, formatDate } from "@/lib/utils";
+import { formatCurrency, formatPercentage, formatDate, withFallback } from "@/lib/utils";
 
 interface TokenInfoCardProps {
   token?: TokenInfo;
@@ -34,7 +34,9 @@ export const TokenInfoCard = ({
   };
 
   // Truncate description to approximately 300 words
-  const summarizeDescription = (desc: string) => {
+  const summarizeDescription = (desc: string = '') => {
+    if (!desc) return '';
+    
     const words = desc.split(/\s+/);
     if (words.length <= 300) return desc;
     
@@ -84,7 +86,7 @@ export const TokenInfoCard = ({
     );
   }
 
-  // If no token data
+  // If no token data, show appropriate message
   if (!token) {
     return (
       <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
@@ -98,15 +100,41 @@ export const TokenInfoCard = ({
     );
   }
 
-  // Format social links
+  // Format social links with fallbacks
   const website = token.links?.homepage?.[0] || "";
   const twitter = token.links?.twitter_screen_name || "";
   const github = token.links?.github || "";
-  const description = token.description || `${token.name} is a cryptocurrency token with symbol ${token.symbol?.toUpperCase() || ''}`;
+  
+  // Ensure we have a description
+  const description = withFallback(token.description, `${token.name || 'This token'} is a cryptocurrency token${token.symbol ? ` with symbol ${token.symbol?.toUpperCase() || ''}` : ''}.`);
+  
   const summaryDescription = summarizeDescription(description);
   
-  // Get launch date
-  const launchDate = token.genesis_date || token.ath_date; // Fallback to ATH date if genesis date is missing
+  // Get launch date with fallback
+  const launchDate = token.genesis_date || token.ath_date;
+
+  // Format price according to its scale
+  const formatTokenPrice = (price?: number) => {
+    if (price === undefined || price === null) return "N/A";
+    
+    if (price === 0) return "$0.00";
+    
+    // For very small values
+    if (price < 0.00001) {
+      return `$${price.toExponential(2)}`;
+    }
+    
+    // For small values
+    if (price < 0.01) {
+      return `$${price.toFixed(6)}`;
+    }
+    
+    // For regular values
+    return formatCurrency(price, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
 
   return (
     <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
@@ -172,7 +200,7 @@ export const TokenInfoCard = ({
                 {showFullDescription ? description : summaryDescription}
               </p>
               
-              {description.length > summaryDescription.length && (
+              {description && summaryDescription !== description && description.length > summaryDescription.length && (
                 <button 
                   onClick={() => setShowFullDescription(!showFullDescription)} 
                   className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center mt-1"
@@ -256,11 +284,7 @@ export const TokenInfoCard = ({
               {/* Price information (right aligned) */}
               <div className="ml-auto text-right">
                 <div className="text-lg font-semibold">
-                  {token.current_price !== undefined 
-                    ? token.current_price < 0.01 
-                      ? `$${token.current_price.toExponential(2)}`
-                      : `$${token.current_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
-                    : "N/A"}
+                  {formatTokenPrice(token.current_price)}
                 </div>
                 {token.price_change_percentage_24h !== undefined ? (
                   <div className={`text-sm ${token.price_change_percentage_24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>

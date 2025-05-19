@@ -12,7 +12,7 @@ interface TokenData {
   id: string;
   symbol: string;
   name: string;
-  image: string;
+  image?: string;
   description?: string;
   market_cap?: number;
   market_cap_rank?: number;
@@ -31,6 +31,7 @@ interface TokenData {
   atl?: number;
   atl_change_percentage?: number;
   atl_date?: string;
+  genesis_date?: string; // Launch date of the token
   last_updated?: string;
   links?: {
     homepage?: string[];
@@ -60,7 +61,9 @@ const MAJOR_TOKENS = {
   "avax": "avalanche-2",
   "link": "chainlink",
   "shib": "shiba-inu",
-  "ltc": "litecoin"
+  "ltc": "litecoin",
+  "ethereum": "ethereum", // Add full names for common tokens
+  "bitcoin": "bitcoin"
 };
 
 // Create a Supabase client
@@ -104,8 +107,8 @@ Deno.serve(async (req) => {
     }
 
     // Normalize token input: remove $ prefix, convert to lowercase
-    token = token.replace(/^\$/, '').toLowerCase();
-    console.log("Processing token:", token);
+    token = token.replace(/^\$/, '').toLowerCase().trim();
+    console.log("Processing normalized token:", token);
 
     // Check if we have cached token data
     const { data: cachedData, error: cacheError } = await supabase
@@ -117,8 +120,12 @@ Deno.serve(async (req) => {
     // If we have valid cached data that's not expired, return it
     if (cachedData && !cacheError && new Date(cachedData.expires_at) > new Date()) {
       console.log(`Cache hit for token: ${token}`);
+      
+      // Ensure all required fields have fallbacks before returning
+      const data = ensureRequiredFields(cachedData.data);
+      
       return new Response(
-        JSON.stringify(cachedData.data),
+        JSON.stringify(data),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -144,14 +151,14 @@ Deno.serve(async (req) => {
     
     const coinList: CoinGeckoListItem[] = await coinListResponse.json();
     
-    // Find matches by symbol (case insensitive)
+    // Find matches by symbol (case insensitive) or exact id match
     const symbolMatches = coinList.filter(coin => 
-      coin.symbol.toLowerCase() === token
+      coin.symbol.toLowerCase() === token || coin.id.toLowerCase() === token
     );
     
     // If no exact symbol matches, try to search by name or ID
     if (symbolMatches.length === 0) {
-      console.log(`No exact symbol matches for: ${token}, trying search API`);
+      console.log(`No exact symbol/id matches for: ${token}, trying search API`);
       return await trySearchFallback(token);
     }
 
@@ -182,12 +189,44 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error("Error processing request:", error.message);
+    
+    // Create a basic response with required fields when there's an error
+    const fallbackResponse: TokenData = {
+      id: "",
+      symbol: "",
+      name: "Unknown Token",
+      description: "Token information unavailable. Please try again later."
+    };
+    
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      JSON.stringify(fallbackResponse),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });
+
+// Ensure all required fields have fallbacks
+function ensureRequiredFields(data: TokenData): TokenData {
+  if (!data) return createFallbackToken();
+  
+  // Ensure basic fields have fallbacks
+  return {
+    ...data,
+    name: data.name || "Unknown Token",
+    symbol: data.symbol || "--",
+    description: data.description || `${data.name || "Unknown token"} is a cryptocurrency token ${data.symbol ? `with symbol ${data.symbol.toUpperCase()}` : ''}`
+  };
+}
+
+// Create a fallback token with all required fields
+function createFallbackToken(): TokenData {
+  return {
+    id: "",
+    symbol: "--",
+    name: "Unknown Token",
+    description: "Token information unavailable. Please try again later."
+  };
+}
 
 // Fallback to search API if we don't find an exact match
 async function trySearchFallback(token: string): Promise<Response> {
@@ -200,7 +239,7 @@ async function trySearchFallback(token: string): Promise<Response> {
     if (!searchResponse.ok) {
       console.error("Search API failed:", searchResponse.status);
       return new Response(
-        JSON.stringify({ error: 'Search API failed', status: searchResponse.status }),
+        JSON.stringify(ensureRequiredFields({ id: token, name: "Unknown Token", symbol: token })),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 }
       );
     }
@@ -220,15 +259,18 @@ async function trySearchFallback(token: string): Promise<Response> {
       return await fetchAndCacheTokenData(sortedResults[0].id, token);
     }
     
-    // If no coins found, return an error
+    // If no coins found, return a graceful fallback
+    console.log(`No search results found for token: ${token}`);
     return new Response(
-      JSON.stringify({ error: `Token not found: ${token}`, suggestions: searchResults.coins?.slice(0, 5) }),
+      JSON.stringify(ensureRequiredFields({ id: token, name: "Unknown Token", symbol: token })),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
     );
   } catch (error) {
     console.error("Error in search fallback:", error);
+    
+    // Return a graceful fallback with all required fields
     return new Response(
-      JSON.stringify({ error: 'Search fallback failed', details: error.message }),
+      JSON.stringify(createFallbackToken()),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
@@ -251,17 +293,28 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
       const simplePriceResponse = await fetch(simplePriceUrl);
       
       if (!simplePriceResponse.ok) {
+        console.log(`Simple price API also failed for token: ${originalToken}`);
         return new Response(
-          JSON.stringify({ error: `Failed to fetch data for token: ${originalToken}` }),
+          JSON.stringify(ensureRequiredFields({ 
+            id: coinId, 
+            symbol: originalToken,
+            name: coinId.charAt(0).toUpperCase() + coinId.slice(1).replace(/-/g, ' ')
+          })),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 }
         );
       }
 
       const simplePriceData = await simplePriceResponse.json();
+      console.log(`Simple price data for ${coinId}:`, simplePriceData[coinId]);
+      
+      const coinName = coinId.charAt(0).toUpperCase() + coinId.slice(1).replace(/-/g, ' ');
+      const symbol = originalToken.toUpperCase();
+      
       const tokenData = {
         id: coinId,
         symbol: originalToken,
-        name: coinId,  // Not ideal, but it's what we have
+        name: coinName,
+        description: `${coinName} is a cryptocurrency token with symbol ${symbol}.`,
         current_price: simplePriceData[coinId]?.usd,
         market_cap: simplePriceData[coinId]?.usd_market_cap,
         price_change_percentage_24h: simplePriceData[coinId]?.usd_24h_change,
@@ -281,19 +334,25 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
         .eq('token_id', originalToken);
 
       return new Response(
-        JSON.stringify(tokenData),
+        JSON.stringify(ensureRequiredFields(tokenData)),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Process and transform the full market data
     const fullData = await marketResponse.json();
+    const tokenName = fullData.name || coinId.charAt(0).toUpperCase() + coinId.slice(1).replace(/-/g, ' ');
+    const tokenSymbol = fullData.symbol || originalToken;
+    
+    // Create a default description if none exists
+    const tokenDescription = fullData.description?.en || `${tokenName} is a cryptocurrency token with symbol ${tokenSymbol?.toUpperCase() || ''}.`;
+    
     const tokenData: TokenData = {
       id: fullData.id,
-      symbol: fullData.symbol,
-      name: fullData.name,
+      symbol: tokenSymbol,
+      name: tokenName,
       image: fullData.image?.large || fullData.image?.small || fullData.image?.thumb,
-      description: fullData.description?.en,
+      description: tokenDescription,
       market_cap: fullData.market_data?.market_cap?.usd,
       market_cap_rank: fullData.market_cap_rank,
       current_price: fullData.market_data?.current_price?.usd,
@@ -306,6 +365,13 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
       total_supply: fullData.market_data?.total_supply,
       max_supply: fullData.market_data?.max_supply,
       last_updated: fullData.last_updated,
+      genesis_date: fullData.genesis_date,
+      ath: fullData.market_data?.ath?.usd,
+      ath_change_percentage: fullData.market_data?.ath_change_percentage?.usd,
+      ath_date: fullData.market_data?.ath_date?.usd,
+      atl: fullData.market_data?.atl?.usd,
+      atl_change_percentage: fullData.market_data?.atl_change_percentage?.usd,
+      atl_date: fullData.market_data?.atl_date?.usd,
       sparkline_7d: fullData.market_data?.sparkline_7d,
       links: {
         homepage: fullData.links?.homepage,
@@ -315,6 +381,8 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
       contract_address: fullData.contract_address
     };
 
+    console.log(`Successfully fetched full data for ${coinId} (${tokenName})`);
+    
     // Cache the data for 1 minute
     const expiresAt = new Date(Date.now() + 60 * 1000).toISOString();
     await supabase
@@ -345,13 +413,15 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
     }
 
     return new Response(
-      JSON.stringify(tokenData),
+      JSON.stringify(ensureRequiredFields(tokenData)),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
     console.error("Error fetching token data:", error);
+    
+    // Return a graceful fallback response
     return new Response(
-      JSON.stringify({ error: 'Failed to fetch and process token data', details: error.message }),
+      JSON.stringify(createFallbackToken()),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }

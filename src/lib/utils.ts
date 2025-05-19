@@ -11,6 +11,11 @@ export function formatCurrency(value: number | undefined | null, options: Intl.N
     return 'N/A';
   }
   
+  // Handle very small values with scientific notation
+  if (value > 0 && value < 0.000001) {
+    return value.toExponential(2);
+  }
+  
   const defaultOptions: Intl.NumberFormatOptions = {
     style: 'currency',
     currency: 'USD',
@@ -27,6 +32,13 @@ export function formatCurrency(value: number | undefined | null, options: Intl.N
       notation: 'compact',
       compactDisplay: 'short',
     }).format(value);
+  }
+  
+  // For values less than 1, show more decimal places
+  if (value < 1 && value > 0 && !options.maximumFractionDigits) {
+    const decimals = value < 0.01 ? 6 : value < 0.1 ? 4 : 2;
+    mergedOptions.maximumFractionDigits = decimals;
+    mergedOptions.minimumFractionDigits = decimals;
   }
   
   return new Intl.NumberFormat('en-US', mergedOptions).format(value);
@@ -67,6 +79,9 @@ export function formatDate(dateString: string | undefined | null): string {
   
   try {
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return 'N/A';
+    }
     return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
       month: 'short',
@@ -76,4 +91,17 @@ export function formatDate(dateString: string | undefined | null): string {
     console.error('Error formatting date:', error);
     return 'N/A';
   }
+}
+
+// Check if a value is truly empty (null, undefined, empty string or NaN)
+export function isEmpty(value: any): boolean {
+  return value === null || 
+         value === undefined || 
+         value === '' || 
+         (typeof value === 'number' && isNaN(value));
+}
+
+// Create a descriptor for a value with a fallback
+export function withFallback<T>(value: T | null | undefined, fallback: T): T {
+  return isEmpty(value) ? fallback : value as T;
 }
