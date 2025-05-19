@@ -1,3 +1,4 @@
+
 import { CircleDot, AlertCircle, DollarSign, BarChart, Infinity, PieChart, TrendingUp } from "lucide-react";
 import { TokenMetrics } from "@/hooks/useTokenMetrics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -148,8 +149,8 @@ export const TokenomicsMetricsSection = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "tvl").color}`}>
-                    Coming Soon
+                  <Badge className={`${getStatusInfo(metrics?.tvl, "tvl").color}`}>
+                    {metrics?.tvl || "N/A"}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
