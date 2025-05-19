@@ -22,7 +22,7 @@ export const SecurityMetricsSection = ({
   
   // Helper function to determine the security status icon and color
   const getSecurityStatus = (value?: string) => {
-    if (!value || value === "N/A") {
+    if (!value || value === "N/A" || value === "Unknown") {
       return { icon: <Shield className="h-5 w-5 text-gray-400" />, color: "text-gray-400 bg-gray-100" };
     }
     
@@ -107,6 +107,11 @@ export const SecurityMetricsSection = ({
             <Badge className={`${getSecurityStatus(metrics?.ownershipRenounced).color}`}>
               {metrics?.ownershipRenounced || "N/A"}
             </Badge>
+            {metrics?.ownershipRenounced === "Unknown" && (
+              <p className="text-xs mt-2 text-gray-500">
+                Cannot verify ownership status due to closed source contract.
+              </p>
+            )}
           </CardContent>
         </Card>
         

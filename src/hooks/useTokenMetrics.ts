@@ -142,6 +142,38 @@ export const useTokenMetrics = (
         data.metrics.socialFollowersCount = 0;
         data.metrics.socialFollowersChange = 0;
         
+        // Process ownership renounced status from security data
+        if (data.securityData && contractAddress) {
+          console.log("Processing security data for ownership renounced status:", data.securityData);
+          
+          // Handle ownership renounced status
+          if (data.securityData.is_open_source === false) {
+            // If code isn't open source, we can't verify ownership status reliably
+            data.metrics.ownershipRenounced = "Unknown";
+          } else {
+            // Check if owner_address is null or empty, which often indicates renounced ownership
+            if (!data.securityData.owner_address || 
+                data.securityData.owner_address === "0x0000000000000000000000000000000000000000" || 
+                data.securityData.owner_type === "no_owner") {
+              data.metrics.ownershipRenounced = "Yes";
+            } else {
+              data.metrics.ownershipRenounced = "No";
+            }
+          }
+          
+          // Handle freeze authority
+          if (data.securityData.can_take_back_ownership || 
+              data.securityData.has_mint_function || 
+              data.securityData.has_blacklist) {
+            data.metrics.freezeAuthority = "Yes";
+          } else {
+            data.metrics.freezeAuthority = "No";
+          }
+        } else {
+          data.metrics.ownershipRenounced = "N/A";
+          data.metrics.freezeAuthority = "N/A";
+        }
+        
         // Set default values for security metrics that are not yet implemented
         data.metrics.codeAudit = "Coming Soon";
         data.metrics.multiSigWallet = "Coming Soon";
