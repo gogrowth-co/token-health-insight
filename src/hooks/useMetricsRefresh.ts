@@ -1,11 +1,9 @@
 
 import { useState } from "react";
-import { UseQueryResult } from "@tanstack/react-query";
 import { toast } from "@/components/ui/use-toast";
-import { TokenMetrics } from "./useTokenMetrics";
 
 export function useMetricsRefresh(
-  refetch: () => Promise<UseQueryResult<TokenMetrics, Error>>,
+  refetch: () => Promise<void>,
   setRefreshTrigger: React.Dispatch<React.SetStateAction<number>>
 ) {
   const [isRefreshing, setIsRefreshing] = useState(false);

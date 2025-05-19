@@ -49,6 +49,9 @@ export const KeyMetricsGrid = ({
     github: tokenMetadata?.github
   };
   
+  // Initialize forceRefresh state variable before using it
+  const [forceRefresh, setForceRefresh] = useState(false);
+  
   const { 
     data: metrics,
     isLoading: metricsLoading,
@@ -65,7 +68,10 @@ export const KeyMetricsGrid = ({
   );
 
   // Use our custom hook for refresh functionality
-  const { isRefreshing, forceRefresh, handleRefresh, setForceRefresh } = useMetricsRefresh(refetch, setRefreshTrigger);
+  const { isRefreshing, handleRefresh } = useMetricsRefresh(
+    () => refetch().then(() => {}), // Convert refetch to return Promise<void>
+    setRefreshTrigger
+  );
 
   // Check if we're loading or have an error
   const showSkeletons = isLoading || metricsLoading;
@@ -80,6 +86,11 @@ export const KeyMetricsGrid = ({
     }
   }, [isError, metricsError]);
 
+  // Properly type the refetch function to match what MetricsGrid expects
+  const handleRefetchWrapper = async () => {
+    await refetch();
+  };
+
   return (
     <MetricsGrid
       metrics={metrics}
@@ -89,7 +100,7 @@ export const KeyMetricsGrid = ({
       metricsError={metricsError as Error | null}
       isRefreshing={isRefreshing || isRefetching}
       handleRefresh={handleRefresh}
-      refetch={refetch}
+      refetch={handleRefetchWrapper}
     />
   );
 };

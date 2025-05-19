@@ -1,4 +1,3 @@
-
 import { useEffect } from "react";
 import { Info, Clock } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
@@ -73,7 +72,7 @@ export const MetricsGrid = ({
       </div>
 
       {isError && (
-        <ErrorState connectionError={connectionError} onRetry={() => refetch()} />
+        <ErrorState connectionError={connectionError} onRetry={refetch} />
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
