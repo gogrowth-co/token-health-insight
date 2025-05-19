@@ -248,7 +248,8 @@ async function getTopHoldersData(network: string, tokenAddress: string) {
         return {
           topHoldersPercentage: cachedData.percentage,
           topHoldersValue: cachedData.value,
-          topHoldersTrend: cachedData.trend
+          topHoldersTrend: cachedData.trend,
+          fromCache: true
         };
       } else {
         console.log(`Cache expired for holders data: ${tokenAddress}`);
