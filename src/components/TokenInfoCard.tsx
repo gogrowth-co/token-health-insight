@@ -6,6 +6,7 @@ import { Globe, Twitter, Github, Copy, ExternalLink, Info, ChevronDown, ChevronU
 import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenInfo } from "@/hooks/useTokenInfo";
+import { formatCurrency, formatPercentage, formatDate } from "@/lib/utils";
 
 interface TokenInfoCardProps {
   token?: TokenInfo;
@@ -103,6 +104,9 @@ export const TokenInfoCard = ({
   const github = token.links?.github || "";
   const description = token.description || `${token.name} is a cryptocurrency token with symbol ${token.symbol?.toUpperCase() || ''}`;
   const summaryDescription = summarizeDescription(description);
+  
+  // Get launch date
+  const launchDate = token.genesis_date || token.ath_date; // Fallback to ATH date if genesis date is missing
 
   return (
     <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
@@ -121,7 +125,7 @@ export const TokenInfoCard = ({
             </Avatar>
             
             <div className="space-y-1">
-              <h3 className="font-semibold text-lg">{token.name}</h3>
+              <h3 className="font-semibold text-lg">{token.name || 'Unknown Token'}</h3>
               <div className="flex items-center gap-1.5 text-sm text-gray-500">
                 <span className="font-medium">${token.symbol?.toUpperCase() || '--'}</span>
                 {token.market_cap_rank && (
@@ -149,6 +153,13 @@ export const TokenInfoCard = ({
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
+                </div>
+              )}
+              
+              {/* Display launch date if available */}
+              {launchDate && (
+                <div className="text-xs text-gray-500">
+                  Launch: {formatDate(launchDate)}
                 </div>
               )}
             </div>
@@ -242,18 +253,23 @@ export const TokenInfoCard = ({
                 </TooltipProvider>
               )}
 
-              {token.current_price && (
-                <div className="ml-auto text-right">
-                  <div className="text-lg font-semibold">
-                    ${token.current_price.toLocaleString()}
-                  </div>
-                  {token.price_change_percentage_24h && (
-                    <div className={`text-sm ${token.price_change_percentage_24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {token.price_change_percentage_24h >= 0 ? '+' : ''}{token.price_change_percentage_24h.toFixed(2)}%
-                    </div>
-                  )}
+              {/* Price information (right aligned) */}
+              <div className="ml-auto text-right">
+                <div className="text-lg font-semibold">
+                  {token.current_price !== undefined 
+                    ? token.current_price < 0.01 
+                      ? `$${token.current_price.toExponential(2)}`
+                      : `$${token.current_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+                    : "N/A"}
                 </div>
-              )}
+                {token.price_change_percentage_24h !== undefined ? (
+                  <div className={`text-sm ${token.price_change_percentage_24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatPercentage(token.price_change_percentage_24h)}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-400">N/A</div>
+                )}
+              </div>
             </div>
           </div>
         </div>

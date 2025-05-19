@@ -25,6 +25,7 @@ export interface TokenInfo {
   atl?: number;
   atl_change_percentage?: number;
   atl_date?: string;
+  genesis_date?: string; // Launch date of the token
   last_updated?: string;
   links?: {
     homepage?: string[];
@@ -47,19 +48,32 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
         throw new Error('Token identifier is required');
       }
 
-      const { data, error } = await supabase.functions.invoke('get-token-info', {
-        body: { token: normalizedToken }
-      });
+      console.log(`Fetching token info for: ${normalizedToken}`);
 
-      if (error) {
-        console.error('Error fetching token info:', error);
-        throw new Error(`Failed to fetch token info: ${error.message}`);
+      try {
+        const { data, error } = await supabase.functions.invoke('get-token-info', {
+          body: { token: normalizedToken }
+        });
+
+        if (error) {
+          console.error('Error fetching token info:', error);
+          throw new Error(`Failed to fetch token info: ${error.message}`);
+        }
+
+        if (!data) {
+          console.error('No data returned from token info endpoint');
+          throw new Error('No data returned from token info endpoint');
+        }
+
+        return data as TokenInfo;
+      } catch (error) {
+        console.error('Exception fetching token info:', error);
+        throw error;
       }
-
-      return data as TokenInfo;
     },
     enabled: !!normalizedToken,
     staleTime: 60 * 1000, // 1 minute
     gcTime: 5 * 60 * 1000, // 5 minutes - renamed from cacheTime to gcTime in React Query v5
+    retry: 2, // Retry up to 2 times on failure
   });
 };

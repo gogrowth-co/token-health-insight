@@ -31,3 +31,49 @@ export function formatCurrency(value: number | undefined | null, options: Intl.N
   
   return new Intl.NumberFormat('en-US', mergedOptions).format(value);
 }
+
+export function formatPercentage(value: number | undefined | null, minimumFractionDigits: number = 2): string {
+  if (value === undefined || value === null) {
+    return 'N/A';
+  }
+  
+  return new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    minimumFractionDigits: minimumFractionDigits,
+    maximumFractionDigits: minimumFractionDigits,
+    signDisplay: 'exceptZero',
+  }).format(value / 100);
+}
+
+export function formatNumber(value: number | undefined | null, options: Intl.NumberFormatOptions = {}): string {
+  if (value === undefined || value === null) {
+    return 'N/A';
+  }
+  
+  const defaultOptions: Intl.NumberFormatOptions = {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  };
+  
+  const mergedOptions = { ...defaultOptions, ...options };
+  
+  return new Intl.NumberFormat('en-US', mergedOptions).format(value);
+}
+
+export function formatDate(dateString: string | undefined | null): string {
+  if (!dateString) {
+    return 'N/A';
+  }
+  
+  try {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    }).format(date);
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'N/A';
+  }
+}
