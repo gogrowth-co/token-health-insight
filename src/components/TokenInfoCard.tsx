@@ -7,7 +7,7 @@ import { Globe, Twitter, Github, Copy, ExternalLink, Info, ChevronDown, ChevronU
 import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenInfo } from "@/hooks/useTokenInfo";
-import { formatCurrency, formatPercentage, formatDate, withFallback } from "@/lib/utils";
+import { formatCurrency, formatPercentage, formatDate } from "@/lib/utils";
 
 interface TokenMetadata {
   id: string;
@@ -144,13 +144,31 @@ export const TokenInfoCard = ({
   const contractAddress = tokenMetadata?.contract_address || token?.contract_address || "";
 
   // Format social links with fallbacks
-  const website = token?.links?.homepage?.[0] || "";
+  // Ensure website has proper formatting
+  const getWebsiteUrl = () => {
+    if (token?.links?.homepage && token.links.homepage.length > 0) {
+      const homepage = token.links.homepage[0];
+      if (homepage) {
+        return homepage;
+      }
+    }
+    return "";
+  };
+  
+  // Get social links with proper fallbacks
+  const website = getWebsiteUrl();
   const twitter = token?.links?.twitter_screen_name || "";
   const github = token?.links?.github || "";
   
   // Ensure we have a description
-  const description = withFallback(token?.description, `${displayName || 'This token'} is a cryptocurrency token${displaySymbol ? ` with symbol ${displaySymbol || ''}` : ''}.`);
+  const getDescription = () => {
+    if (token?.description && token.description.length > 0) {
+      return token.description;
+    }
+    return `${displayName || 'This token'} is a cryptocurrency token${displaySymbol ? ` with symbol ${displaySymbol}` : ''}.`;
+  };
   
+  const description = getDescription();
   const summaryDescription = summarizeDescription(description);
   
   // Get launch date with fallback
@@ -191,14 +209,12 @@ export const TokenInfoCard = ({
       return tokenMetadata.blockchain.toUpperCase();
     }
 
-    if (!token?.platforms || Object.keys(token.platforms).length === 0) {
+    if (!token?.platforms || Object.keys(token.platforms || {}).length === 0) {
       return "";
     }
     
     // Check if we have platforms data
     if (token.platforms) {
-      console.log("Found platforms data:", token.platforms);
-      
       // Prioritize Ethereum address if available
       if (token.platforms.ethereum && token.platforms.ethereum === contractAddress) {
         return "ETH";
@@ -219,7 +235,7 @@ export const TokenInfoCard = ({
       
       // Default to first platform in the list
       const firstPlatform = Object.keys(token.platforms)[0];
-      return firstPlatform.slice(0, 3).toUpperCase();
+      return firstPlatform?.slice(0, 3).toUpperCase() || "";
     }
     
     // Default to Ethereum if we can't determine

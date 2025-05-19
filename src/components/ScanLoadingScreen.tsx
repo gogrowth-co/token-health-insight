@@ -14,6 +14,8 @@ interface TokenMetadata {
   logo?: string;
   marketCap?: string;
   price?: string;
+  contract_address?: string;
+  blockchain?: string;
 }
 
 interface ScanLoadingScreenProps {
@@ -35,6 +37,7 @@ export function ScanLoadingScreen({ token, tokenMetadata }: ScanLoadingScreenPro
   
   console.log(`[ScanLoading] Processing token: ${token}, resolved name: ${displayName}, symbol: ${displaySymbol}`);
   console.log(`[ScanLoading] Token metadata:`, tokenMetadata);
+  console.log(`[ScanLoading] Token API data:`, tokenInfo);
   
   // Simulate scanning process with progress steps
   useEffect(() => {
@@ -75,17 +78,21 @@ export function ScanLoadingScreen({ token, tokenMetadata }: ScanLoadingScreenPro
           token: token
         });
         
-        // Add all available metadata
+        // Add all available metadata from search and API results
         if (tokenMetadata?.name) queryParams.append('name', tokenMetadata.name);
         if (tokenMetadata?.symbol) queryParams.append('symbol', tokenMetadata.symbol);
         if (tokenMetadata?.logo) queryParams.append('logo', tokenMetadata.logo);
         if (tokenMetadata?.marketCap) queryParams.append('market_cap', tokenMetadata.marketCap);
         if (tokenMetadata?.price) queryParams.append('price', tokenMetadata.price);
+        if (tokenMetadata?.contract_address) queryParams.append('contract_address', tokenMetadata.contract_address);
+        if (tokenMetadata?.blockchain) queryParams.append('blockchain', tokenMetadata.blockchain);
         
         // Add any fresh data from tokenInfo as fallback
         if (!tokenMetadata?.name && tokenInfo?.name) queryParams.append('name', tokenInfo.name);
         if (!tokenMetadata?.symbol && tokenInfo?.symbol) queryParams.append('symbol', tokenInfo.symbol.toUpperCase());
         if (!tokenMetadata?.logo && tokenInfo?.image) queryParams.append('logo', tokenInfo.image);
+        if (!tokenMetadata?.contract_address && tokenInfo?.contract_address) queryParams.append('contract_address', tokenInfo.contract_address);
+        if (!tokenMetadata?.blockchain && tokenInfo?.blockchain) queryParams.append('blockchain', tokenInfo.blockchain);
         
         console.log(`[ScanLoading] Navigating to results with params: ${queryParams.toString()}`);
         

@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { corsHeaders } from "../_shared/cors.ts";
 
@@ -222,13 +221,24 @@ Deno.serve(async (req) => {
 function ensureRequiredFields(data: TokenData): TokenData {
   if (!data) return createFallbackToken();
   
-  // Ensure basic fields have fallbacks
-  return {
+  // Make sure all critical fields have proper defaults
+  const processedData = {
     ...data,
     name: data.name || "Unknown Token",
     symbol: data.symbol || "--",
-    description: data.description || `${data.name || "Unknown token"} is a cryptocurrency token ${data.symbol ? `with symbol ${data.symbol.toUpperCase()}` : ''}`
+    description: data.description || `${data.name || "Unknown token"} is a cryptocurrency token ${data.symbol ? `with symbol ${data.symbol.toUpperCase()}` : ''}`,
+    links: data.links || {}
   };
+  
+  // Make sure links structure exists and all key properties have fallbacks
+  processedData.links = {
+    homepage: Array.isArray(data.links?.homepage) ? data.links.homepage : data.links?.homepage ? [data.links.homepage] : [],
+    twitter_screen_name: data.links?.twitter_screen_name || "",
+    github: data.links?.github || "",
+    repos_url: data.links?.repos_url || {}
+  };
+  
+  return processedData;
 }
 
 // Create a fallback token with all required fields
@@ -237,7 +247,13 @@ function createFallbackToken(): TokenData {
     id: "",
     symbol: "--",
     name: "Unknown Token",
-    description: "Token information unavailable. Please try again later."
+    description: "Token information unavailable. Please try again later.",
+    links: {
+      homepage: [],
+      twitter_screen_name: "",
+      github: "",
+      repos_url: {}
+    }
   };
 }
 
@@ -351,7 +367,12 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
         current_price: simplePriceData[coinId]?.usd,
         market_cap: simplePriceData[coinId]?.usd_market_cap,
         price_change_percentage_24h: simplePriceData[coinId]?.usd_24h_change,
-        last_updated: new Date(simplePriceData[coinId]?.last_updated_at * 1000).toISOString()
+        last_updated: new Date(simplePriceData[coinId]?.last_updated_at * 1000).toISOString(),
+        links: {
+          homepage: [],
+          twitter_screen_name: "",
+          github: ""
+        }
       };
 
       // Cache the data for 1 minute but mark it for refresh (7 day expiry)
@@ -443,10 +464,10 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
       atl_date: fullData.market_data?.atl_date?.usd,
       sparkline_7d: fullData.market_data?.sparkline_7d,
       links: {
-        homepage: fullData.links?.homepage,
-        twitter_screen_name: fullData.links?.twitter_screen_name,
-        github: githubUrl,
-        repos_url: fullData.links?.repos_url
+        homepage: Array.isArray(fullData.links?.homepage) ? fullData.links?.homepage : fullData.links?.homepage ? [fullData.links.homepage] : [],
+        twitter_screen_name: fullData.links?.twitter_screen_name || "",
+        github: githubUrl || "",
+        repos_url: fullData.links?.repos_url || {}
       },
       contract_address: contractAddress,
       platforms: fullData.platforms || {},

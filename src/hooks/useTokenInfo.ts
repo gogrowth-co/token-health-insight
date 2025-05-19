@@ -75,7 +75,7 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
         }
         
         console.log(`[useTokenInfo] Received data for token: ${data.id || normalizedToken}, name: ${data.name || 'N/A'}`);
-        console.log('[useTokenInfo] Contract address:', data.contract_address);
+        console.log('[useTokenInfo] Contract address:', data.contract_address || 'Not available');
         console.log('[useTokenInfo] Blockchain:', data.blockchain || 'Not specified');
         console.log('[useTokenInfo] Launch date:', data.genesis_date || 'Not available');
         
@@ -86,6 +86,8 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
             twitter: data.links.twitter_screen_name,
             github: data.links.github
           });
+        } else {
+          console.log('[useTokenInfo] No social links in API response');
         }
         
         // Ensure we have default values for critical fields
@@ -96,6 +98,13 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
           description: data.description || `${data.name || 'This token'} is a cryptocurrency token${data.symbol ? ` with symbol ${data.symbol.toUpperCase()}` : ''}.`,
           blockchain: data.blockchain || "", // Store blockchain info if available
           genesis_date: data.genesis_date || undefined, // Store launch date
+          contract_address: data.contract_address || undefined,
+          links: {
+            homepage: Array.isArray(data.links?.homepage) ? data.links.homepage : data.links?.homepage ? [data.links.homepage] : [],
+            twitter_screen_name: data.links?.twitter_screen_name || undefined,
+            github: data.links?.github || undefined,
+            repos_url: data.links?.repos_url || undefined
+          },
           // Pass through all other data
           ...data
         };

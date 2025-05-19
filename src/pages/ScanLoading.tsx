@@ -55,6 +55,8 @@ export default function ScanLoading() {
       console.log("[ScanLoading] Token info received:", tokenInfo.name);
       console.log("[ScanLoading] Blockchain:", tokenInfo.blockchain || "Not specified");
       console.log("[ScanLoading] Launch date:", tokenInfo.genesis_date || "Not available");
+      console.log("[ScanLoading] Contract address:", tokenInfo.contract_address || "Not available");
+      console.log("[ScanLoading] Social links:", tokenInfo.links);
       
       // Only update fields that aren't already set from URL params
       setTokenMetadata(prev => ({
