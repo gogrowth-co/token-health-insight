@@ -1,530 +1,257 @@
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import React from "react";
+import { ExternalLink, Github, Twitter } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Badge } from "@/components/ui/badge";
-import { Globe, Twitter, Github, Copy, ExternalLink, Info, ChevronDown, ChevronUp, Link2, CalendarIcon } from "lucide-react";
-import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenInfo } from "@/hooks/useTokenInfo";
-import { formatCurrency, formatPercentage, formatDate } from "@/lib/utils";
-import { useSearchParams } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { TokenMetrics } from "@/hooks/useTokenMetrics";
 
-interface TokenMetadata {
+interface TokenMetadataUI {
   id: string;
   name?: string;
   symbol?: string;
   logo?: string;
-  marketCap?: string;
-  price?: string;
-  contract_address?: string; 
   blockchain?: string;
-  description?: string;
-  website?: string;
   twitter?: string;
   github?: string;
+  contract_address?: string;
 }
 
 interface TokenInfoCardProps {
-  token?: TokenInfo;
-  isLoading: boolean;
+  token: TokenInfo | null;
+  tokenMetrics?: TokenMetrics;
+  isLoading?: boolean;
   error?: Error | null;
-  tokenMetadata?: TokenMetadata;
+  tokenMetadata?: TokenMetadataUI;
 }
 
-export const TokenInfoCard = ({
-  token,
-  isLoading,
-  error,
+export const TokenInfoCard = ({ 
+  token, 
+  tokenMetrics,
+  isLoading = false, 
+  error = null,
   tokenMetadata
 }: TokenInfoCardProps) => {
-  const [copied, setCopied] = useState(false);
-  const [showFullDescription, setShowFullDescription] = useState(false);
-  const [searchParams] = useSearchParams();
+  // Use metadata from props or fall back to token data
+  const tokenName = tokenMetadata?.name || token?.name || "Unknown Token";
+  const tokenSymbol = tokenMetadata?.symbol || token?.symbol?.toUpperCase() || "???";
+  const tokenLogo = tokenMetadata?.logo || token?.image || "/placeholder.svg";
+  const contractAddress = tokenMetadata?.contract_address || token?.contract_address || "";
+  const blockchain = tokenMetadata?.blockchain || token?.blockchain || "eth";
+  const twitterHandle = tokenMetadata?.twitter || token?.twitter || token?.links?.twitter_screen_name || "";
+  const githubRepo = tokenMetadata?.github || token?.links?.github || "";
   
-  // Extract URL params for additional context
-  const urlParams: TokenMetadata = {
-    id: searchParams.get("token") || "",
-    name: searchParams.get("name") || undefined,
-    symbol: searchParams.get("symbol") || undefined,
-    logo: searchParams.get("logo") || undefined,
-    marketCap: searchParams.get("market_cap") || undefined,
-    price: searchParams.get("price") || undefined,
-    contract_address: searchParams.get("contract_address") || undefined,
-    blockchain: searchParams.get("blockchain") || undefined,
-    description: searchParams.get("description") || undefined,
-    website: searchParams.get("website") || undefined,
-    twitter: searchParams.get("twitter") || undefined,
-    github: searchParams.get("github") || undefined,
-  };
-  
-  // Debug logging for token data
-  useEffect(() => {
-    console.log("[TokenInfoCard] Rendering with metadata:", tokenMetadata);
-    console.log("[TokenInfoCard] URL parameters:", urlParams);
-    console.log("[TokenInfoCard] Token API data:", token);
-    
-    // Log specific fields we're interested in
-    if (token) {
-      console.log("[TokenInfoCard] Contract address:", token.contract_address);
-      console.log("[TokenInfoCard] Social links:", token.links);
-      console.log("[TokenInfoCard] Description:", token.description?.substring(0, 100) + "...");
-      console.log("[TokenInfoCard] Launch date:", token.genesis_date || "Not available");
-      console.log("[TokenInfoCard] Blockchain:", token.blockchain || "Not specified");
-      if (token.platforms) {
-        console.log("[TokenInfoCard] Platforms:", token.platforms);
-      }
-    }
-  }, [tokenMetadata, token, urlParams]);
-  
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-  
-  // Truncate address for display
-  const truncateAddress = (addr: string) => {
-    return addr?.length > 12 ? `${addr.substring(0, 6)}...${addr.substring(addr.length - 6)}` : addr;
+  // Calculate price change colors and arrows
+  const priceChangePercent = token?.price_change_percentage_24h;
+  const isPriceUp = priceChangePercent && priceChangePercent > 0;
+  const priceChangeColor = isPriceUp ? "text-green-500" : "text-red-500";
+  const priceChangeArrow = isPriceUp ? "↑" : "↓";
+
+  // Market Cap and TVL from token metrics
+  const marketCap = tokenMetrics?.marketCap || "N/A";
+  const marketCapChange = tokenMetrics?.marketCapChange24h;
+  const isMarketCapUp = marketCapChange && marketCapChange > 0;
+  const marketCapChangeColor = isMarketCapUp ? "text-green-500" : "text-red-500";
+  const marketCapChangeArrow = isMarketCapUp ? "↑" : "↓";
+
+  const tvl = tokenMetrics?.tvl || "N/A";
+  const tvlChange = tokenMetrics?.tvlChange24h;
+  const isTvlUp = tvlChange && tvlChange > 0;
+  const tvlChangeColor = isTvlUp ? "text-green-500" : "text-red-500";
+  const tvlChangeArrow = isTvlUp ? "↑" : "↓";
+
+  // Handle blockchain display
+  const getBlockchainDisplay = () => {
+    const chain = blockchain.toLowerCase();
+    if (chain === "eth" || chain === "ethereum") return "Ethereum";
+    if (chain === "bsc") return "BSC";
+    if (chain === "polygon") return "Polygon";
+    if (chain === "avalanche") return "Avalanche";
+    if (chain === "fantom") return "Fantom";
+    if (chain === "arbitrum") return "Arbitrum";
+    if (chain === "optimism") return "Optimism";
+    return blockchain;
   };
 
-  // Truncate description to approximately 300 words
-  const summarizeDescription = (desc: string = '') => {
-    if (!desc) return '';
-    
-    const words = desc.split(/\s+/);
-    if (words.length <= 300) return desc;
-    
-    return words.slice(0, 300).join(' ') + '...';
-  };
-
-  // If there's an error, display error card
-  if (error && !tokenMetadata?.name && !urlParams.name) {
-    return (
-      <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
-        <CardContent className="p-6">
-          <div className="flex flex-row items-center gap-3 text-red-600">
-            <Info size={20} />
-            <p>Could not load token information. Please check if the token symbol is correct.</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // If loading and no metadata, display skeleton
-  if (isLoading && !tokenMetadata?.name && !urlParams.name) {
-    return (
-      <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-6">
-            <div className="flex items-start gap-4">
-              <Skeleton className="h-16 w-16 rounded-lg" />
-              <div className="space-y-2">
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-40" />
-              </div>
-            </div>
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-3/4" />
-              <div className="flex items-center gap-3 pt-1">
-                <Skeleton className="h-6 w-6 rounded-full" />
-                <Skeleton className="h-6 w-6 rounded-full" />
-                <Skeleton className="h-6 w-6 rounded-full" />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // If no token data and no metadata, show appropriate message
-  if (!token && !tokenMetadata?.name && !urlParams.name) {
-    return (
-      <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
-        <CardContent className="p-6">
-          <div className="flex flex-row items-center gap-3 text-gray-500">
-            <Info size={20} />
-            <p>No token information available.</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Merge all sources of token data with priority: URL params > tokenMetadata > token API data
-  const displayName = urlParams.name || tokenMetadata?.name || token?.name || "Unknown Token";
-  const displaySymbol = urlParams.symbol || tokenMetadata?.symbol || token?.symbol?.toUpperCase() || "--";
-  const displayImage = urlParams.logo || tokenMetadata?.logo || token?.image;
-  
-  // Try to parse numerical values if they were passed as strings
-  const displayPrice = urlParams.price ? Number(urlParams.price) : 
-                       tokenMetadata?.price ? Number(tokenMetadata.price) : 
-                       token?.current_price;
-  const displayMarketCap = urlParams.marketCap ? Number(urlParams.marketCap) : 
-                           tokenMetadata?.marketCap ? Number(tokenMetadata.marketCap) : 
-                           token?.market_cap;
-
-  // Get contract address with fallbacks - prioritize URL params first
-  const contractAddress = urlParams.contract_address || tokenMetadata?.contract_address || token?.contract_address || "";
-
-  // Format social links with fallbacks, prioritizing URL params
-  const getWebsiteUrl = () => {
-    if (urlParams.website) return urlParams.website;
-    
-    if (token?.links?.homepage && token.links.homepage.length > 0) {
-      const homepage = token.links.homepage[0];
-      if (homepage) {
-        return homepage;
-      }
-    }
-    return "";
-  };
-  
-  // Get social links with proper fallbacks
-  const website = getWebsiteUrl();
-  const twitter = urlParams.twitter || token?.links?.twitter_screen_name || "";
-  const github = urlParams.github || token?.links?.github || "";
-  
-  // Ensure we have a description - prioritize URL params
-  const getDescription = () => {
-    if (urlParams.description) return urlParams.description;
-    
-    if (token?.description && token.description.length > 0) {
-      return token.description;
-    }
-    return `${displayName || 'This token'} is a cryptocurrency token${displaySymbol ? ` with symbol ${displaySymbol}` : ''}.`;
-  };
-  
-  const description = getDescription();
-  const summaryDescription = summarizeDescription(description);
-  
-  // Get launch date with fallback
-  const launchDate = token?.genesis_date || token?.ath_date;
-
-  // Format price according to its scale
-  const formatTokenPrice = (price?: number) => {
-    if (price === undefined || price === null) return "N/A";
-    
-    if (price === 0) return "$0.00";
-    
-    // For very small values
-    if (price < 0.00001) {
-      return `$${price.toExponential(2)}`;
-    }
-    
-    // For small values
-    if (price < 0.01) {
-      return `$${price.toFixed(6)}`;
-    }
-    
-    // For regular values
-    return formatCurrency(price, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
-  };
-  
-  // Determine blockchain from various sources, with URL params having highest priority
-  const getBlockchainLabel = (): string => {
-    // First check URL params
-    if (urlParams.blockchain) {
-      return urlParams.blockchain.toUpperCase();
-    }
-    
-    // Then check if we have blockchain info directly
-    if (token?.blockchain) {
-      return token.blockchain.toUpperCase();
-    }
-    
-    // Next check metadata
-    if (tokenMetadata?.blockchain) {
-      return tokenMetadata.blockchain.toUpperCase();
-    }
-
-    if (!token?.platforms || Object.keys(token.platforms || {}).length === 0) {
-      return "";
-    }
-    
-    // Check if we have platforms data
-    if (token.platforms) {
-      // Prioritize Ethereum address if available
-      if (token.platforms.ethereum && token.platforms.ethereum === contractAddress) {
-        return "ETH";
-      }
-      
-      // Check other common platforms
-      if (token.platforms.binance_smart_chain && token.platforms.binance_smart_chain === contractAddress) {
-        return "BSC";
-      }
-      
-      if (token.platforms.polygon_pos && token.platforms.polygon_pos === contractAddress) {
-        return "MATIC";
-      }
-      
-      if (token.platforms.solana && token.platforms.solana === contractAddress) {
-        return "SOL";
-      }
-      
-      // Default to first platform in the list
-      const firstPlatform = Object.keys(token.platforms)[0];
-      return firstPlatform?.slice(0, 3).toUpperCase() || "";
-    }
-    
-    // Default to Ethereum if we can't determine
-    return contractAddress ? "ETH" : "";
-  };
-
-  const blockchainLabel = getBlockchainLabel();
-
-  // Get explorer URL based on blockchain
-  const getExplorerUrl = (address: string, blockchain: string): string => {
+  // Format contract address for display
+  const formatAddress = (address: string) => {
     if (!address) return "";
-    
-    const blockchainLower = blockchain.toLowerCase();
-    
-    if (blockchainLower === "eth" || blockchainLower.includes("ethereum")) {
-      return `https://etherscan.io/token/${address}`;
-    }
-    
-    if (blockchainLower === "bsc" || blockchainLower.includes("binance")) {
-      return `https://bscscan.com/token/${address}`;
-    }
-    
-    if (blockchainLower === "matic" || blockchainLower.includes("polygon")) {
-      return `https://polygonscan.com/token/${address}`;
-    }
-    
-    if (blockchainLower === "sol" || blockchainLower.includes("solana")) {
-      return `https://solscan.io/token/${address}`;
-    }
-    
-    if (blockchainLower === "avax" || blockchainLower.includes("avalanche")) {
-      return `https://snowtrace.io/token/${address}`;
-    }
-    
-    // Default to Etherscan
-    return `https://etherscan.io/token/${address}`;
+    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   };
-  
-  const explorerUrl = contractAddress ? getExplorerUrl(contractAddress, blockchainLabel) : "";
-  
-  // Log final display data
-  useEffect(() => {
-    console.log("[TokenInfoCard] Final display data:", {
-      name: displayName,
-      symbol: displaySymbol,
-      image: displayImage,
-      price: displayPrice,
-      marketCap: displayMarketCap,
-      contractAddress,
-      blockchain: blockchainLabel,
-      website,
-      twitter,
-      github,
-      description: description.substring(0, 100) + "...",
-      launchDate
-    });
-  }, [displayName, displaySymbol, displayImage, displayPrice, displayMarketCap, 
-      contractAddress, blockchainLabel, website, twitter, github, description, launchDate]);
+
+  // Get blockchain explorer URL
+  const getExplorerUrl = () => {
+    const chain = blockchain.toLowerCase();
+    if (!contractAddress) return "#";
+    
+    if (chain === "eth" || chain === "ethereum") {
+      return `https://etherscan.io/token/${contractAddress}`;
+    } else if (chain === "bsc") {
+      return `https://bscscan.com/token/${contractAddress}`;
+    } else if (chain === "polygon") {
+      return `https://polygonscan.com/token/${contractAddress}`;
+    } else if (chain === "avalanche") {
+      return `https://snowtrace.io/token/${contractAddress}`;
+    } else if (chain === "fantom") {
+      return `https://ftmscan.com/token/${contractAddress}`;
+    } else if (chain === "arbitrum") {
+      return `https://arbiscan.io/token/${contractAddress}`;
+    } else if (chain === "optimism") {
+      return `https://optimistic.etherscan.io/token/${contractAddress}`;
+    }
+    
+    return `https://etherscan.io/token/${contractAddress}`;
+  };
+
+  // If loading, show skeleton
+  if (isLoading) {
+    return (
+      <Card className="w-full">
+        <CardContent className="p-4">
+          <div className="flex items-center space-x-4">
+            <Skeleton className="h-12 w-12 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-[250px]" />
+              <Skeleton className="h-4 w-[200px]" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
-      <CardContent className="p-6">
-        <div className="flex flex-col md:flex-row gap-6">
+    <Card className="w-full mt-4">
+      <CardContent className="p-4">
+        <div className="flex flex-col md:flex-row">
           {/* Token Logo and Basic Info */}
-          <div className="flex items-start gap-4">
-            <Avatar className="h-16 w-16 rounded-lg border">
-              {displayImage ? (
-                <AvatarImage src={displayImage} alt={`${displayName} logo`} />
-              ) : (
-                <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-xl">
-                  {displaySymbol?.substring(0, 2).toUpperCase() || '--'}
-                </AvatarFallback>
-              )}
-            </Avatar>
+          <div className="flex items-center flex-grow">
+            <div className="flex-shrink-0 mr-4">
+              <img 
+                src={tokenLogo} 
+                alt={`${tokenName} logo`} 
+                className="w-16 h-16 rounded-full" 
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "/placeholder.svg";
+                }}
+              />
+            </div>
             
             <div className="space-y-1">
-              <h3 className="font-semibold text-lg">{displayName}</h3>
-              <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                <span className="font-medium">${displaySymbol}</span>
-                {token?.market_cap_rank && (
-                  <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">
-                    Rank #{token.market_cap_rank}
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-bold">{tokenName}</h2>
+                <Badge variant="outline" className="text-sm font-medium">
+                  ${tokenSymbol}
+                </Badge>
+                <Badge variant="secondary" className="text-xs">
+                  {getBlockchainDisplay()}
+                </Badge>
+              </div>
+              
+              {/* Price Display */}
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-bold">
+                  ${token?.current_price?.toFixed(2) || "0.00"}
+                </span>
+                {priceChangePercent !== undefined && (
+                  <span className={`text-sm font-medium ${priceChangeColor}`}>
+                    {priceChangeArrow} {Math.abs(priceChangePercent).toFixed(2)}%
                   </span>
                 )}
               </div>
               
-              {contractAddress && (
-                <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                  {blockchainLabel && (
-                    <Badge variant="outline" className="h-5 px-1 text-xs font-normal">
-                      {blockchainLabel}
-                    </Badge>
-                  )}
-                  <span>{truncateAddress(contractAddress)}</span>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button 
-                          onClick={() => copyToClipboard(contractAddress)} 
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          <Copy size={14} />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {copied ? "Copied!" : "Copy address"}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  
-                  {/* Link to blockchain explorer if we have a contract address */}
-                  {contractAddress && explorerUrl && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <a
-                            href={explorerUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            <Link2 size={14} />
-                          </a>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <div className="flex items-center gap-1">
-                            View on {blockchainLabel} Explorer <ExternalLink size={14} />
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
+              {/* Market Cap and TVL Row */}
+              <div className="flex flex-wrap gap-6 mt-2">
+                <div className="flex flex-col">
+                  <span className="text-sm text-gray-500">Market Cap</span>
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium">{marketCap}</span>
+                    {marketCapChange !== undefined && (
+                      <span className={`text-xs ${marketCapChangeColor}`}>
+                        {marketCapChangeArrow} {Math.abs(marketCapChange).toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
                 </div>
-              )}
-              
-              {/* Display launch date if available */}
-              {launchDate && (
-                <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-1">
-                  <CalendarIcon size={14} className="text-gray-400" />
-                  <span>Launched: {formatDate(launchDate)}</span>
+                
+                <div className="flex flex-col">
+                  <span className="text-sm text-gray-500">TVL</span>
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium">{tvl}</span>
+                    {tvlChange !== undefined && (
+                      <span className={`text-xs ${tvlChangeColor}`}>
+                        {tvlChangeArrow} {Math.abs(tvlChange).toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           </div>
           
-          {/* Description and Social Links */}
-          <div className="flex-1 space-y-2">
-            <div>
-              {description ? (
-                <p className="text-sm text-gray-600">
-                  {showFullDescription ? description : summaryDescription}
-                </p>
-              ) : (
-                <p className="text-sm text-gray-500 italic">
-                  No description available
-                </p>
+          {/* Links and Contract */}
+          <div className="flex flex-col sm:flex-row md:flex-col gap-3 mt-4 md:mt-0 md:ml-4 lg:ml-8 md:items-end">
+            {/* Social and External Links */}
+            <div className="flex gap-2">
+              {twitterHandle && (
+                <Button variant="outline" size="sm" asChild>
+                  <a 
+                    href={`https://twitter.com/${twitterHandle}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1"
+                  >
+                    <Twitter size={16} />
+                    <span className="hidden sm:inline">Twitter</span>
+                  </a>
+                </Button>
               )}
               
-              {description && summaryDescription !== description && description.length > summaryDescription.length && (
-                <button 
-                  onClick={() => setShowFullDescription(!showFullDescription)} 
-                  className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center mt-1"
-                >
-                  {showFullDescription ? (
-                    <>Show less <ChevronUp size={14} className="ml-1" /></>
-                  ) : (
-                    <>Read more <ChevronDown size={14} className="ml-1" /></>
-                  )}
-                </button>
+              {githubRepo && (
+                <Button variant="outline" size="sm" asChild>
+                  <a 
+                    href={`https://github.com/${githubRepo}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1"
+                  >
+                    <Github size={16} />
+                    <span className="hidden sm:inline">GitHub</span>
+                  </a>
+                </Button>
+              )}
+              
+              {contractAddress && (
+                <Button variant="outline" size="sm" asChild>
+                  <a 
+                    href={getExplorerUrl()} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1"
+                  >
+                    <ExternalLink size={16} />
+                    <span className="hidden sm:inline">View Contract</span>
+                  </a>
+                </Button>
               )}
             </div>
             
-            <div className="flex items-center gap-3 pt-1">
-              {website && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <a 
-                        href={website.startsWith('http') ? website : `https://${website}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="text-gray-500 hover:text-indigo-600"
-                      >
-                        <Globe size={18} />
-                      </a>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <div className="flex items-center gap-1">
-                        {website} <ExternalLink size={14} />
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-              
-              {twitter && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <a 
-                        href={`https://twitter.com/${twitter}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="text-gray-500 hover:text-indigo-600"
-                      >
-                        <Twitter size={18} />
-                      </a>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <div className="flex items-center gap-1">
-                        @{twitter} <ExternalLink size={14} />
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-              
-              {github && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <a 
-                        href={github.startsWith('http') ? github : `https://github.com/${github}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="text-gray-500 hover:text-indigo-600"
-                      >
-                        <Github size={18} />
-                      </a>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <div className="flex items-center gap-1">
-                        GitHub <ExternalLink size={14} />
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-
-              {/* Price information (right aligned) */}
-              <div className="ml-auto text-right">
-                <div className="text-lg font-semibold">
-                  {formatTokenPrice(displayPrice)}
-                </div>
-                {token?.price_change_percentage_24h !== undefined ? (
-                  <div className={`text-sm ${token.price_change_percentage_24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatPercentage(token.price_change_percentage_24h)}
-                  </div>
-                ) : (
-                  <div className="text-sm text-gray-400">N/A</div>
-                )}
+            {/* Contract Address */}
+            {contractAddress && (
+              <div className="text-sm text-gray-500 flex items-center">
+                <span className="mr-1">Contract:</span>
+                <a 
+                  href={getExplorerUrl()} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="hover:underline"
+                >
+                  {formatAddress(contractAddress)}
+                </a>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </CardContent>

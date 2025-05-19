@@ -5,9 +5,10 @@ import { TokenMetrics } from "@/hooks/useTokenMetrics";
 
 interface CategoriesOverviewProps {
   tokenMetrics?: TokenMetrics;
+  onViewDetails: (tab: string) => void;
 }
 
-export const CategoriesOverview = ({ tokenMetrics }: CategoriesOverviewProps) => {
+export const CategoriesOverview = ({ tokenMetrics, onViewDetails }: CategoriesOverviewProps) => {
   return (
     <section>
       <h2 className="text-xl font-semibold mb-4">Categories Overview</h2>
@@ -24,6 +25,7 @@ export const CategoriesOverview = ({ tokenMetrics }: CategoriesOverviewProps) =>
           ]} 
           color="bg-green-500" 
           score={tokenMetrics?.securityScore || 50} 
+          onViewDetails={() => onViewDetails("security")}
         />
         
         <CategoryCard 
@@ -38,6 +40,7 @@ export const CategoriesOverview = ({ tokenMetrics }: CategoriesOverviewProps) =>
           ]} 
           color="bg-blue-500" 
           score={75} 
+          onViewDetails={() => onViewDetails("liquidity")}
         />
         
         <CategoryCard 
@@ -52,6 +55,7 @@ export const CategoriesOverview = ({ tokenMetrics }: CategoriesOverviewProps) =>
           ]} 
           color="bg-purple-500" 
           score={65} 
+          onViewDetails={() => onViewDetails("tokenomics")}
         />
         
         <CategoryCard 
@@ -66,6 +70,7 @@ export const CategoriesOverview = ({ tokenMetrics }: CategoriesOverviewProps) =>
           ]} 
           color="bg-orange-500" 
           score={70} 
+          onViewDetails={() => onViewDetails("community")}
         />
         
         <CategoryCard 
@@ -80,6 +85,7 @@ export const CategoriesOverview = ({ tokenMetrics }: CategoriesOverviewProps) =>
           ]} 
           color="bg-teal-500" 
           score={60} 
+          onViewDetails={() => onViewDetails("development")}
         />
       </div>
     </section>

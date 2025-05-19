@@ -207,9 +207,10 @@ const ScanResult = () => {
               healthScore={healthScore}
             />
             
-            {/* Token Info Card */}
+            {/* Token Info Card - Now includes Market Cap and TVL */}
             <TokenInfoCard 
               token={tokenInfo} 
+              tokenMetrics={tokenMetrics}
               isLoading={tokenLoading} 
               error={tokenError as Error}
               tokenMetadata={{
@@ -235,7 +236,7 @@ const ScanResult = () => {
 
         {/* Dashboard Content */}
         <div className="container mx-auto px-4 py-8">
-          {/* Tabs Content */}
+          {/* Tabs Content - KeyMetricsGrid has been removed */}
           <CategoryTabs
             activeTab={activeTab}
             onValueChange={handleTabChange}

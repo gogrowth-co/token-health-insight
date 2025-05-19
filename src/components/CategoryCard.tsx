@@ -9,6 +9,7 @@ interface CategoryCardProps {
   metrics: string[];
   color: string;
   score: number;
+  onViewDetails: () => void;
 }
 
 export const CategoryCard = ({ 
@@ -17,7 +18,8 @@ export const CategoryCard = ({
   description, 
   metrics = [], 
   color, 
-  score 
+  score, 
+  onViewDetails 
 }: CategoryCardProps) => {
   return (
     <Card className="overflow-hidden card-gradient transition-all duration-300 hover:shadow-md">
@@ -44,9 +46,12 @@ export const CategoryCard = ({
         </ul>
       </CardContent>
       <CardFooter className="pt-2 text-xs text-gray-500">
-        <a href="#" className="text-brand-purple hover:underline hover:text-brand-purple/90">
+        <button 
+          onClick={onViewDetails}
+          className="text-brand-purple hover:underline hover:text-brand-purple/90"
+        >
           View detailed analysis →
-        </a>
+        </button>
       </CardFooter>
     </Card>
   );
