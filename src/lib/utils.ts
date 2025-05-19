@@ -1,4 +1,3 @@
-
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
  
@@ -104,4 +103,22 @@ export function isEmpty(value: any): boolean {
 // Create a descriptor for a value with a fallback
 export function withFallback<T>(value: T | null | undefined, fallback: T): T {
   return isEmpty(value) ? fallback : value as T;
+}
+
+// Normalize token identifiers consistently 
+export function normalizeTokenId(tokenId: string | null | undefined): string {
+  if (!tokenId) return '';
+  
+  // Remove $ prefix if present, lowercase, trim spaces
+  return tokenId.replace(/^\$/, '').toLowerCase().trim();
+}
+
+// Get user-friendly display version of token (keeps $ if present)
+export function formatTokenDisplay(token: string | null | undefined): string {
+  if (!token) return '';
+  
+  // Uppercase but keep $ if present
+  return token.startsWith('$') 
+    ? `$${token.substring(1).toUpperCase()}` 
+    : token.toUpperCase();
 }

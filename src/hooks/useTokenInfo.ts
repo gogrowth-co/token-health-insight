@@ -1,4 +1,3 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -39,7 +38,11 @@ export interface TokenInfo {
 }
 
 export const useTokenInfo = (tokenIdentifier?: string | null) => {
-  const normalizedToken = tokenIdentifier?.replace(/^\$/, '').toLowerCase().trim() || '';
+  // Basic client-side normalization that mirrors the edge function logic
+  // We want to keep this minimal and let the edge function handle the full resolution
+  const normalizedToken = tokenIdentifier?.trim() || '';
+  
+  console.log(`[useTokenInfo] Fetching info for token: ${normalizedToken}`);
 
   return useQuery({
     queryKey: ['tokenInfo', normalizedToken],
@@ -48,7 +51,7 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
         throw new Error('Token identifier is required');
       }
 
-      console.log(`Fetching token info for: ${normalizedToken}`);
+      console.log(`[useTokenInfo] Calling edge function for token: ${normalizedToken}`);
 
       try {
         const { data, error } = await supabase.functions.invoke('get-token-info', {
@@ -56,18 +59,20 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
         });
 
         if (error) {
-          console.error('Error fetching token info:', error);
+          console.error('[useTokenInfo] Error fetching token info:', error);
           throw new Error(`Failed to fetch token info: ${error.message}`);
         }
 
         if (!data) {
-          console.error('No data returned from token info endpoint');
+          console.error('[useTokenInfo] No data returned from token info endpoint');
           throw new Error('No data returned from token info endpoint');
         }
         
+        console.log(`[useTokenInfo] Received data for token: ${data.id}, name: ${data.name || 'N/A'}`);
+        
         // Ensure we have default values for critical fields
         const tokenInfo: TokenInfo = {
-          id: data.id || '',
+          id: data.id || normalizedToken,
           name: data.name || 'Unknown Token',
           symbol: data.symbol || '--',
           description: data.description || `${data.name || 'This token'} is a cryptocurrency token${data.symbol ? ` with symbol ${data.symbol.toUpperCase()}` : ''}.`,
@@ -77,7 +82,7 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
         
         return tokenInfo;
       } catch (error) {
-        console.error('Exception fetching token info:', error);
+        console.error('[useTokenInfo] Exception fetching token info:', error);
         throw error;
       }
     },

@@ -15,10 +15,14 @@ export function ScanLoadingScreen({ token }: ScanLoadingScreenProps) {
   const navigate = useNavigate();
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("Initializing scan");
+  
+  // We don't want to modify the token ID from CoinGecko at all
+  // Just pass it directly to the hook to maintain consistency
   const { data: tokenInfo } = useTokenInfo(token);
   
-  const cleanToken = token.replace(/^\$/, '');
-  const displayName = tokenInfo?.name || cleanToken.toUpperCase();
+  console.log(`[ScanLoading] Processing token: ${token}, resolved name: ${tokenInfo?.name || 'Pending...'}`);
+  
+  const displayName = tokenInfo?.name || token.toUpperCase();
   const displaySymbol = tokenInfo?.symbol?.toUpperCase();
   
   // Simulate scanning process
@@ -45,15 +49,16 @@ export function ScanLoadingScreen({ token }: ScanLoadingScreenProps) {
         stepIndex++;
       } else {
         clearInterval(intervalId);
-        // Navigate to results page after completing
+        // Navigate to results page after completing - maintain token ID exactly as is
+        console.log(`[ScanLoading] Scan complete, navigating to results with token: ${token}`);
         setTimeout(() => {
-          navigate(`/scan?token=${encodeURIComponent(cleanToken)}`);
+          navigate(`/scan?token=${encodeURIComponent(token)}`);
         }, 1000);
       }
     }, 2200); // Each step takes ~2.2 seconds
     
     return () => clearInterval(intervalId);
-  }, [token, navigate, cleanToken]);
+  }, [token, navigate]);
   
   const handleCancel = () => {
     navigate("/");

@@ -25,6 +25,7 @@ export function TokenSearchResults({ query, isAuthenticated }: TokenSearchResult
   
   const handleTokenSelect = async (token: TokenSearchResult) => {
     setProcessingTokenId(token.id);
+    console.log(`[TokenSearch] Selected token: ${token.id} (${token.symbol})`);
     
     try {
       // If user is not authenticated, redirect to auth with token in query params
@@ -43,7 +44,8 @@ export function TokenSearchResults({ query, isAuthenticated }: TokenSearchResult
       const success = await incrementScanCount();
       
       if (success) {
-        // Redirect to scan loading page
+        // Redirect to scan loading page - use the token ID exactly as it comes from CoinGecko
+        console.log(`[TokenSearch] Navigating to scan with token ID: ${token.id}`);
         navigate(`/scan/loading?token=${encodeURIComponent(token.id)}`);
       } else {
         // Scan limit reached, navigate to subscription page

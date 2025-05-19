@@ -9,11 +9,12 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function ScanLoading() {
   const { user, isLoading: authLoading } = useAuth();
   const [searchParams] = useSearchParams();
+  // Get token from URL directly without normalization
   const token = searchParams.get("token") || "";
   
   // Track page view
   useEffect(() => {
-    console.log("Loading scan for token:", token);
+    console.log("[ScanLoading] Loading scan for token:", token);
   }, [token]);
   
   // Redirect to auth page if not authenticated

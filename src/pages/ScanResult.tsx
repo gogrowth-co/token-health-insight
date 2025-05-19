@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,16 +24,32 @@ const ScanResult = () => {
   
   const { tokenId } = useParams();
   const [searchParams] = useSearchParams();
+  // Get token from URL params - use exactly as provided without normalization
   const tokenFromQuery = searchParams.get("token");
   const token = tokenId || tokenFromQuery || "";
   const [activeTab, setActiveTab] = useState("overview");
 
-  // Fetch token info
+  // Log the token being used for this scan
+  useEffect(() => {
+    console.log(`[ScanResult] Viewing results for token: ${token}`);
+  }, [token]);
+
+  // Fetch token info - pass token directly without client-side normalization
   const {
     data: tokenInfo,
     isLoading: tokenLoading,
     error: tokenError
   } = useTokenInfo(token);
+
+  // Log what we got back from the API
+  useEffect(() => {
+    if (tokenInfo) {
+      console.log(`[ScanResult] Received token info: ${tokenInfo.name} (${tokenInfo.symbol}) with id: ${tokenInfo.id}`);
+    }
+    if (tokenError) {
+      console.error(`[ScanResult] Token info error:`, tokenError);
+    }
+  }, [tokenInfo, tokenError]);
 
   // Show toast for errors
   if (tokenError && !tokenLoading) {
