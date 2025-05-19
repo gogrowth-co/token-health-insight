@@ -117,15 +117,6 @@ export const useTokenMetrics = (
         data.metrics.socialFollowersCount = 0;
         data.metrics.socialFollowersChange = 0;
         
-        // For development and testing, we want to show some data for the Pendle token
-        if (normalizedToken === 'pendle' && contractAddress === '0x808507121b80c02388fad14726482e061b8da827' && 
-            data.metrics.topHoldersPercentage === 'N/A') {
-          console.log('Using fallback holder data for Pendle token');
-          data.metrics.topHoldersPercentage = "42.5%";
-          data.metrics.topHoldersValue = 42.5;
-          data.metrics.topHoldersTrend = "down";
-        }
-        
         return data.metrics as TokenMetrics;
       } catch (error) {
         console.error('Exception fetching token metrics:', error);
@@ -152,16 +143,6 @@ export const useTokenMetrics = (
             socialFollowersChange: 0,
             socialFollowersFromCache: false
           };
-          
-          // For development and testing, we want to show some data for the Pendle token
-          if (normalizedToken === 'pendle' || 
-              (tokenMetadata?.contract_address && 
-               tokenMetadata.contract_address === '0x808507121b80c02388fad14726482e061b8da827')) {
-            console.log('Using fallback holder data for Pendle token in error case');
-            fallbackMetrics.topHoldersPercentage = "42.5%";
-            fallbackMetrics.topHoldersValue = 42.5;
-            fallbackMetrics.topHoldersTrend = "down";
-          }
           
           return fallbackMetrics as TokenMetrics;
         }
