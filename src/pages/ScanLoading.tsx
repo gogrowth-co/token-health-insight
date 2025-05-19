@@ -33,8 +33,8 @@ export default function ScanLoading() {
     console.log("[ScanLoading] Initial token metadata:", tokenMetadata);
   }, []);
   
-  // Fetch token info regardless of metadata for fallback purposes
-  const { data: tokenInfo, isLoading: tokenInfoLoading, error: tokenInfoError } = useTokenInfo(token);
+  // Fetch token info regardless of metadata for fallback purposes - force refresh to get latest data
+  const { data: tokenInfo, isLoading: tokenInfoLoading, error: tokenInfoError } = useTokenInfo(token, true);
   
   // Track page view and update metadata when available
   useEffect(() => {
@@ -57,6 +57,7 @@ export default function ScanLoading() {
       console.log("[ScanLoading] Launch date:", tokenInfo.genesis_date || "Not available");
       console.log("[ScanLoading] Contract address:", tokenInfo.contract_address || "Not available");
       console.log("[ScanLoading] Social links:", tokenInfo.links);
+      console.log("[ScanLoading] Description available:", !!tokenInfo.description);
       
       // Only update fields that aren't already set from URL params
       setTokenMetadata(prev => ({

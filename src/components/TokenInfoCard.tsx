@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenInfo } from "@/hooks/useTokenInfo";
 import { formatCurrency, formatPercentage, formatDate } from "@/lib/utils";
+import { useSearchParams } from "react-router-dom";
 
 interface TokenMetadata {
   id: string;
@@ -18,6 +19,10 @@ interface TokenMetadata {
   price?: string;
   contract_address?: string; 
   blockchain?: string;
+  description?: string;
+  website?: string;
+  twitter?: string;
+  github?: string;
 }
 
 interface TokenInfoCardProps {
@@ -35,23 +40,42 @@ export const TokenInfoCard = ({
 }: TokenInfoCardProps) => {
   const [copied, setCopied] = useState(false);
   const [showFullDescription, setShowFullDescription] = useState(false);
+  const [searchParams] = useSearchParams();
+  
+  // Extract URL params for additional context
+  const urlParams: TokenMetadata = {
+    id: searchParams.get("token") || "",
+    name: searchParams.get("name") || undefined,
+    symbol: searchParams.get("symbol") || undefined,
+    logo: searchParams.get("logo") || undefined,
+    marketCap: searchParams.get("market_cap") || undefined,
+    price: searchParams.get("price") || undefined,
+    contract_address: searchParams.get("contract_address") || undefined,
+    blockchain: searchParams.get("blockchain") || undefined,
+    description: searchParams.get("description") || undefined,
+    website: searchParams.get("website") || undefined,
+    twitter: searchParams.get("twitter") || undefined,
+    github: searchParams.get("github") || undefined,
+  };
   
   // Debug logging for token data
   useEffect(() => {
     console.log("[TokenInfoCard] Rendering with metadata:", tokenMetadata);
+    console.log("[TokenInfoCard] URL parameters:", urlParams);
     console.log("[TokenInfoCard] Token API data:", token);
     
     // Log specific fields we're interested in
     if (token) {
       console.log("[TokenInfoCard] Contract address:", token.contract_address);
       console.log("[TokenInfoCard] Social links:", token.links);
+      console.log("[TokenInfoCard] Description:", token.description?.substring(0, 100) + "...");
       console.log("[TokenInfoCard] Launch date:", token.genesis_date || "Not available");
       console.log("[TokenInfoCard] Blockchain:", token.blockchain || "Not specified");
       if (token.platforms) {
         console.log("[TokenInfoCard] Platforms:", token.platforms);
       }
     }
-  }, [tokenMetadata, token]);
+  }, [tokenMetadata, token, urlParams]);
   
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -75,7 +99,7 @@ export const TokenInfoCard = ({
   };
 
   // If there's an error, display error card
-  if (error && !tokenMetadata?.name) {
+  if (error && !tokenMetadata?.name && !urlParams.name) {
     return (
       <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
         <CardContent className="p-6">
@@ -89,7 +113,7 @@ export const TokenInfoCard = ({
   }
 
   // If loading and no metadata, display skeleton
-  if (isLoading && !tokenMetadata?.name) {
+  if (isLoading && !tokenMetadata?.name && !urlParams.name) {
     return (
       <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
         <CardContent className="p-6">
@@ -118,7 +142,7 @@ export const TokenInfoCard = ({
   }
 
   // If no token data and no metadata, show appropriate message
-  if (!token && !tokenMetadata?.name) {
+  if (!token && !tokenMetadata?.name && !urlParams.name) {
     return (
       <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">
         <CardContent className="p-6">
@@ -131,21 +155,26 @@ export const TokenInfoCard = ({
     );
   }
 
-  // Merge token data with metadata, preferring metadata when available
-  const displayName = tokenMetadata?.name || token?.name || "Unknown Token";
-  const displaySymbol = tokenMetadata?.symbol || token?.symbol?.toUpperCase() || "--";
-  const displayImage = tokenMetadata?.logo || token?.image;
+  // Merge all sources of token data with priority: URL params > tokenMetadata > token API data
+  const displayName = urlParams.name || tokenMetadata?.name || token?.name || "Unknown Token";
+  const displaySymbol = urlParams.symbol || tokenMetadata?.symbol || token?.symbol?.toUpperCase() || "--";
+  const displayImage = urlParams.logo || tokenMetadata?.logo || token?.image;
   
   // Try to parse numerical values if they were passed as strings
-  const displayPrice = tokenMetadata?.price ? Number(tokenMetadata.price) : token?.current_price;
-  const displayMarketCap = tokenMetadata?.marketCap ? Number(tokenMetadata.marketCap) : token?.market_cap;
+  const displayPrice = urlParams.price ? Number(urlParams.price) : 
+                       tokenMetadata?.price ? Number(tokenMetadata.price) : 
+                       token?.current_price;
+  const displayMarketCap = urlParams.marketCap ? Number(urlParams.marketCap) : 
+                           tokenMetadata?.marketCap ? Number(tokenMetadata.marketCap) : 
+                           token?.market_cap;
 
-  // Get contract address with fallbacks - prioritize metadata from search result
-  const contractAddress = tokenMetadata?.contract_address || token?.contract_address || "";
+  // Get contract address with fallbacks - prioritize URL params first
+  const contractAddress = urlParams.contract_address || tokenMetadata?.contract_address || token?.contract_address || "";
 
-  // Format social links with fallbacks
-  // Ensure website has proper formatting
+  // Format social links with fallbacks, prioritizing URL params
   const getWebsiteUrl = () => {
+    if (urlParams.website) return urlParams.website;
+    
     if (token?.links?.homepage && token.links.homepage.length > 0) {
       const homepage = token.links.homepage[0];
       if (homepage) {
@@ -157,11 +186,13 @@ export const TokenInfoCard = ({
   
   // Get social links with proper fallbacks
   const website = getWebsiteUrl();
-  const twitter = token?.links?.twitter_screen_name || "";
-  const github = token?.links?.github || "";
+  const twitter = urlParams.twitter || token?.links?.twitter_screen_name || "";
+  const github = urlParams.github || token?.links?.github || "";
   
-  // Ensure we have a description
+  // Ensure we have a description - prioritize URL params
   const getDescription = () => {
+    if (urlParams.description) return urlParams.description;
+    
     if (token?.description && token.description.length > 0) {
       return token.description;
     }
@@ -197,9 +228,14 @@ export const TokenInfoCard = ({
     });
   };
   
-  // Determine blockchain from various sources
+  // Determine blockchain from various sources, with URL params having highest priority
   const getBlockchainLabel = (): string => {
-    // First check if we have blockchain info directly
+    // First check URL params
+    if (urlParams.blockchain) {
+      return urlParams.blockchain.toUpperCase();
+    }
+    
+    // Then check if we have blockchain info directly
     if (token?.blockchain) {
       return token.blockchain.toUpperCase();
     }
@@ -275,6 +311,25 @@ export const TokenInfoCard = ({
   };
   
   const explorerUrl = contractAddress ? getExplorerUrl(contractAddress, blockchainLabel) : "";
+  
+  // Log final display data
+  useEffect(() => {
+    console.log("[TokenInfoCard] Final display data:", {
+      name: displayName,
+      symbol: displaySymbol,
+      image: displayImage,
+      price: displayPrice,
+      marketCap: displayMarketCap,
+      contractAddress,
+      blockchain: blockchainLabel,
+      website,
+      twitter,
+      github,
+      description: description.substring(0, 100) + "...",
+      launchDate
+    });
+  }, [displayName, displaySymbol, displayImage, displayPrice, displayMarketCap, 
+      contractAddress, blockchainLabel, website, twitter, github, description, launchDate]);
 
   return (
     <Card className="border-none shadow-sm bg-white overflow-hidden mb-6">

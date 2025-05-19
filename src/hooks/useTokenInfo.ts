@@ -43,15 +43,15 @@ export interface TokenInfo {
   platforms?: Record<string, string>; // Maps blockchain networks to contract addresses
 }
 
-export const useTokenInfo = (tokenIdentifier?: string | null) => {
+export const useTokenInfo = (tokenIdentifier?: string | null, forceRefresh: boolean = false) => {
   // Basic client-side normalization that mirrors the edge function logic
   // We want to keep this minimal and let the edge function handle the full resolution
   const normalizedToken = tokenIdentifier?.trim() || '';
   
-  console.log(`[useTokenInfo] Fetching info for token: ${normalizedToken}`);
+  console.log(`[useTokenInfo] Fetching info for token: ${normalizedToken}, forceRefresh: ${forceRefresh}`);
 
   return useQuery({
-    queryKey: ['tokenInfo', normalizedToken],
+    queryKey: ['tokenInfo', normalizedToken, forceRefresh], // Add forceRefresh to the query key
     queryFn: async (): Promise<TokenInfo> => {
       if (!normalizedToken) {
         throw new Error('Token identifier is required');
@@ -61,7 +61,7 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
 
       try {
         const { data, error } = await supabase.functions.invoke('get-token-info', {
-          body: { token: normalizedToken }
+          body: { token: normalizedToken, forceRefresh: forceRefresh } // Pass forceRefresh to edge function
         });
 
         if (error) {
@@ -88,6 +88,12 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
           });
         } else {
           console.log('[useTokenInfo] No social links in API response');
+        }
+
+        // Log description
+        console.log('[useTokenInfo] Description available:', !!data.description);
+        if (data.description) {
+          console.log('[useTokenInfo] Description preview:', data.description.substring(0, 100) + '...');
         }
         
         // Ensure we have default values for critical fields
@@ -116,7 +122,7 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
       }
     },
     enabled: !!normalizedToken,
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: forceRefresh ? 0 : 60 * 1000, // 0 if force refresh, otherwise 1 minute
     gcTime: 5 * 60 * 1000, // 5 minutes - renamed from cacheTime to gcTime in React Query v5
     retry: 2, // Retry up to 2 times on failure
   });

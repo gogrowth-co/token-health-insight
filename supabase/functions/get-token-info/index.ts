@@ -84,19 +84,23 @@ Deno.serve(async (req) => {
   try {
     // Get token from URL params or request body
     let token;
+    let forceRefresh = false;
     
     // Check if it's a GET request with URL params
     const url = new URL(req.url);
     token = url.searchParams.get('token');
+    forceRefresh = url.searchParams.get('forceRefresh') === 'true';
     
     // If not found in URL params and it's a POST request, check the request body
-    if (!token && req.method === 'POST') {
+    if ((!token || forceRefresh === false) && req.method === 'POST') {
       try {
         const bodyText = await req.text();
         if (bodyText) {
           const body = JSON.parse(bodyText);
-          token = body.token;
+          token = body.token || token;
+          forceRefresh = body.forceRefresh || forceRefresh;
           console.log("Found token in request body:", token);
+          console.log("Force refresh flag:", forceRefresh);
         }
       } catch (e) {
         console.error("Error parsing request body:", e);
@@ -112,37 +116,42 @@ Deno.serve(async (req) => {
 
     // Normalize token input: remove $ prefix, convert to lowercase
     token = token.replace(/^\$/, '').toLowerCase().trim();
-    console.log("Processing normalized token:", token);
+    console.log(`Processing normalized token: ${token}, forceRefresh: ${forceRefresh}`);
 
     // Check if we have cached token data that's not too old (7 days)
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const { data: cachedData, error: cacheError } = await supabase
-      .from('token_data_cache')
-      .select('*')
-      .eq('token_id', token)
-      .single();
+    // Only use cache if not forcing refresh
+    if (!forceRefresh) {
+      const { data: cachedData, error: cacheError } = await supabase
+        .from('token_data_cache')
+        .select('*')
+        .eq('token_id', token)
+        .single();
 
-    // If we have valid cached data that's not expired AND not older than 7 days, return it
-    if (
-      cachedData && 
-      !cacheError && 
-      new Date(cachedData.expires_at) > new Date() && 
-      new Date(cachedData.last_updated) > sevenDaysAgo
-    ) {
-      console.log(`Cache hit for token: ${token} (not older than 7 days)`);
-      
-      // Ensure all required fields have fallbacks before returning
-      const data = ensureRequiredFields(cachedData.data);
-      
-      return new Response(
-        JSON.stringify(data),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      // If we have valid cached data that's not expired AND not older than 7 days, return it
+      if (
+        cachedData && 
+        !cacheError && 
+        new Date(cachedData.expires_at) > new Date() && 
+        new Date(cachedData.last_updated) > sevenDaysAgo
+      ) {
+        console.log(`Cache hit for token: ${token} (not older than 7 days)`);
+        
+        // Ensure all required fields have fallbacks before returning
+        const data = ensureRequiredFields(cachedData.data);
+        
+        return new Response(
+          JSON.stringify(data),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else {
+      console.log(`Force refresh requested for token: ${token}, bypassing cache`);
     }
 
-    console.log(`Cache miss or stale data (>7 days) for token: ${token}, fetching from CoinGecko`);
+    console.log(`${forceRefresh ? 'Force refresh' : 'Cache miss or stale data (>7 days)'} for token: ${token}, fetching from CoinGecko`);
 
     // Check if this is a known major token
     const knownTokenId = MAJOR_TOKENS[token];
@@ -371,7 +380,8 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
         links: {
           homepage: [],
           twitter_screen_name: "",
-          github: ""
+          github: "",
+          repos_url: {}
         }
       };
 
@@ -437,6 +447,11 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
       }
     }
     
+    // Ensure we properly extract social links
+    console.log('Homepage URL(s):', fullData.links?.homepage);
+    console.log('Twitter handle:', fullData.links?.twitter_screen_name);
+    console.log('GitHub URL:', githubUrl);
+    
     const tokenData: TokenData = {
       id: fullData.id,
       symbol: tokenSymbol,
@@ -478,6 +493,7 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
     console.log(`Contract address: ${contractAddress}`);
     console.log(`Blockchain: ${blockchain}`);
     console.log(`Launch date: ${fullData.genesis_date || 'Not available'}`);
+    console.log(`Description available: ${!!tokenData.description}`);
     console.log(`Social links: Homepage=${tokenData.links?.homepage?.[0] || 'none'}, Twitter=${tokenData.links?.twitter_screen_name || 'none'}, GitHub=${tokenData.links?.github || 'none'}`);
     
     // Cache the data for 1 minute (but mark it as fresh for 7 days)
@@ -510,6 +526,7 @@ async function fetchAndCacheTokenData(coinId: string, originalToken: string): Pr
             twitter: tokenData.links?.twitter_screen_name || null,
             github: tokenData.links?.github || null,
             image: tokenData.image || null,
+            description: tokenData.description || null, // Store the description in metadata as well
           }
         });
     } catch (error) {

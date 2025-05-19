@@ -28,8 +28,8 @@ export function ScanLoadingScreen({ token, tokenMetadata }: ScanLoadingScreenPro
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("Initializing scan");
   
-  // Always call useTokenInfo for consistent hook behavior
-  const { data: tokenInfo } = useTokenInfo(token);
+  // Force refresh token data to ensure we get latest info
+  const { data: tokenInfo, isLoading: tokenInfoLoading } = useTokenInfo(token, true);
   
   // Choose best available display data - ensure consistent rendering
   const displayName = tokenMetadata?.name || tokenInfo?.name || "Loading token data...";
@@ -75,7 +75,9 @@ export function ScanLoadingScreen({ token, tokenMetadata }: ScanLoadingScreenPro
         
         // Pass token metadata in URL to ensure consistency
         const queryParams = new URLSearchParams({
-          token: token
+          token: token,
+          // Always force a fresh scan by adding a timestamp
+          timestamp: Date.now().toString()
         });
         
         // Add all available metadata from search and API results
@@ -88,11 +90,21 @@ export function ScanLoadingScreen({ token, tokenMetadata }: ScanLoadingScreenPro
         if (tokenMetadata?.blockchain) queryParams.append('blockchain', tokenMetadata.blockchain);
         
         // Add any fresh data from tokenInfo as fallback
-        if (!tokenMetadata?.name && tokenInfo?.name) queryParams.append('name', tokenInfo.name);
-        if (!tokenMetadata?.symbol && tokenInfo?.symbol) queryParams.append('symbol', tokenInfo.symbol.toUpperCase());
-        if (!tokenMetadata?.logo && tokenInfo?.image) queryParams.append('logo', tokenInfo.image);
-        if (!tokenMetadata?.contract_address && tokenInfo?.contract_address) queryParams.append('contract_address', tokenInfo.contract_address);
-        if (!tokenMetadata?.blockchain && tokenInfo?.blockchain) queryParams.append('blockchain', tokenInfo.blockchain);
+        if (tokenInfo) {
+          if (!tokenMetadata?.name && tokenInfo.name) queryParams.append('name', tokenInfo.name);
+          if (!tokenMetadata?.symbol && tokenInfo.symbol) queryParams.append('symbol', tokenInfo.symbol.toUpperCase());
+          if (!tokenMetadata?.logo && tokenInfo.image) queryParams.append('logo', tokenInfo.image);
+          if (!tokenMetadata?.contract_address && tokenInfo.contract_address) queryParams.append('contract_address', tokenInfo.contract_address);
+          if (!tokenMetadata?.blockchain && tokenInfo.blockchain) queryParams.append('blockchain', tokenInfo.blockchain);
+          
+          // Add description if available from API
+          if (tokenInfo.description) queryParams.append('description', tokenInfo.description);
+          
+          // Add social links if available
+          if (tokenInfo.links?.homepage?.[0]) queryParams.append('website', tokenInfo.links.homepage[0]);
+          if (tokenInfo.links?.twitter_screen_name) queryParams.append('twitter', tokenInfo.links.twitter_screen_name);
+          if (tokenInfo.links?.github) queryParams.append('github', tokenInfo.links.github);
+        }
         
         console.log(`[ScanLoading] Navigating to results with params: ${queryParams.toString()}`);
         
