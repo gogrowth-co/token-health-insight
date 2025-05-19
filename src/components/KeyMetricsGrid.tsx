@@ -21,13 +21,15 @@ interface KeyMetricsGridProps {
   tokenId: string;
   tokenMetadata?: TokenMetadataUI;
   isLoading?: boolean;
+  error?: Error | null;
 }
 
 export const KeyMetricsGrid = ({ 
   token, 
   tokenId, 
   tokenMetadata,
-  isLoading = false 
+  isLoading = false,
+  error = null
 }: KeyMetricsGridProps) => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [connectionError, setConnectionError] = useState(false);
@@ -66,7 +68,12 @@ export const KeyMetricsGrid = ({
   );
 
   // Use our custom hook for refresh functionality
-  const { isRefreshing, handleRefresh } = useMetricsRefresh(
+  const { 
+    isRefreshing, 
+    handleRefresh, 
+    refreshTrigger: hookRefreshTrigger, 
+    setRefreshTrigger: hookSetRefreshTrigger 
+  } = useMetricsRefresh(
     async () => {
       setForceRefresh(true);
       try {

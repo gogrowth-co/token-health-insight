@@ -4,10 +4,14 @@ import { toast } from "@/components/ui/use-toast";
 
 export function useMetricsRefresh(
   refetch: () => Promise<void>,
-  setRefreshTrigger: React.Dispatch<React.SetStateAction<number>>
+  setRefreshTrigger?: React.Dispatch<React.SetStateAction<number>>
 ) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(false);
+  const [refreshTrigger, setInternalRefreshTrigger] = useState(0);
+
+  // Use the provided setRefreshTrigger or the internal one
+  const effectiveSetRefreshTrigger = setRefreshTrigger || setInternalRefreshTrigger;
 
   const handleRefresh = async () => {
     // Prevent multiple simultaneous refreshes
@@ -26,7 +30,7 @@ export function useMetricsRefresh(
       });
       
       // Increment the refresh trigger to force a new API call
-      setRefreshTrigger(prev => prev + 1);
+      effectiveSetRefreshTrigger(prev => prev + 1);
       
       // Execute the refetch function
       await refetch();
@@ -64,6 +68,8 @@ export function useMetricsRefresh(
     isRefreshing,
     forceRefresh,
     handleRefresh,
-    setForceRefresh
+    setForceRefresh,
+    refreshTrigger,
+    setRefreshTrigger: effectiveSetRefreshTrigger
   };
 }

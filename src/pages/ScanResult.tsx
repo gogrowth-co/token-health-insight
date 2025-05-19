@@ -15,7 +15,6 @@ import { useTokenInfo } from "@/hooks/useTokenInfo";
 import { toast } from "@/components/ui/use-toast";
 import { ShieldCheck, CircleCheck, CircleDot, CircleX, CircleHelp, TrendingUp, FileCode, Users, Calendar } from "lucide-react";
 import { useTokenMetrics } from "@/hooks/useTokenMetrics";
-import { useMetricsRefresh } from "@/hooks/useMetricsRefresh";
 import { SecurityMetricsSection } from "@/components/SecurityMetricsSection";
 
 interface TokenMetadata {
@@ -72,8 +71,8 @@ const ScanResult = () => {
   
   const [activeTab, setActiveTab] = useState("overview");
   
-  // Refresh metrics state
-  const { refreshTrigger, setRefreshTrigger, forceRefresh } = useMetricsRefresh();
+  // Refresh state
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   // Log the token being used for this scan
   useEffect(() => {
@@ -122,7 +121,7 @@ const ScanResult = () => {
     token,
     tokenInfo,
     refreshTrigger,
-    forceRefresh,
+    false, // forceRefresh
     {
       name: tokenMetadata.name,
       symbol: tokenMetadata.symbol,
@@ -362,10 +361,6 @@ const ScanResult = () => {
                     github: tokenMetadata.github,
                     contract_address: tokenMetadata.contract_address
                   }}
-                  metrics={tokenMetrics}
-                  onRefresh={() => setRefreshTrigger(prev => prev + 1)}
-                  refreshTrigger={refreshTrigger}
-                  forceRefresh={forceRefresh}
                 />
               </section>
               
@@ -462,7 +457,7 @@ const ScanResult = () => {
               <SecurityMetricsSection
                 metrics={tokenMetrics}
                 isLoading={metricsLoading}
-                error={metricsError as Error}
+                error={metricsError as Error | null}
               />
             </TabsContent>
             
