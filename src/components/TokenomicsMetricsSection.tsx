@@ -148,8 +148,8 @@ export const TokenomicsMetricsSection = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo(metrics?.tvl, "tvl").color}`}>
-                    {metrics?.tvl || "N/A"}
+                  <Badge className={`${getStatusInfo("Coming Soon", "tvl").color}`}>
+                    Coming Soon
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -182,8 +182,8 @@ export const TokenomicsMetricsSection = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo(metrics?.supplyCap, "supplyCap").color}`}>
-                    {metrics?.supplyCap || "N/A"}
+                  <Badge className={`${getStatusInfo("Coming Soon", "supplyCap").color}`}>
+                    Coming Soon
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -214,10 +214,8 @@ export const TokenomicsMetricsSection = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo(metrics?.tokenDistribution, "tokenDistribution").color}`}>
-                    {metrics?.tokenDistributionRating || "N/A"}
-                    {metrics?.tokenDistribution && metrics.tokenDistribution !== "N/A" ? 
-                      ` (${metrics.tokenDistribution})` : ''}
+                  <Badge className={`${getStatusInfo("Coming Soon", "tokenDistribution").color}`}>
+                    Coming Soon
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -250,8 +248,8 @@ export const TokenomicsMetricsSection = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo(metrics?.treasurySize, "treasurySize").color}`}>
-                    {metrics?.treasurySize || "N/A"}
+                  <Badge className={`${getStatusInfo("Coming Soon", "treasurySize").color}`}>
+                    Coming Soon
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -280,8 +278,8 @@ export const TokenomicsMetricsSection = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo(metrics?.burnMechanism, "burnMechanism").color}`}>
-                    {metrics?.burnMechanism || "N/A"}
+                  <Badge className={`${getStatusInfo("Coming Soon", "burnMechanism").color}`}>
+                    Coming Soon
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
