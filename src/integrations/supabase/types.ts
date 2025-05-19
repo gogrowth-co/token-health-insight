@@ -126,6 +126,36 @@ export type Database = {
         }
         Relationships: []
       }
+      token_holders_cache: {
+        Row: {
+          created_at: string
+          id: string
+          last_updated: string
+          percentage: string
+          token_address: string
+          trend: string | null
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_updated?: string
+          percentage: string
+          token_address: string
+          trend?: string | null
+          value: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_updated?: string
+          percentage?: string
+          token_address?: string
+          trend?: string | null
+          value?: number
+        }
+        Relationships: []
+      }
       token_metrics_cache: {
         Row: {
           created_at: string
@@ -218,7 +248,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_token_holders_cache_table: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

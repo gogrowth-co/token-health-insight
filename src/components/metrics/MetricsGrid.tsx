@@ -170,7 +170,7 @@ export const MetricsGrid = ({
           <Info size={14} />
           <span>
             "N/A" indicates data is not available or not applicable for this token.
-            {metrics?.socialFollowersFromCache && <span className="ml-1"><Clock size={14} className="inline mr-1" />indicates data from cache.</span>}
+            {metrics?.fromCache && <span className="ml-1"><Database size={14} className="inline mr-1" /> indicates data from cache.</span>}
           </span>
         </div>
       )}
