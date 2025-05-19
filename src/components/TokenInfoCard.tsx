@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Globe, Twitter, Github, Copy, ExternalLink, Info, ChevronDown, ChevronUp } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenInfo } from "@/hooks/useTokenInfo";
 import { formatCurrency, formatPercentage, formatDate, withFallback } from "@/lib/utils";
@@ -13,6 +13,8 @@ interface TokenMetadata {
   name?: string;
   symbol?: string;
   logo?: string;
+  marketCap?: string;
+  price?: string;
 }
 
 interface TokenInfoCardProps {
@@ -30,6 +32,12 @@ export const TokenInfoCard = ({
 }: TokenInfoCardProps) => {
   const [copied, setCopied] = useState(false);
   const [showFullDescription, setShowFullDescription] = useState(false);
+  
+  // Debug logging for token data
+  useEffect(() => {
+    console.log("[TokenInfoCard] Rendering with metadata:", tokenMetadata);
+    console.log("[TokenInfoCard] Token API data:", token);
+  }, [tokenMetadata, token]);
   
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -113,6 +121,10 @@ export const TokenInfoCard = ({
   const displayName = tokenMetadata?.name || token?.name || "Unknown Token";
   const displaySymbol = tokenMetadata?.symbol || token?.symbol?.toUpperCase() || "--";
   const displayImage = tokenMetadata?.logo || token?.image;
+  
+  // Try to parse numerical values if they were passed as strings
+  const displayPrice = tokenMetadata?.price ? Number(tokenMetadata.price) : token?.current_price;
+  const displayMarketCap = tokenMetadata?.marketCap ? Number(tokenMetadata.marketCap) : token?.market_cap;
 
   // Format social links with fallbacks
   const website = token?.links?.homepage?.[0] || "";

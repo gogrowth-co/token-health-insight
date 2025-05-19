@@ -69,7 +69,7 @@ export const useTokenInfo = (tokenIdentifier?: string | null) => {
           throw new Error('No data returned from token info endpoint');
         }
         
-        console.log(`[useTokenInfo] Received data for token: ${data.id}, name: ${data.name || 'N/A'}`);
+        console.log(`[useTokenInfo] Received data for token: ${data.id || normalizedToken}, name: ${data.name || 'N/A'}`);
         
         // Ensure we have default values for critical fields
         const tokenInfo: TokenInfo = {

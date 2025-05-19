@@ -20,6 +20,8 @@ interface TokenMetadata {
   name?: string;
   symbol?: string;
   logo?: string;
+  marketCap?: string;
+  price?: string;
 }
 
 const ScanResult = () => {
@@ -36,17 +38,21 @@ const ScanResult = () => {
   const tokenFromQuery = searchParams.get("token");
   const token = tokenId || tokenFromQuery || "";
   
-  // Get any additional metadata passed in query params
+  // Get all metadata passed in query params
   const tokenNameFromQuery = searchParams.get("name");
   const tokenSymbolFromQuery = searchParams.get("symbol");
   const tokenLogoFromQuery = searchParams.get("logo");
+  const marketCapFromQuery = searchParams.get("market_cap");
+  const priceFromQuery = searchParams.get("price");
   
   // Keep track of token metadata from various sources
   const [tokenMetadata, setTokenMetadata] = useState<TokenMetadata>({
     id: token,
     name: tokenNameFromQuery || undefined,
     symbol: tokenSymbolFromQuery || undefined,
-    logo: tokenLogoFromQuery || undefined
+    logo: tokenLogoFromQuery || undefined,
+    marketCap: marketCapFromQuery || undefined,
+    price: priceFromQuery || undefined
   });
   
   const [activeTab, setActiveTab] = useState("overview");
@@ -54,6 +60,7 @@ const ScanResult = () => {
   // Log the token being used for this scan
   useEffect(() => {
     console.log(`[ScanResult] Viewing results for token: ${token}`);
+    console.log(`[ScanResult] Initial metadata:`, tokenMetadata);
     
     // Verify we have a token
     if (!token) {
@@ -71,7 +78,7 @@ const ScanResult = () => {
     if (tokenNameFromQuery || tokenSymbolFromQuery || tokenLogoFromQuery) {
       console.log(`[ScanResult] Using metadata from URL: ${tokenNameFromQuery || 'N/A'} (${tokenSymbolFromQuery || 'N/A'})`);
     }
-  }, [token, tokenNameFromQuery, tokenSymbolFromQuery, tokenLogoFromQuery, navigate]);
+  }, [token, tokenNameFromQuery, tokenSymbolFromQuery, tokenLogoFromQuery, navigate, tokenMetadata]);
 
   // Fetch token info - pass token directly without client-side normalization
   const {
@@ -83,14 +90,16 @@ const ScanResult = () => {
   // Update metadata when tokenInfo is loaded
   useEffect(() => {
     if (tokenInfo && !tokenLoading) {
-      console.log(`[ScanResult] Received token info: ${tokenInfo.name} (${tokenInfo.symbol}) with id: ${tokenInfo.id}`);
+      console.log(`[ScanResult] Received token info: ${tokenInfo.name || 'Unknown'} (${tokenInfo.symbol || '--'}) with id: ${tokenInfo.id || token}`);
       
       // Only update fields that aren't already set from URL params
       setTokenMetadata(prev => ({
         id: token,
         name: prev.name || tokenInfo.name,
         symbol: prev.symbol || tokenInfo.symbol?.toUpperCase(),
-        logo: prev.logo || tokenInfo.image
+        logo: prev.logo || tokenInfo.image,
+        marketCap: prev.marketCap || (tokenInfo.market_cap?.toString() || undefined),
+        price: prev.price || (tokenInfo.current_price?.toString() || undefined)
       }));
     }
     
@@ -110,7 +119,17 @@ const ScanResult = () => {
 
   // Redirect to auth page if not authenticated
   if (!authLoading && !user) {
-    return <Navigate to={`/auth?token=${encodeURIComponent(token)}`} />;
+    const authQueryParams = new URLSearchParams({
+      tab: 'signup',
+      token: encodeURIComponent(token)
+    });
+    
+    // Pass all metadata we have
+    if (tokenMetadata.name) authQueryParams.append('name', tokenMetadata.name);
+    if (tokenMetadata.symbol) authQueryParams.append('symbol', tokenMetadata.symbol);
+    if (tokenMetadata.logo) authQueryParams.append('logo', tokenMetadata.logo);
+    
+    return <Navigate to={`/auth?${authQueryParams.toString()}`} />;
   }
   
   // Redirect to home if no token provided

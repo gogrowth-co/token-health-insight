@@ -12,6 +12,8 @@ interface TokenMetadata {
   name?: string;
   symbol?: string;
   logo?: string;
+  marketCap?: string;
+  price?: string;
 }
 
 interface ScanLoadingScreenProps {
@@ -24,15 +26,15 @@ export function ScanLoadingScreen({ token, tokenMetadata }: ScanLoadingScreenPro
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("Initializing scan");
   
-  // Always call useTokenInfo regardless of tokenMetadata
-  // but only use its result if tokenMetadata doesn't have name
+  // Always call useTokenInfo for consistent hook behavior
   const { data: tokenInfo } = useTokenInfo(token);
   
   // Choose best available display data - ensure consistent rendering
   const displayName = tokenMetadata?.name || tokenInfo?.name || "Loading token data...";
-  const displaySymbol = tokenMetadata?.symbol || tokenInfo?.symbol?.toUpperCase();
+  const displaySymbol = tokenMetadata?.symbol || tokenInfo?.symbol?.toUpperCase() || "";
   
-  console.log(`[ScanLoading] Processing token: ${token}, resolved name: ${displayName}`);
+  console.log(`[ScanLoading] Processing token: ${token}, resolved name: ${displayName}, symbol: ${displaySymbol}`);
+  console.log(`[ScanLoading] Token metadata:`, tokenMetadata);
   
   // Simulate scanning process with progress steps
   useEffect(() => {
@@ -73,10 +75,19 @@ export function ScanLoadingScreen({ token, tokenMetadata }: ScanLoadingScreenPro
           token: token
         });
         
-        // Add optional metadata if available
+        // Add all available metadata
         if (tokenMetadata?.name) queryParams.append('name', tokenMetadata.name);
         if (tokenMetadata?.symbol) queryParams.append('symbol', tokenMetadata.symbol);
         if (tokenMetadata?.logo) queryParams.append('logo', tokenMetadata.logo);
+        if (tokenMetadata?.marketCap) queryParams.append('market_cap', tokenMetadata.marketCap);
+        if (tokenMetadata?.price) queryParams.append('price', tokenMetadata.price);
+        
+        // Add any fresh data from tokenInfo as fallback
+        if (!tokenMetadata?.name && tokenInfo?.name) queryParams.append('name', tokenInfo.name);
+        if (!tokenMetadata?.symbol && tokenInfo?.symbol) queryParams.append('symbol', tokenInfo.symbol.toUpperCase());
+        if (!tokenMetadata?.logo && tokenInfo?.image) queryParams.append('logo', tokenInfo.image);
+        
+        console.log(`[ScanLoading] Navigating to results with params: ${queryParams.toString()}`);
         
         // Navigate with all params
         setTimeout(() => {
@@ -86,14 +97,14 @@ export function ScanLoadingScreen({ token, tokenMetadata }: ScanLoadingScreenPro
     }, 2200); // Each step takes ~2.2 seconds
     
     return () => clearInterval(intervalId);
-  }, [token, navigate, tokenMetadata]);
+  }, [token, navigate, tokenMetadata, tokenInfo]);
   
   const handleCancel = () => {
     navigate("/");
   };
   
   // Determine if we should show loading state or actual token data
-  const isLoadingToken = displayName === "Loading token data..." || !displayName;
+  const isLoadingToken = !displayName || displayName === "Loading token data...";
   
   return (
     <div className="flex flex-col max-w-3xl mx-auto">

@@ -30,7 +30,17 @@ export function TokenSearchResults({ query, isAuthenticated }: TokenSearchResult
     try {
       // If user is not authenticated, redirect to auth with token in query params
       if (!isAuthenticated) {
-        navigate(`/auth?tab=signup&token=${encodeURIComponent(token.id)}`);
+        const queryParams = new URLSearchParams({
+          tab: 'signup',
+          token: token.id,
+        });
+        
+        // Add metadata if available
+        if (token.name) queryParams.append('name', token.name);
+        if (token.symbol) queryParams.append('symbol', token.symbol);
+        if (token.image) queryParams.append('logo', token.image);
+        
+        navigate(`/auth?${queryParams.toString()}`);
         return;
       }
       
@@ -44,9 +54,28 @@ export function TokenSearchResults({ query, isAuthenticated }: TokenSearchResult
       const success = await incrementScanCount();
       
       if (success) {
-        // Redirect to scan loading page - use the token ID exactly as it comes from CoinGecko
-        console.log(`[TokenSearch] Navigating to scan with token ID: ${token.id}`);
-        navigate(`/scan/loading?token=${encodeURIComponent(token.id)}`);
+        // Build query params with full token metadata
+        const queryParams = new URLSearchParams({
+          token: token.id
+        });
+        
+        // Add all available metadata
+        if (token.name) queryParams.append('name', token.name);
+        if (token.symbol) queryParams.append('symbol', token.symbol.toUpperCase());
+        if (token.image) queryParams.append('logo', token.image);
+        if (token.market_cap) queryParams.append('market_cap', token.market_cap.toString());
+        if (token.current_price) queryParams.append('price', token.current_price.toString());
+        
+        console.log(`[TokenSearch] Navigating to scan with token metadata:`, 
+          JSON.stringify({
+            id: token.id,
+            name: token.name,
+            symbol: token.symbol,
+            image: token.image
+          }));
+          
+        // Redirect to scan loading page with complete metadata
+        navigate(`/scan/loading?${queryParams.toString()}`);
       } else {
         // Scan limit reached, navigate to subscription page
         navigate("/pricing");
