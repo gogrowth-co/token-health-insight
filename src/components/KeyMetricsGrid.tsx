@@ -111,6 +111,8 @@ export const KeyMetricsGrid = ({
       isRefreshing={isRefreshing || isRefetching}
       handleRefresh={handleRefresh}
       refetch={handleRefetchWrapper}
+      contractAddress={tokenMetadata?.contract_address || token?.contract_address}
+      blockchain={tokenMetadata?.blockchain || token?.blockchain}
     />
   );
 };

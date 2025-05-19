@@ -5,6 +5,12 @@ import { TokenInfo } from './useTokenInfo';
 import { toast } from '@/components/ui/use-toast';
 import { formatCurrency } from '@/lib/utils';
 
+export interface TopHolderEntry {
+  address: string;
+  percentage: number;
+  value?: string;
+}
+
 export interface TokenMetrics {
   marketCap: string;
   marketCapValue: number;
@@ -16,6 +22,7 @@ export interface TokenMetrics {
   topHoldersPercentage: string;
   topHoldersValue: number;
   topHoldersTrend: 'up' | 'down' | null;
+  topHolders?: TopHolderEntry[];
   tvl: string;
   tvlValue: number;
   tvlChange24h: number;
@@ -75,7 +82,8 @@ export const useTokenMetrics = (
             twitter: twitterHandle,
             github: githubRepo,
             blockchain: blockchain,
-            forceRefresh: forceRefresh
+            forceRefresh: forceRefresh,
+            includeHolders: true // Make sure to request detailed holders data
           }
         });
 
@@ -141,7 +149,8 @@ export const useTokenMetrics = (
             socialFollowers: 'Coming Soon',
             socialFollowersCount: 0,
             socialFollowersChange: 0,
-            socialFollowersFromCache: false
+            socialFollowersFromCache: false,
+            topHolders: []
           };
           
           return fallbackMetrics as TokenMetrics;

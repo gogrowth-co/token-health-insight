@@ -1,77 +1,105 @@
 
-import { TrendingUp, TrendingDown, Info } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+import { ReactNode } from "react";
+import { 
+  Tooltip, 
+  TooltipContent, 
+  TooltipProvider, 
+  TooltipTrigger 
 } from "@/components/ui/tooltip";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ArrowDownIcon, ArrowUpIcon, HelpCircleIcon } from "lucide-react";
 
 interface MetricTileProps {
   label: string;
   value: string;
   trend?: "up" | "down";
   change?: string;
-  tooltip: string;
+  tooltip?: string;
   error?: boolean;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   comingSoon?: boolean;
+  onClick?: () => void;
+  clickable?: boolean;
 }
 
-export const MetricTile = ({ 
-  label, 
-  value, 
-  trend, 
-  change, 
-  tooltip, 
-  error = false, 
+export function MetricTile({
+  label,
+  value,
+  trend,
+  change,
+  tooltip,
+  error = false,
   icon,
-  comingSoon = false
-}: MetricTileProps) => {
+  comingSoon = false,
+  onClick,
+  clickable = false
+}: MetricTileProps) {
+  const getValueColor = () => {
+    if (error) return "text-gray-500";
+    if (comingSoon) return "text-gray-500";
+    if (value === "N/A") return "text-gray-500";
+    return "text-gray-900";
+  };
+
+  const getTrendColor = () => {
+    if (trend === "up") return "text-green-600 bg-green-50";
+    if (trend === "down") return "text-red-600 bg-red-50";
+    return "text-gray-600 bg-gray-50";
+  };
+
+  const renderTrendIcon = () => {
+    if (trend === "up") return <ArrowUpIcon className="h-3 w-3" />;
+    if (trend === "down") return <ArrowDownIcon className="h-3 w-3" />;
+    return null;
+  };
+
   return (
-    <Card className={`overflow-hidden ${error ? 'border-red-200 bg-red-50/30' : ''}`}>
-      <CardContent className="p-4">
-        <div className="flex justify-between items-start">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center gap-1 cursor-help">
-                  <p className="text-sm text-gray-500">{label}</p>
-                  {icon && icon}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-xs">{tooltip}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
-          {trend && change && (
-            <div className={`flex items-center text-xs ${trend === "up" ? (label === "Top 10 Holders" ? "text-red-500" : "text-green-500") : (label === "Top 10 Holders" ? "text-green-500" : "text-red-500")}`}>
-              {trend === "up" ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-              <span className="ml-1">{change}</span>
-            </div>
+    <div 
+      className={`p-4 bg-white border rounded-md ${clickable ? 'cursor-pointer hover:border-blue-300 transition-colors' : ''}`}
+      onClick={clickable ? onClick : undefined}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center">
+          <span className="text-sm font-medium text-gray-700">{label}</span>
+          {tooltip && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger className="ml-1.5">
+                  <HelpCircleIcon className="h-3.5 w-3.5 text-gray-400" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="max-w-xs">{tooltip}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
-        
-        <h3 className={`text-2xl font-bold mt-1 ${value === "N/A" ? "text-gray-400" : ""} ${comingSoon ? "text-indigo-400 italic text-lg" : ""}`}>
-          {value}
-        </h3>
-      </CardContent>
-    </Card>
-  );
-};
-
-export const MetricTileSkeleton = () => (
-  <Card className="overflow-hidden">
-    <CardContent className="p-4">
-      <div className="flex justify-between items-start">
-        <Skeleton className="h-4 w-20" />
-        <Skeleton className="h-4 w-10" />
+        {icon && <div>{icon}</div>}
       </div>
-      <Skeleton className="h-8 w-32 mt-2" />
-    </CardContent>
-  </Card>
-);
+      <div className="flex items-end justify-between">
+        <div className="flex flex-col">
+          <span className={`text-lg font-semibold ${getValueColor()}`}>
+            {value}
+          </span>
+        </div>
+        {trend && change && (
+          <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getTrendColor()}`}>
+            {renderTrendIcon()}
+            <span>{change}</span>
+          </div>
+        )}
+      </div>
+      {clickable && (
+        <div className="mt-1 text-xs text-blue-600">Click for details</div>
+      )}
+    </div>
+  );
+}
+
+export function MetricTileSkeleton() {
+  return (
+    <div className="p-4 bg-white border rounded-md">
+      <div className="mb-1 h-5 w-20 bg-gray-200 rounded animate-pulse"></div>
+      <div className="h-7 w-28 mt-2 bg-gray-200 rounded animate-pulse"></div>
+    </div>
+  );
+}

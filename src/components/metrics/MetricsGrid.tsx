@@ -1,11 +1,12 @@
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Info, Clock, Database, Twitter } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { MetricTile, MetricTileSkeleton } from "./MetricTile";
 import { ErrorState } from "./ErrorState";
 import { RefreshButton } from "./RefreshButton";
 import { TokenMetrics } from "@/hooks/useTokenMetrics";
+import { TopHoldersList } from "./TopHoldersList";
 
 interface MetricsGridProps {
   metrics?: TokenMetrics;
@@ -16,6 +17,8 @@ interface MetricsGridProps {
   isRefreshing: boolean;
   handleRefresh: () => Promise<void>;
   refetch: () => Promise<void>;
+  contractAddress?: string;
+  blockchain?: string;
 }
 
 export const MetricsGrid = ({ 
@@ -26,8 +29,12 @@ export const MetricsGrid = ({
   metricsError,
   isRefreshing,
   handleRefresh,
-  refetch
+  refetch,
+  contractAddress,
+  blockchain
 }: MetricsGridProps) => {
+  const [showTopHolders, setShowTopHolders] = useState(false);
+  
   // Show error toast once when an error occurs
   useEffect(() => {
     if (isError && metricsError) {
@@ -62,6 +69,13 @@ export const MetricsGrid = ({
     }
     
     return baseTooltip;
+  };
+
+  const hasHolderData = metrics?.topHolders && metrics.topHolders.length > 0;
+  
+  // Toggle holders display
+  const toggleTopHolders = () => {
+    setShowTopHolders(!showTopHolders);
   };
 
   return (
@@ -118,6 +132,8 @@ export const MetricsGrid = ({
             tooltip={getTopHoldersTooltip()}
             error={isError}
             icon={metrics?.fromCache ? <Database size={14} className="text-gray-400" /> : undefined}
+            onClick={toggleTopHolders}
+            clickable={hasHolderData}
           />
         )}
 
@@ -163,6 +179,18 @@ export const MetricsGrid = ({
           />
         )}
       </div>
+      
+      {/* Top Holders Detail Section */}
+      {showTopHolders && metrics?.topHolders && metrics.topHolders.length > 0 && (
+        <TopHoldersList 
+          holders={metrics.topHolders}
+          totalPercentage={metrics.topHoldersPercentage || "N/A"}
+          fromCache={metrics.fromCache}
+          isLoading={showSkeletons}
+          contractAddress={contractAddress}
+          blockchain={blockchain}
+        />
+      )}
       
       {/* N/A fields explanation */}
       {!showSkeletons && (
