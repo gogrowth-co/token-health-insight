@@ -14,6 +14,9 @@ import { TokenInfoCard } from "@/components/TokenInfoCard";
 import { useTokenInfo } from "@/hooks/useTokenInfo";
 import { toast } from "@/components/ui/use-toast";
 import { ShieldCheck, CircleCheck, CircleDot, CircleX, CircleHelp, TrendingUp, FileCode, Users, Calendar } from "lucide-react";
+import { useTokenMetrics } from "@/hooks/useTokenMetrics";
+import { useMetricsRefresh } from "@/hooks/useMetricsRefresh";
+import { SecurityMetricsSection } from "@/components/SecurityMetricsSection";
 
 interface TokenMetadata {
   id: string;
@@ -69,6 +72,9 @@ const ScanResult = () => {
   
   const [activeTab, setActiveTab] = useState("overview");
   
+  // Refresh metrics state
+  const { refreshTrigger, setRefreshTrigger, forceRefresh } = useMetricsRefresh();
+  
   // Log the token being used for this scan
   useEffect(() => {
     console.log(`[ScanResult] Viewing results for token: ${token}`);
@@ -106,6 +112,27 @@ const ScanResult = () => {
     isLoading: tokenLoading,
     error: tokenError
   } = useTokenInfo(token);
+
+  // Fetch token metrics
+  const {
+    data: tokenMetrics,
+    isLoading: metricsLoading,
+    error: metricsError
+  } = useTokenMetrics(
+    token,
+    tokenInfo,
+    refreshTrigger,
+    forceRefresh,
+    {
+      name: tokenMetadata.name,
+      symbol: tokenMetadata.symbol,
+      logo: tokenMetadata.logo,
+      contract_address: tokenMetadata.contract_address,
+      blockchain: tokenMetadata.blockchain,
+      twitter: tokenMetadata.twitter,
+      github: tokenMetadata.github
+    }
+  );
 
   // Update metadata when tokenInfo is loaded
   useEffect(() => {
@@ -171,39 +198,90 @@ const ScanResult = () => {
   }
 
   // Function to calculate health score based on actual token metrics
-  const calculateHealthScore = (tokenInfo: any) => {
-    // This is a placeholder for a more complex calculation
-    // In a full implementation, this would use metrics from various categories
+  const calculateHealthScore = () => {
+    // Start with a base score
+    let score = 65;
     
-    // Default to moderate score if no data
-    if (!tokenInfo) return 65;
+    if (!tokenMetrics && !tokenInfo) return score;
     
-    let score = 65; // Base score
-    
-    // Adjust score based on available metrics
-    if (tokenInfo.market_cap_rank && tokenInfo.market_cap_rank < 100) {
-      score += 15; // Bonus for top 100 tokens
-    } else if (tokenInfo.market_cap_rank && tokenInfo.market_cap_rank < 500) {
-      score += 10; // Bonus for top 500 tokens
+    // Adjust score based on available metrics from tokenMetrics
+    if (tokenMetrics) {
+      // Market cap - higher is better
+      if (tokenMetrics.marketCapValue > 1000000000) { // > $1B
+        score += 15;
+      } else if (tokenMetrics.marketCapValue > 100000000) { // > $100M
+        score += 10;
+      } else if (tokenMetrics.marketCapValue > 10000000) { // > $10M
+        score += 5;
+      }
+      
+      // TVL - higher is better
+      if (tokenMetrics.tvlValue > 100000000) { // > $100M
+        score += 10;
+      } else if (tokenMetrics.tvlValue > 10000000) { // > $10M
+        score += 5;
+      }
+      
+      // Audit status - verified is better
+      if (tokenMetrics.auditStatus === "Verified") {
+        score += 5;
+      }
+      
+      // Liquidity lock - longer is better
+      if (tokenMetrics.liquidityLockDays > 180) {
+        score += 10;
+      } else if (tokenMetrics.liquidityLockDays > 30) {
+        score += 5;
+      }
+      
+      // Top holders - less concentration is better
+      if (tokenMetrics.topHoldersValue < 30) {
+        score += 10;
+      } else if (tokenMetrics.topHoldersValue < 50) {
+        score += 5;
+      } else if (tokenMetrics.topHoldersValue > 80) {
+        score -= 10;
+      } else if (tokenMetrics.topHoldersValue > 60) {
+        score -= 5;
+      }
+      
+      // Security metrics
+      if (tokenMetrics.ownershipRenounced === "Yes") {
+        score += 10;
+      }
+      
+      if (tokenMetrics.freezeAuthority === "No") {
+        score += 5;
+      } else if (tokenMetrics.freezeAuthority === "Yes") {
+        score -= 5;
+      }
     }
     
-    // Penalize if price is dropping significantly
-    if (tokenInfo.price_change_percentage_24h && tokenInfo.price_change_percentage_24h < -10) {
-      score -= 5;
-    }
-    
-    // Add bonus for having good documentation/links
-    if (tokenInfo.links) {
-      if (tokenInfo.links.homepage && tokenInfo.links.homepage[0]) score += 2;
-      if (tokenInfo.links.twitter_screen_name) score += 2;
-      if (tokenInfo.links.github) score += 3;
+    // Use token info as fallback or additional data
+    if (tokenInfo) {
+      // Market cap rank
+      if (tokenInfo.market_cap_rank && tokenInfo.market_cap_rank < 100) {
+        score += 5; // Bonus for top 100 tokens
+      }
+      
+      // Price change - stable or positive is better
+      if (tokenInfo.price_change_percentage_24h && tokenInfo.price_change_percentage_24h < -20) {
+        score -= 5; // Big drop is concerning
+      }
+      
+      // Add bonus for having good documentation/links
+      if (tokenInfo.links) {
+        if (tokenInfo.links.homepage && tokenInfo.links.homepage[0]) score += 2;
+        if (tokenInfo.links.twitter_screen_name) score += 2;
+        if (tokenInfo.links.github) score += 3;
+      }
     }
     
     // Cap score between 0-100
     return Math.max(0, Math.min(100, score));
   };
   
-  const healthScore = calculateHealthScore(tokenInfo);
+  const healthScore = calculateHealthScore();
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -272,7 +350,8 @@ const ScanResult = () => {
                 <KeyMetricsGrid 
                   token={tokenInfo} 
                   tokenId={token} 
-                  isLoading={tokenLoading} 
+                  isLoading={tokenLoading || metricsLoading}
+                  error={tokenError || metricsError}
                   tokenMetadata={{
                     id: token,
                     name: tokenMetadata.name,
@@ -283,6 +362,10 @@ const ScanResult = () => {
                     github: tokenMetadata.github,
                     contract_address: tokenMetadata.contract_address
                   }}
+                  metrics={tokenMetrics}
+                  onRefresh={() => setRefreshTrigger(prev => prev + 1)}
+                  refreshTrigger={refreshTrigger}
+                  forceRefresh={forceRefresh}
                 />
               </section>
               
@@ -294,25 +377,40 @@ const ScanResult = () => {
                     title="Security" 
                     icon={<ShieldCheck className="text-white" />} 
                     description="Contract and protocol security analysis" 
-                    metrics={["Ownership Renounced: Yes", "Can Mint: No", "Code Audit: Yes", "Multi-Sig Wallet: Partial"]} 
+                    metrics={[
+                      `Ownership Renounced: ${tokenMetrics?.ownershipRenounced || "N/A"}`,
+                      `Freeze Authority: ${tokenMetrics?.freezeAuthority || "N/A"}`,
+                      "Code Audit: Coming Soon", 
+                      "Multi-Sig Wallet: Coming Soon"
+                    ]} 
                     color="bg-green-500" 
-                    score={72} 
+                    score={tokenMetrics?.securityScore || 50} 
                   />
                   
                   <CategoryCard 
                     title="Liquidity" 
                     icon={<TrendingUp className="text-white" />} 
                     description="Market depth and trading analysis" 
-                    metrics={["Liquidity Lock: 365 days", "CEX Listings: 2", "DEX Depth: Good", "Holder Distribution: Moderate"]} 
+                    metrics={[
+                      `Liquidity Lock: ${tokenMetrics?.liquidityLock || "N/A"}`,
+                      `Market Cap: ${tokenMetrics?.marketCap || "N/A"}`,
+                      `Top Holders: ${tokenMetrics?.topHoldersPercentage || "N/A"}`,
+                      "DEX Depth: Coming Soon"
+                    ]} 
                     color="bg-blue-500" 
-                    score={82} 
+                    score={75} 
                   />
                   
                   <CategoryCard 
                     title="Tokenomics" 
                     icon={<CircleDot className="text-white" />} 
                     description="Supply and distribution analysis" 
-                    metrics={["Supply Cap: Yes (100M)", "Token Distribution: Good", "Treasury Size: $500K", "Burn Mechanism: Yes"]} 
+                    metrics={[
+                      `TVL: ${tokenMetrics?.tvl || "N/A"}`,
+                      "Supply Cap: Coming Soon",
+                      "Token Distribution: Coming Soon",
+                      "Burn Mechanism: Coming Soon"
+                    ]} 
                     color="bg-purple-500" 
                     score={65} 
                   />
@@ -321,18 +419,28 @@ const ScanResult = () => {
                     title="Community" 
                     icon={<Users className="text-white" />} 
                     description="Social and community engagement" 
-                    metrics={["Twitter Followers: 12.4K", "Verified Account: Yes", "Growth Rate (30d): +18%", "Active Channels: 4"]} 
+                    metrics={[
+                      "Social Followers: Coming Soon",
+                      "Verified Account: Coming Soon",
+                      "Growth Rate: Coming Soon",
+                      "Active Channels: Coming Soon"
+                    ]} 
                     color="bg-orange-500" 
-                    score={85} 
+                    score={70} 
                   />
                   
                   <CategoryCard 
                     title="Development" 
                     icon={<FileCode className="text-white" />} 
                     description="Development activity and roadmap progress" 
-                    metrics={["GitHub Repo: Public", "Last Commit: 3 days ago", "Commit Frequency: High", "Contributors: 8"]} 
+                    metrics={[
+                      "GitHub Activity: Coming Soon",
+                      "Last Commit: Coming Soon",
+                      "Commit Frequency: Coming Soon",
+                      "Contributors: Coming Soon"
+                    ]} 
                     color="bg-teal-500" 
-                    score={70} 
+                    score={60} 
                   />
                 </div>
               </section>
@@ -349,25 +457,16 @@ const ScanResult = () => {
               </div>
             </TabsContent>
             
-            {/* Other Tabs */}
+            {/* Security Tab */}
             <TabsContent value="security">
-              <CategorySection 
-                title="Security Analysis" 
-                icon={<ShieldCheck />} 
-                description="In-depth security audit of smart contracts and protocols" 
-                score={72} 
-                items={[
-                  { name: "Ownership Renounced", status: "Yes", tooltip: "Contract ownership has been renounced, reducing centralization risk" },
-                  { name: "Can Mint", status: "No", tooltip: "Contract cannot mint new tokens" },
-                  { name: "Code Audit", status: "Yes", tooltip: "Smart contract audited by reputable firm" },
-                  { name: "Freeze / Blacklist Authority", status: "No", tooltip: "No ability to freeze or blacklist accounts" },
-                  { name: "Multi-Sig Wallet", status: "Partial", tooltip: "Some functions require multiple signatures, but not all" },
-                  { name: "Insurance", status: "No", tooltip: "No insurance coverage for smart contract risks" },
-                  { name: "Bug Bounty", status: "Yes", tooltip: "Active bug bounty program to identify vulnerabilities" }
-                ]} 
+              <SecurityMetricsSection
+                metrics={tokenMetrics}
+                isLoading={metricsLoading}
+                error={metricsError as Error}
               />
             </TabsContent>
             
+            {/* Other Tabs */}
             <TabsContent value="liquidity">
               <CategorySection 
                 title="Liquidity Analysis" 
@@ -375,11 +474,11 @@ const ScanResult = () => {
                 description="Assessment of market depth, trading volume, and holder distribution" 
                 score={82} 
                 items={[
-                  { name: "Liquidity Lock", status: "Yes (365 days)", tooltip: "LP tokens are locked for 1 year" },
-                  { name: "CEX Listings", status: "2", tooltip: "Listed on 2 centralized exchanges" },
-                  { name: "DEX Depth", status: "Good", tooltip: "Sufficient liquidity depth on decentralized exchanges" },
-                  { name: "Holder Distribution", status: "Moderate", tooltip: "Some concentration among top holders but not concerning" },
-                  { name: "Trading Volume", status: "$243K/24h", tooltip: "24-hour trading volume across all exchanges" }
+                  { name: "Liquidity Lock", status: tokenMetrics?.liquidityLock || "N/A", tooltip: "LP tokens lock status" },
+                  { name: "Market Cap", status: tokenMetrics?.marketCap || "N/A", tooltip: "Total market capitalization" },
+                  { name: "CEX Listings", status: "Coming Soon", tooltip: "Listed on centralized exchanges" },
+                  { name: "DEX Depth", status: "Coming Soon", tooltip: "Liquidity depth on decentralized exchanges" },
+                  { name: "Holder Distribution", status: tokenMetrics?.topHoldersPercentage || "N/A", tooltip: "Top holders percentage" }
                 ]} 
               />
             </TabsContent>
@@ -391,11 +490,11 @@ const ScanResult = () => {
                 description="Token supply, distribution, and monetary policy" 
                 score={65} 
                 items={[
-                  { name: "Supply Cap", status: "Yes (100M)", tooltip: "Maximum supply is capped at 100 million tokens" },
-                  { name: "Token Distribution", status: "Good", tooltip: "Well-distributed allocation across stakeholders" },
-                  { name: "Treasury Size", status: "$500K", tooltip: "Project treasury holds $500,000 in assets" },
-                  { name: "Vesting Schedule", status: "Yes", tooltip: "Team and investor tokens subject to vesting" },
-                  { name: "Burn Mechanism", status: "Yes", tooltip: "Regular token burns from transaction fees" }
+                  { name: "TVL", status: tokenMetrics?.tvl || "N/A", tooltip: "Total Value Locked" },
+                  { name: "Supply Cap", status: "Coming Soon", tooltip: "Maximum supply cap" },
+                  { name: "Token Distribution", status: "Coming Soon", tooltip: "Token distribution across stakeholders" },
+                  { name: "Treasury Size", status: "Coming Soon", tooltip: "Project treasury holdings" },
+                  { name: "Burn Mechanism", status: "Coming Soon", tooltip: "Token burn mechanism" }
                 ]} 
               />
             </TabsContent>
@@ -407,12 +506,11 @@ const ScanResult = () => {
                 description="Social engagement and growth metrics" 
                 score={85} 
                 items={[
-                  { name: "Twitter Followers", status: "12.4K", tooltip: "Total Twitter/X followers" },
-                  { name: "Verified Account", status: "Yes", tooltip: "Official account is verified" },
-                  { name: "Growth Rate (30d)", status: "+18%", tooltip: "Follower growth in the last 30 days" },
-                  { name: "Active Channels", status: "4", tooltip: "Number of active community channels" },
-                  { name: "Team Visibility", status: "High", tooltip: "Team regularly engages with community" },
-                  { name: "Weekly Updates", status: "Yes", tooltip: "Regular weekly updates published" }
+                  { name: "Social Followers", status: "Coming Soon", tooltip: "Total social media followers" },
+                  { name: "Verified Account", status: "Coming Soon", tooltip: "Official account verification" },
+                  { name: "Growth Rate", status: "Coming Soon", tooltip: "Follower growth rate" },
+                  { name: "Active Channels", status: "Coming Soon", tooltip: "Number of active community channels" },
+                  { name: "Team Visibility", status: "Coming Soon", tooltip: "Team engagement with community" }
                 ]} 
               />
             </TabsContent>
@@ -424,13 +522,12 @@ const ScanResult = () => {
                 description="Code activity and technical progress" 
                 score={70} 
                 items={[
-                  { name: "GitHub Repo", status: "Public", tooltip: "Code repository is publicly accessible" },
-                  { name: "Last Commit Date", status: "3 days ago", tooltip: "Most recent code commit" },
-                  { name: "Commit Frequency", status: "High", tooltip: "Regular code contributions" },
-                  { name: "Roadmap Progress", status: "On Track", tooltip: "Development follows published roadmap" },
-                  { name: "Contributors Count", status: "8", tooltip: "Number of active code contributors" },
-                  { name: "License Type", status: "MIT", tooltip: "Open source under MIT license" },
-                  { name: "Open Source", status: "Yes", tooltip: "Codebase is open source" }
+                  { name: "GitHub Activity", status: "Coming Soon", tooltip: "Code repository activity" },
+                  { name: "Last Commit Date", status: "Coming Soon", tooltip: "Most recent code commit" },
+                  { name: "Commit Frequency", status: "Coming Soon", tooltip: "Regular code contributions" },
+                  { name: "Roadmap Progress", status: "Coming Soon", tooltip: "Development progress on roadmap" },
+                  { name: "Contributors Count", status: "Coming Soon", tooltip: "Number of active code contributors" },
+                  { name: "Open Source", status: "Coming Soon", tooltip: "Open source status" }
                 ]} 
               />
             </TabsContent>

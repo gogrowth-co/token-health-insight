@@ -34,6 +34,14 @@ export interface TokenMetrics {
   githubActivity?: string;
   githubCommits?: number;
   fromCache?: boolean;
+  
+  // Security metrics
+  ownershipRenounced?: string;
+  freezeAuthority?: string;
+  codeAudit?: string;
+  multiSigWallet?: string;
+  bugBounty?: string;
+  securityScore?: number;
 }
 
 export interface TokenMetadata {
@@ -84,12 +92,14 @@ export const useTokenMetrics = (
             blockchain: blockchain,
             forceRefresh: forceRefresh,
             includeHolders: true, // Make sure to request detailed holders data
+            includeSecurity: true, // Request security data
             sources: {
               marketCap: 'coingecko',
               tvl: 'coingecko',
               auditStatus: 'etherscan',
               topHolders: 'goplus',
-              liquidityLock: 'etherscan'
+              liquidityLock: 'etherscan',
+              security: 'goplus'
             }
           }
         });
@@ -132,6 +142,30 @@ export const useTokenMetrics = (
         data.metrics.socialFollowersCount = 0;
         data.metrics.socialFollowersChange = 0;
         
+        // Set default values for security metrics that are not yet implemented
+        data.metrics.codeAudit = "Coming Soon";
+        data.metrics.multiSigWallet = "Coming Soon";
+        data.metrics.bugBounty = "Coming Soon";
+        
+        // Calculate a simple security score based on the available metrics
+        let securityScore = 50; // Base score
+        
+        // Adjust security score based on ownership renounced
+        if (data.metrics.ownershipRenounced === "Yes") {
+          securityScore += 20;
+        } else if (data.metrics.ownershipRenounced === "No") {
+          securityScore -= 5;
+        }
+        
+        // Adjust security score based on freeze authority
+        if (data.metrics.freezeAuthority === "No") {
+          securityScore += 15;
+        } else if (data.metrics.freezeAuthority === "Yes") {
+          securityScore -= 10;
+        }
+        
+        data.metrics.securityScore = securityScore;
+        
         return data.metrics as TokenMetrics;
       } catch (error) {
         console.error('Exception fetching token metrics:', error);
@@ -157,6 +191,12 @@ export const useTokenMetrics = (
             socialFollowersCount: 0,
             socialFollowersChange: 0,
             socialFollowersFromCache: false,
+            ownershipRenounced: 'N/A',
+            freezeAuthority: 'N/A',
+            codeAudit: 'Coming Soon',
+            multiSigWallet: 'Coming Soon',
+            bugBounty: 'Coming Soon',
+            securityScore: 50,
             topHolders: []
           };
           

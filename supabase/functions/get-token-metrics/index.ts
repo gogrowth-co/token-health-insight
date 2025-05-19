@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { corsHeaders } from "../_shared/cors.ts";
 
@@ -572,6 +571,110 @@ async function ensureTokenHoldersCacheExists() {
   }
 }
 
+// Helper function to get security information
+async function getSecurityInfo(network: string, tokenAddress: string) {
+  if (!tokenAddress) {
+    console.log('No token address provided for security data');
+    return { 
+      ownershipRenounced: "N/A",
+      freezeAuthority: "N/A",
+    };
+  }
+  
+  try {
+    console.log(`Getting security data for ${tokenAddress} on network ${network}`);
+    
+    // If we don't have a chain ID for this network, return default values
+    const chainId = getChainIdForNetwork(network);
+    if (!chainId) {
+      console.log(`Unsupported network for security data: ${network}`);
+      return { 
+        ownershipRenounced: "N/A",
+        freezeAuthority: "N/A",
+      };
+    }
+    
+    // Use GoPlus Security API to get token security data
+    const url = `https://api.gopluslabs.io/api/v1/token_security/${chainId}?contract_address=${tokenAddress}`;
+    console.log(`Fetching security data from GoPlus Security for chain ID ${chainId}`);
+    
+    const headers: HeadersInit = {
+      'Accept': 'application/json',
+    };
+    
+    if (GOPLUS_API_KEY) {
+      headers['API-Key'] = GOPLUS_API_KEY;
+      console.log('Using GoPlus API key for authentication');
+    } else {
+      console.log('No GoPlus API key found, proceeding without authentication');
+    }
+    
+    const response = await fetchWithRetry(url, { headers }, 3, 1000);
+    
+    if (!response.ok) {
+      console.error(`GoPlus API error: ${response.status}`);
+      return { 
+        ownershipRenounced: "N/A",
+        freezeAuthority: "N/A",
+      };
+    }
+    
+    const data = await response.json();
+    console.log('GoPlus API security response received');
+    
+    if (data.code !== 1 || !data.result || !data.result[tokenAddress.toLowerCase()]) {
+      console.log('No security data found');
+      return { 
+        ownershipRenounced: "N/A",
+        freezeAuthority: "N/A",
+      };
+    }
+    
+    // Extract security information
+    const securityData = data.result[tokenAddress.toLowerCase()];
+    console.log('Security data found:', JSON.stringify(securityData).substring(0, 500) + '...');
+    
+    // Check if ownership is renounced - true if owner_address is 0x0000...dead or similar
+    let ownershipRenounced = "No";
+    if (securityData.owner_address) {
+      const zeroAddress = "0x0000000000000000000000000000000000000000";
+      const deadAddress = "0x000000000000000000000000000000000000dead";
+      
+      if (
+        securityData.owner_address.toLowerCase() === zeroAddress.toLowerCase() ||
+        securityData.owner_address.toLowerCase() === deadAddress.toLowerCase()
+      ) {
+        ownershipRenounced = "Yes";
+      }
+    }
+    
+    // Check if contract can freeze/blacklist addresses
+    let freezeAuthority = "N/A";
+    if (securityData.is_blacklisted !== undefined) {
+      freezeAuthority = securityData.is_blacklisted === "1" ? "Yes" : "No";
+    } else if (securityData.can_take_back_ownership !== undefined) {
+      // Alternative check if is_blacklisted is not available
+      freezeAuthority = securityData.can_take_back_ownership === "1" ? "Yes" : "No";
+    } else if (securityData.is_proxy !== undefined) {
+      // Another alternative check
+      freezeAuthority = securityData.is_proxy === "1" ? "Possible" : "No";
+    }
+    
+    console.log(`Security metrics determined: Ownership Renounced - ${ownershipRenounced}, Freeze Authority - ${freezeAuthority}`);
+    
+    return {
+      ownershipRenounced,
+      freezeAuthority,
+    };
+  } catch (error) {
+    console.error('Error fetching security data:', error);
+    return { 
+      ownershipRenounced: "N/A",
+      freezeAuthority: "N/A",
+    };
+  }
+}
+
 // Main handler
 Deno.serve(async (req) => {
   // Handle CORS
@@ -582,7 +685,7 @@ Deno.serve(async (req) => {
   try {
     // Get token info from request body
     const requestBody = await req.json();
-    const { token, address, twitter, github, sources = {} } = requestBody;
+    const { token, address, twitter, github, sources = {}, includeSecurity = false } = requestBody;
     
     if (!token) {
       return new Response(
@@ -646,15 +749,25 @@ Deno.serve(async (req) => {
     
     try {
       // Fetch all metrics in parallel based on specified sources
-      const [tvlData, auditStatus, topHoldersData, liquidityLockInfo] = await Promise.all([
+      const fetchPromises = [
         getTVL(token),
         getContractVerificationStatus(network, contractAddress),
         getTopHoldersData(network, contractAddress),
         getLiquidityLockInfo(network, contractAddress)
-      ]);
+      ];
+      
+      // Only fetch security info if requested
+      if (includeSecurity) {
+        fetchPromises.push(getSecurityInfo(network, contractAddress));
+      }
+      
+      const results = await Promise.all(fetchPromises);
+      
+      // Extract results
+      const [tvlData, auditStatus, topHoldersData, liquidityLockInfo, securityInfo] = results;
       
       // Construct metrics response
-      const metrics: TokenMetricsResponse['metrics'] = {
+      const metrics: any = {
         // Market data from CoinGecko
         marketCap: tokenData && tokenData.market_data && tokenData.market_data.market_cap 
           ? formatCurrency(tokenData.market_data.market_cap.usd) 
@@ -691,6 +804,11 @@ Deno.serve(async (req) => {
         socialFollowersFromCache: false
       };
       
+      // Add security metrics if available
+      if (securityInfo) {
+        Object.assign(metrics, securityInfo);
+      }
+      
       // Cache the metrics
       try {
         await supabase
@@ -718,7 +836,7 @@ Deno.serve(async (req) => {
       console.error("Error processing specific metrics:", error);
       
       // Create a fallback response with basic metrics and error information
-      const fallbackMetrics: TokenMetricsResponse['metrics'] = {
+      const fallbackMetrics: any = {
         marketCap: tokenData && tokenData.market_data && tokenData.market_data.market_cap 
           ? formatCurrency(tokenData.market_data.market_cap.usd) 
           : "N/A",
@@ -747,7 +865,9 @@ Deno.serve(async (req) => {
         socialFollowers: "Coming Soon",
         socialFollowersCount: 0,
         socialFollowersChange: 0,
-        socialFollowersFromCache: false
+        socialFollowersFromCache: false,
+        ownershipRenounced: "N/A",
+        freezeAuthority: "N/A"
       };
       
       // Cache the fallback metrics
