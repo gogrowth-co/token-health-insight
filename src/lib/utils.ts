@@ -101,8 +101,15 @@ export function isEmpty(value: any): boolean {
 }
 
 // Create a descriptor for a value with a fallback
+/**
+ * Provides a fallback value if the primary value is null, undefined, or an empty string
+ */
 export function withFallback<T>(value: T | null | undefined, fallback: T): T {
-  return isEmpty(value) ? fallback : value as T;
+  // Check specifically for null, undefined, or empty string
+  if (value === null || value === undefined || value === '') {
+    return fallback;
+  }
+  return value;
 }
 
 // Normalize token identifiers consistently 
