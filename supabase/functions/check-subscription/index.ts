@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@12.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.32.0";
@@ -13,17 +14,16 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
+// Price ID mapping to subscription tiers
+const PRICE_TIER_MAP: Record<string, string> = {
+  'price_1RQK5tD41aNWIHmd4YspKxDi': 'Pro Monthly',
+  'price_1RQK5tD41aNWIHmd1p46UCwl': 'Pro Annual'
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
-
-  // Use the service role key to perform writes (upsert) in Supabase
-  const supabaseClient = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    { auth: { persistSession: false } }
-  );
 
   try {
     logStep("Function started");
@@ -31,6 +31,13 @@ serve(async (req) => {
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
     logStep("Stripe key verified");
+
+    // Create a Supabase client with service role key to bypass RLS
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      { auth: { persistSession: false } }
+    );
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("No authorization header provided");
@@ -45,38 +52,63 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
+    // Check for existing subscriber record
+    const { data: existingSubscriber } = await supabaseClient
+      .from("subscribers")
+      .select("*")
+      .eq("user_id", user.id)
+      .single();
+
+    // Initialize with default values
+    let scanCount = 0;
+    let scanLimit = 3; // Default free tier limit
+    
+    // If subscriber record exists, get current scan count
+    if (existingSubscriber) {
+      scanCount = existingSubscriber.scan_count || 0;
+      
+      // Check if we need to reset the daily scan count (at midnight UTC)
+      const today = new Date();
+      const resetDate = existingSubscriber.scan_reset_date ? new Date(existingSubscriber.scan_reset_date) : null;
+      
+      if (!resetDate || today.getDate() !== resetDate.getDate() || 
+          today.getMonth() !== resetDate.getMonth() || 
+          today.getFullYear() !== resetDate.getFullYear()) {
+        // Reset scan count at midnight
+        scanCount = 0;
+        logStep("Resetting daily scan count", { userId: user.id });
+      }
+    }
+
+    // Initialize Stripe
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     
     if (customers.data.length === 0) {
       logStep("No customer found, updating unsubscribed state");
-      
-      // Check if we need to create or update user record
-      const { data: existingUser } = await supabaseClient
+      // Upsert the subscriber record with free tier defaults
+      await supabaseClient
         .from("subscribers")
-        .select("*")
-        .eq("email", user.email)
-        .maybeSingle();
-      
-      // If no record exists, create one with free tier defaults
-      if (!existingUser) {
-        await supabaseClient.from("subscribers").insert({
+        .upsert({
           email: user.email,
           user_id: user.id,
           stripe_customer_id: null,
           subscribed: false,
           subscription_tier: "Free",
-          scan_limit: 3,
-          scan_count: 0,
+          subscription_end: null,
+          scan_count: scanCount,
+          scan_limit: 3, // Free tier limit
+          scan_reset_date: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        });
-      }
-      
-      return new Response(JSON.stringify({ 
+        }, { onConflict: 'user_id' });
+
+      return new Response(JSON.stringify({
         subscribed: false,
         subscription_tier: "Free",
+        subscription_end: null,
+        scan_count: scanCount,
         scan_limit: 3,
-        scan_count: existingUser?.scan_count || 0
+        canScan: scanCount < 3
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
@@ -89,120 +121,59 @@ serve(async (req) => {
     const subscriptions = await stripe.subscriptions.list({
       customer: customerId,
       status: "active",
-      limit: 1,
+      expand: ["data.items.data.price"],
     });
     
     const hasActiveSub = subscriptions.data.length > 0;
     let subscriptionTier = "Free";
     let subscriptionEnd = null;
-    let scanLimit = 3; // Default for free tier
 
     if (hasActiveSub) {
       const subscription = subscriptions.data[0];
       subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
-      logStep("Active subscription found", { subscriptionId: subscription.id, endDate: subscriptionEnd });
       
-      // Determine subscription tier from price
+      // Get the price ID from the subscription
       const priceId = subscription.items.data[0].price.id;
       
-      // Get scan count and reset date
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      // Map the price ID to a subscription tier
+      subscriptionTier = PRICE_TIER_MAP[priceId] || "Pro";
       
-      // Check if we need to reset the scan count (new day)
-      const { data: existingUser } = await supabaseClient
-        .from("subscribers")
-        .select("*")
-        .eq("email", user.email)
-        .maybeSingle();
-        
-      let scanCount = 0;
-      let scanResetDate = today.toISOString();
+      // Update scan limit based on subscription tier
+      scanLimit = subscriptionTier !== "Free" ? 5 : 3; // 5 for Pro plans, 3 for Free
       
-      if (existingUser) {
-        // If we have an existing record, check if we need to reset the scan count
-        if (existingUser.scan_reset_date) {
-          const resetDate = new Date(existingUser.scan_reset_date);
-          if (resetDate.getDate() === today.getDate() && 
-              resetDate.getMonth() === today.getMonth() && 
-              resetDate.getFullYear() === today.getFullYear()) {
-            // Same day, keep the existing scan count
-            scanCount = existingUser.scan_count || 0;
-            scanResetDate = existingUser.scan_reset_date;
-          }
-        }
-      }
-      
-      // Set tier specific limits
-      if (priceId.includes("monthly")) {
-        subscriptionTier = "Pro Monthly";
-        scanLimit = 5; // 5 pro scans per day
-      } else if (priceId.includes("annual")) {
-        subscriptionTier = "Pro Annual";
-        scanLimit = 5; // Same limit for annual
-      }
-      
-      logStep("Determined subscription tier", { priceId, subscriptionTier, scanLimit });
+      logStep("Active subscription found", { 
+        subscriptionId: subscription.id, 
+        priceId: priceId,
+        tier: subscriptionTier,
+        scanLimit,
+        endDate: subscriptionEnd 
+      });
     } else {
-      logStep("No active subscription found");
-      // Handle free tier user - get existing scan count if available
-      const { data: existingUser } = await supabaseClient
-        .from("subscribers")
-        .select("*")
-        .eq("email", user.email)
-        .maybeSingle();
-        
-      if (existingUser) {
-        scanLimit = existingUser.scan_limit || 3;
-      }
+      // No active subscription, default to Free tier
+      subscriptionTier = "Free";
+      scanLimit = 3;
+      logStep("No active subscription found, using Free tier settings");
     }
 
-    // Get or update scan count for today
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-    
-    const { data: existingRecord } = await supabaseClient
+    // Upsert the subscriber record
+    await supabaseClient
       .from("subscribers")
-      .select("*")
-      .eq("email", user.email)
-      .maybeSingle();
-    
-    let scanCount = 0;
-    if (existingRecord) {
-      // Check if we need to reset the scan counter (new day)
-      if (existingRecord.scan_reset_date) {
-        const resetDate = new Date(existingRecord.scan_reset_date);
-        const todayDate = new Date(today);
-        
-        if (resetDate.getDate() !== todayDate.getDate() || 
-            resetDate.getMonth() !== todayDate.getMonth() || 
-            resetDate.getFullYear() !== todayDate.getFullYear()) {
-          // New day, reset scan count
-          scanCount = 0;
-        } else {
-          // Same day, keep the existing count
-          scanCount = existingRecord.scan_count || 0;
-        }
-      }
-    }
-    
-    // Update the subscriber record
-    await supabaseClient.from("subscribers").upsert({
-      email: user.email,
-      user_id: user.id,
-      stripe_customer_id: customerId,
-      subscribed: hasActiveSub,
-      subscription_tier: subscriptionTier,
-      subscription_end: subscriptionEnd,
-      scan_count: scanCount,
-      scan_limit: scanLimit,
-      scan_reset_date: today,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'email' });
+      .upsert({
+        email: user.email,
+        user_id: user.id,
+        stripe_customer_id: customerId,
+        subscribed: hasActiveSub,
+        subscription_tier: subscriptionTier,
+        subscription_end: subscriptionEnd,
+        scan_count: scanCount,
+        scan_limit: scanLimit,
+        scan_reset_date: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
 
     logStep("Updated database with subscription info", { 
       subscribed: hasActiveSub, 
-      subscriptionTier, 
+      subscriptionTier,
       scanCount,
       scanLimit
     });
@@ -212,7 +183,8 @@ serve(async (req) => {
       subscription_tier: subscriptionTier,
       subscription_end: subscriptionEnd,
       scan_count: scanCount,
-      scan_limit: scanLimit
+      scan_limit: scanLimit,
+      canScan: scanCount < scanLimit
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,

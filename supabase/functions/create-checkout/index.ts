@@ -61,16 +61,15 @@ serve(async (req) => {
       logStep("Found existing customer", { customerId });
     }
 
-    // Define price IDs based on the plan
+    // Define price IDs based on the plan - using the provided live price IDs
     let priceId;
     
-    // These would be your actual price IDs from Stripe
     if (plan === 'monthly') {
       // Monthly pro plan - $20/month
-      priceId = 'price_monthly';
+      priceId = 'price_1RQK5tD41aNWIHmd4YspKxDi';
     } else if (plan === 'annual') {
       // Annual pro plan - $120/year (50% off)
-      priceId = 'price_annual';
+      priceId = 'price_1RQK5tD41aNWIHmd1p46UCwl';
     } else {
       throw new Error("Invalid plan specified. Must be 'monthly' or 'annual'.");
     }
