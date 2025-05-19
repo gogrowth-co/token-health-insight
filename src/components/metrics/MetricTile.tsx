@@ -17,9 +17,19 @@ interface MetricTileProps {
   tooltip: string;
   error?: boolean;
   icon?: React.ReactNode;
+  comingSoon?: boolean;
 }
 
-export const MetricTile = ({ label, value, trend, change, tooltip, error = false, icon }: MetricTileProps) => {
+export const MetricTile = ({ 
+  label, 
+  value, 
+  trend, 
+  change, 
+  tooltip, 
+  error = false, 
+  icon,
+  comingSoon = false
+}: MetricTileProps) => {
   return (
     <Card className={`overflow-hidden ${error ? 'border-red-200 bg-red-50/30' : ''}`}>
       <CardContent className="p-4">
@@ -46,7 +56,7 @@ export const MetricTile = ({ label, value, trend, change, tooltip, error = false
           )}
         </div>
         
-        <h3 className={`text-2xl font-bold mt-1 ${value === "N/A" ? "text-gray-400" : ""}`}>
+        <h3 className={`text-2xl font-bold mt-1 ${value === "N/A" ? "text-gray-400" : ""} ${comingSoon ? "text-indigo-400 italic text-lg" : ""}`}>
           {value}
         </h3>
       </CardContent>

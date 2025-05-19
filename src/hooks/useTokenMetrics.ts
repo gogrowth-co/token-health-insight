@@ -111,6 +111,11 @@ export const useTokenMetrics = (
         if (data.socialFollowersFromCache !== undefined) {
           data.metrics.socialFollowersFromCache = data.socialFollowersFromCache;
         }
+
+        // Override socialFollowers with "Coming Soon" since we're not using that feature yet
+        data.metrics.socialFollowers = "Coming Soon";
+        data.metrics.socialFollowersCount = 0;
+        data.metrics.socialFollowersChange = 0;
         
         return data.metrics as TokenMetrics;
       } catch (error) {
@@ -133,7 +138,7 @@ export const useTokenMetrics = (
             tvlValue: 0,
             tvlChange24h: 0,
             auditStatus: 'N/A',
-            socialFollowers: 'N/A',
+            socialFollowers: 'Coming Soon',
             socialFollowersCount: 0,
             socialFollowersChange: 0,
             socialFollowersFromCache: false

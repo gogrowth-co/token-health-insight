@@ -46,19 +46,7 @@ export const MetricsGrid = ({
 
   // Format the last update timestamp for social followers tooltip
   const getSocialFollowersTooltip = () => {
-    const baseTooltip = "Twitter followers count";
-    
-    if (metrics?.socialFollowers === "N/A") {
-      return `${baseTooltip} - Data currently unavailable`;
-    }
-    
-    if (metrics?.socialFollowersChange) {
-      const changeDirection = metrics.socialFollowersChange > 0 ? "increase" : "decrease";
-      const source = metrics?.socialFollowersFromCache ? " (from cache)" : " (from API)";
-      return `${baseTooltip} - ${Math.abs(metrics.socialFollowersChange).toFixed(1)}% ${changeDirection} observed${source}`;
-    }
-    
-    return baseTooltip;
+    return "Twitter followers count - Coming Soon";
   };
   
   // Format the top holders tooltip
@@ -159,18 +147,19 @@ export const MetricsGrid = ({
           />
         )}
 
-        {/* Social Followers */}
+        {/* Social Followers - Modified to show Coming Soon */}
         {showSkeletons ? (
           <MetricTileSkeleton />
         ) : (
           <MetricTile 
             label="Social Followers" 
-            value={metrics?.socialFollowers || "N/A"} 
-            trend={metrics?.socialFollowersChange && metrics.socialFollowersChange > 0 ? "up" : metrics?.socialFollowersChange ? "down" : undefined}
-            change={metrics?.socialFollowersChange ? `${Math.abs(metrics.socialFollowersChange).toFixed(1)}%` : undefined}
+            value="Coming Soon" 
+            trend={undefined}
+            change={undefined}
             tooltip={getSocialFollowersTooltip()} 
             error={isError}
-            icon={metrics?.socialFollowersFromCache ? <Clock size={14} className="text-gray-400" /> : <Twitter size={14} className="text-blue-400" />}
+            icon={<Twitter size={14} className="text-blue-400" />}
+            comingSoon={true}
           />
         )}
       </div>
