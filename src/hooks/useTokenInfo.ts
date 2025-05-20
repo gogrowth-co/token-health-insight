@@ -63,28 +63,31 @@ export const useTokenInfo = (tokenIdentifier?: string | null, forceRefresh: bool
       const { data: cacheData, error: cacheError } = await supabase
         .from('token_data_cache')
         .select('*')
-        .or(`token_name.eq.${normalizedToken},token_symbol.ilike.${normalizedToken},coingecko_id.eq.${normalizedToken},token_address.eq.${normalizedToken}`)
+        .eq('token_id', normalizedToken)
         .maybeSingle();
 
       // If data exists in cache and we're not forcing a refresh, use it
-      if (!forceRefresh && cacheData && !cacheError) {
+      if (!forceRefresh && cacheData && !cacheError && cacheData.data) {
         console.log(`[useTokenInfo] Found data in token_data_cache for: ${normalizedToken}`);
         
+        // Access token data from the data JSON field
+        const tokenData = cacheData.data;
+        
         return {
-          id: cacheData.coingecko_id || normalizedToken,
-          name: cacheData.token_name || 'Unknown Token',
-          symbol: cacheData.token_symbol?.toUpperCase() || "--",
-          image: cacheData.logo_url,
-          description: cacheData.description,
-          blockchain: cacheData.chain || "ethereum",
-          genesis_date: cacheData.launch_date,
-          contract_address: cacheData.token_address,
+          id: tokenData.id || normalizedToken,
+          name: tokenData.name || 'Unknown Token',
+          symbol: tokenData.symbol?.toUpperCase() || "--",
+          image: tokenData.logo_url || tokenData.image,
+          description: tokenData.description,
+          blockchain: tokenData.chain || tokenData.blockchain || "ethereum",
+          genesis_date: tokenData.launch_date || tokenData.genesis_date,
+          contract_address: tokenData.token_address || tokenData.contract_address,
           links: {
-            homepage: cacheData.website_url ? [cacheData.website_url] : [],
-            twitter_screen_name: cacheData.twitter_handle,
-            github: cacheData.github_url
+            homepage: tokenData.website_url ? [tokenData.website_url] : tokenData.homepage ? [tokenData.homepage] : [],
+            twitter_screen_name: tokenData.twitter_handle || tokenData.twitter,
+            github: tokenData.github_url || tokenData.github
           },
-          twitter: cacheData.twitter_handle
+          twitter: tokenData.twitter_handle || tokenData.twitter
         };
       }
 
@@ -116,19 +119,30 @@ export const useTokenInfo = (tokenIdentifier?: string | null, forceRefresh: bool
           console.log('[useTokenInfo] Caching token data in token_data_cache');
           try {
             await supabase.from('token_data_cache').upsert({
-              coingecko_id: data.id,
-              token_name: data.name,
-              token_symbol: data.symbol,
-              token_address: data.contract_address,
-              chain: data.blockchain || 'ethereum',
-              description: data.description,
-              website_url: data.links?.homepage?.[0],
-              twitter_handle: data.links?.twitter_screen_name || data.twitter,
-              github_url: data.links?.github,
-              launch_date: data.genesis_date,
-              logo_url: data.image
+              token_id: data.id,
+              data: {
+                id: data.id,
+                name: data.name,
+                symbol: data.symbol,
+                token_address: data.contract_address,
+                contract_address: data.contract_address,
+                chain: data.blockchain || 'ethereum',
+                blockchain: data.blockchain || 'ethereum',
+                description: data.description,
+                website_url: data.links?.homepage?.[0],
+                homepage: data.links?.homepage?.[0],
+                twitter_handle: data.links?.twitter_screen_name || data.twitter,
+                twitter: data.links?.twitter_screen_name || data.twitter,
+                github_url: data.links?.github,
+                github: data.links?.github,
+                launch_date: data.genesis_date,
+                genesis_date: data.genesis_date,
+                logo_url: data.image,
+                image: data.image
+              },
+              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
             }, {
-              onConflict: 'token_address'
+              onConflict: 'token_id'
             });
           } catch (cacheError) {
             console.error('[useTokenInfo] Error caching token data:', cacheError);

@@ -1,29 +1,14 @@
-import { CircleDot, AlertCircle, DollarSign, BarChart, Infinity, PieChart, TrendingUp } from "lucide-react";
+import { CircleDot } from "lucide-react";
 import { TokenMetrics } from "@/hooks/useTokenMetrics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { withFallback, isDataMissing, getTooltipText } from "@/utils/dataHelpers";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-export interface TokenomicsData {
-  tvl?: string;
-  tvlValue?: number;
-  tvlChange24h?: number;
-  supplyCap?: string;
-  supplyCapValue?: number;
-  supplyCapExists?: boolean;
-  burnMechanism?: string;
-  tokenDistribution?: string;
-  tokenDistributionValue?: number;
-  tokenDistributionRating?: string;
-  treasurySize?: string;
-  treasurySizeValue?: number;
-  tokenomicsScore?: number;
-}
-
 interface TokenomicsMetricsSectionProps {
-  metrics?: TokenomicsData | TokenMetrics;
+  metrics: TokenMetrics | undefined;
   isLoading: boolean;
   error: Error | null;
 }
@@ -34,54 +19,15 @@ export const TokenomicsMetricsSection = ({
   error
 }: TokenomicsMetricsSectionProps) => {
   // Tokenomics score calculation
-  const tokenomicsScore = metrics?.tokenomicsScore ?? 65;
+  const tokenomicsScore = metrics?.tokenomicsScore || 65;
   
-  // Helper function to determine the status icon and color
-  const getStatusInfo = (value?: string, type?: string) => {
-    if (!value || value === "N/A" || value === "Unknown") {
-      return { icon: <AlertCircle className="h-5 w-5 text-gray-400" />, color: "text-gray-400 bg-gray-100" };
+  // Helper function to determine the metric status icon and color
+  const getMetricStatus = (value?: string) => {
+    if (isDataMissing(value)) {
+      return "text-gray-400 bg-gray-100";
     }
     
-    // TVL status
-    if (type === "tvl") {
-      return { icon: <DollarSign className="h-5 w-5 text-green-500" />, color: "text-green-500 bg-green-50" };
-    }
-    
-    // Supply Cap status
-    if (type === "supplyCap") {
-      return { icon: <Infinity className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
-    }
-
-    // Token Distribution status
-    if (type === "tokenDistribution") {
-      const rating = 'tokenDistributionRating' in metrics ? metrics.tokenDistributionRating : undefined;
-      if (rating === "Good") {
-        return { icon: <PieChart className="h-5 w-5 text-green-500" />, color: "text-green-500 bg-green-50" };
-      } else if (rating === "Moderate") {
-        return { icon: <PieChart className="h-5 w-5 text-yellow-500" />, color: "text-yellow-500 bg-yellow-50" };
-      } else if (rating === "Poor") {
-        return { icon: <PieChart className="h-5 w-5 text-red-500" />, color: "text-red-500 bg-red-50" };
-      }
-      return { icon: <PieChart className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
-    }
-    
-    // Treasury Size status
-    if (type === "treasurySize") {
-      return { icon: <TrendingUp className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
-    }
-
-    // Burn Mechanism status
-    if (type === "burnMechanism") {
-      if (value === "Yes") {
-        return { icon: <CircleDot className="h-5 w-5 text-green-500" />, color: "text-green-500 bg-green-50" };
-      } else if (value === "No") {
-        return { icon: <CircleDot className="h-5 w-5 text-red-500" />, color: "text-red-500 bg-red-50" };
-      }
-      return { icon: <CircleDot className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
-    }
-    
-    // Other tokenomics metrics
-    return { icon: <CircleDot className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
+    return "text-blue-500 bg-blue-50";
   };
   
   // Function to get color based on tokenomics score
@@ -90,24 +36,6 @@ export const TokenomicsMetricsSection = ({
     if (score >= 60) return "bg-blue-500";
     if (score >= 40) return "bg-yellow-500";
     return "bg-red-500";
-  };
-  
-  // Helper for tooltip content
-  const getTooltipContent = (type: string) => {
-    switch (type) {
-      case "tvl":
-        return "Total Value Locked in the protocol";
-      case "supplyCap":
-        return "Maximum possible token supply";
-      case "tokenDistribution":
-        return "How tokens are distributed across stakeholders";
-      case "treasurySize":
-        return "Size of the project's treasury holdings";
-      case "burnMechanism":
-        return "Token burn mechanism details";
-      default:
-        return "No information available";
-    }
   };
 
   if (isLoading) {
@@ -149,37 +77,39 @@ export const TokenomicsMetricsSection = ({
       </div>
       
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* TVL */}
+        {/* TVL (Total Value Locked) */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo(metrics?.tvl || "N/A", "tvl").icon}
-              TVL
+              <CircleDot className="h-5 w-5 text-blue-500" />
+              TVL (Total Value Locked)
             </CardTitle>
             <CardDescription className="text-xs">
-              Total Value Locked
+              Total value locked in the token's ecosystem
             </CardDescription>
           </CardHeader>
           <CardContent>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo(metrics?.tvl || "N/A", "tvl").color}`}>
-                    {metrics?.tvl || "N/A"}
+                  <Badge className={`${getMetricStatus(metrics?.tvl)}`}>
+                    {withFallback(metrics?.tvl)}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>{getTooltipContent("tvl")}</p>
+                  <p>{getTooltipText(metrics?.tvl)}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            {'tvlChange24h' in metrics && metrics.tvlChange24h ? (
-              <div className="mt-2">
-                <span className={`text-xs ${metrics.tvlChange24h > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {metrics.tvlChange24h > 0 ? '+' : ''}{metrics.tvlChange24h.toFixed(2)}% (24h)
-                </span>
-              </div>
-            ) : null}
+            {!isDataMissing(metrics?.tvl) && (
+              <p className="text-xs mt-2 text-gray-500">
+                {metrics?.tvlChange24h && (
+                  <span>
+                    {metrics.tvlChange24h > 0 ? "Up" : "Down"} {Math.abs(metrics.tvlChange24h)}% in the last 24h
+                  </span>
+                )}
+              </p>
+            )}
           </CardContent>
         </Card>
         
@@ -187,29 +117,29 @@ export const TokenomicsMetricsSection = ({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo(metrics?.supplyCap || "Coming Soon", "supplyCap").icon}
+              <CircleDot className="h-5 w-5 text-blue-500" />
               Supply Cap
             </CardTitle>
             <CardDescription className="text-xs">
-              Maximum supply cap
+              Maximum token supply limit
             </CardDescription>
           </CardHeader>
           <CardContent>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "supplyCap").color}`}>
-                    Coming Soon
+                  <Badge className={`${getMetricStatus(metrics?.supplyCap)}`}>
+                    {withFallback(metrics?.supplyCap)}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>{getTooltipContent("supplyCap")}</p>
+                  <p>{getTooltipText(metrics?.supplyCap)}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            {'supplyCapExists' in metrics && metrics.supplyCapExists === false && (
+            {!isDataMissing(metrics?.supplyCap) && (
               <p className="text-xs mt-2 text-gray-500">
-                No supply cap found for this token.
+                {metrics?.supplyCapExists ? "Capped supply" : "Uncapped supply"}
               </p>
             )}
           </CardContent>
@@ -219,63 +149,36 @@ export const TokenomicsMetricsSection = ({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo(metrics?.tokenDistributionFormatted || "Coming Soon", "tokenDistribution").icon}
+              <CircleDot className="h-5 w-5 text-blue-500" />
               Token Distribution
             </CardTitle>
             <CardDescription className="text-xs">
-              Top holder concentration
+              Distribution of tokens among holders
             </CardDescription>
           </CardHeader>
           <CardContent>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "tokenDistribution").color}`}>
-                    Coming Soon
+                  {/* Change references to use tokenDistributionRating instead of tokenDistributionFormatted */}
+                  <Badge className={`${getMetricStatus(metrics?.tokenDistributionRating)}`}>
+                    {withFallback(metrics?.tokenDistributionRating)}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>{getTooltipContent("tokenDistribution")}</p>
+                  <p>{getTooltipText(metrics?.tokenDistribution)}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            {'tokenDistributionRating' in metrics && metrics.tokenDistributionRating !== "N/A" && (
+            {!isDataMissing(metrics?.tokenDistribution) && (
               <p className="text-xs mt-2 text-gray-500">
-                {metrics.tokenDistributionRating === "Good" ? "Well distributed among holders" : 
-                 metrics.tokenDistributionRating === "Poor" ? "Highly concentrated among top holders" :
-                 "Moderately distributed among holders"}
+                {metrics?.tokenDistributionValue && (
+                  <span>
+                    {metrics.tokenDistributionValue > 0.5 ? "Good distribution" : "Concentrated holdings"}
+                  </span>
+                )}
               </p>
             )}
-          </CardContent>
-        </Card>
-        
-        {/* Treasury Size */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo(metrics?.treasurySizeFormatted || "Coming Soon", "treasurySize").icon}
-              Treasury Size
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Project treasury holdings
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "treasurySize").color}`}>
-                    Coming Soon
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{getTooltipContent("treasurySize")}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <p className="text-xs mt-2 text-gray-500">
-              Data currently unavailable from direct API sources.
-            </p>
           </CardContent>
         </Card>
         
@@ -283,34 +186,66 @@ export const TokenomicsMetricsSection = ({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo(metrics?.burnMechanism || "Coming Soon", "burnMechanism").icon}
+              <CircleDot className="h-5 w-5 text-blue-500" />
               Burn Mechanism
             </CardTitle>
             <CardDescription className="text-xs">
-              Token burn mechanism
+              Token burning or deflationary mechanisms
             </CardDescription>
           </CardHeader>
           <CardContent>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "burnMechanism").color}`}>
-                    Coming Soon
+                  <Badge className={`${getMetricStatus(metrics?.burnMechanism)}`}>
+                    {metrics?.burnMechanism || "N/A"}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>{getTooltipContent("burnMechanism")}</p>
+                  <p>{getTooltipText(metrics?.burnMechanism)}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            {'burnMechanism' in metrics && metrics.burnMechanism === "Yes" && (
+            {metrics?.burnMechanism === "Yes" && (
               <p className="text-xs mt-2 text-gray-500">
-                This token has a verifiable burn mechanism.
+                Token burning mechanism in place.
               </p>
             )}
-            {'burnMechanism' in metrics && metrics.burnMechanism === "No" && (
+          </CardContent>
+        </Card>
+
+        {/* Treasury Size */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <CircleDot className="h-5 w-5 text-blue-500" />
+              Treasury Size
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Size of the project's treasury
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {/* Change references to use treasurySizeFormatted from metrics only when available */}
+                  <Badge className={`${getMetricStatus(metrics?.treasurySize)}`}>
+                    {metrics?.treasurySizeFormatted || withFallback(metrics?.treasurySize)}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{getTooltipText(metrics?.treasurySize)}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {!isDataMissing(metrics?.treasurySize) && (
               <p className="text-xs mt-2 text-gray-500">
-                No burn mechanism detected in contract.
+                {metrics?.treasurySizeValue && (
+                  <span>
+                    Treasury holds significant assets.
+                  </span>
+                )}
               </p>
             )}
           </CardContent>

@@ -36,20 +36,16 @@ export const useSecurityMetrics = (
         const { data: secData, error: secError } = await supabase
           .from('token_security_cache')
           .select('*')
-          .eq('token_address', contractAddress)
+          .eq('token_id', contractAddress || normalizedToken)
           .maybeSingle();
           
         // If data exists and we're not forcing a refresh, return it
         if (!forceRefresh && secData && !secError) {
-          console.log(`Found security cache for ${contractAddress}`);
+          console.log(`Found security cache for ${contractAddress || normalizedToken}`);
           
           return {
-            ownershipRenounced: secData.ownership_renounced !== undefined 
-              ? secData.ownership_renounced ? 'Yes' : 'No' 
-              : 'N/A',
-            freezeAuthority: secData.freeze_authority !== undefined
-              ? secData.freeze_authority ? 'Yes' : 'No'
-              : 'N/A',
+            ownershipRenounced: secData.ownership_renounced || 'N/A',
+            freezeAuthority: secData.freeze_authority || 'N/A',
             codeAudit: secData.code_audit || 'N/A',
             multiSigWallet: secData.multi_sig_wallet || 'N/A',
             bugBounty: secData.bug_bounty || 'N/A',
@@ -114,8 +110,8 @@ export const useSecurityMetrics = (
       }
     },
     enabled: !!normalizedToken || !!contractAddress,
-    staleTime: forceRefresh ? 0 : 5 * 60 * 1000, // 0 if force refresh, otherwise 5 minutes
-    gcTime: 15 * 60 * 1000, // 15 minutes
+    staleTime: forceRefresh ? 0 : 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
     retry: 2
   });
 };

@@ -1,4 +1,3 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { TokenInfo } from './useTokenInfo';
@@ -166,7 +165,7 @@ export const useTokenMetrics = (
             
           if (subscription && !subError) {
             freeScansRemaining = subscription.scan_limit - subscription.scan_count;
-            isProScan = subscription.plan === 'pro' || freeScansRemaining > 0;
+            isProScan = subscription.subscription_tier === 'pro' || freeScansRemaining > 0;
           } else {
             // If no subscription record, user is on free plan with default scans
             freeScansRemaining = 3; // Default free scan limit
@@ -180,7 +179,6 @@ export const useTokenMetrics = (
               .insert({
                 user_id: userId,
                 token_address: contractAddress,
-                pro_scan: isProScan,
                 token_id: normalizedToken,
                 token_symbol: tokenInfo?.symbol || tokenMetadata?.symbol || '',
                 token_name: tokenInfo?.name || tokenMetadata?.name || ''
@@ -194,15 +192,14 @@ export const useTokenMetrics = (
               console.log('Scan recorded with ID:', scanData.id);
               
               // Update scan count if this is a pro scan
-              if (isProScan) {
+              if (isProScan && subscription) {
+                const userEmail = subscription.email;
                 await supabase
                   .from('subscribers')
-                  .upsert({
-                    user_id: userId,
-                    scan_count: subscription ? subscription.scan_count + 1 : 1
-                  }, {
-                    onConflict: 'user_id'
-                  });
+                  .update({
+                    scan_count: subscription.scan_count + 1
+                  })
+                  .eq('user_id', userId);
               }
             }
           }
@@ -295,11 +292,10 @@ export const useTokenMetrics = (
           bugBounty: securityData?.bug_bounty || 'N/A',
           
           // Liquidity metrics
-          liquidityScore: liquidityData?.liquidity_score || 65,
-          liquidityLock: liquidityData?.liquidity_locked_days 
-            ? `${liquidityData.liquidity_locked_days} days` 
+          liquidityLock: liquidityData?.liquidity_lock_days 
+            ? `${liquidityData.liquidity_lock_days} days` 
             : 'N/A',
-          liquidityLockDays: liquidityData?.liquidity_locked_days || 0,
+          liquidityLockDays: liquidityData?.liquidity_lock_days || 0,
           cexListings: liquidityData?.cex_listings 
             ? `${liquidityData.cex_listings} exchanges` 
             : 'N/A',
@@ -314,13 +310,13 @@ export const useTokenMetrics = (
           // Tokenomics metrics
           tokenomicsScore: tokenomicsData?.tokenomics_score || 65,
           tvl: tokenomicsData?.tvl_formatted || 'N/A',
-          tvlValue: tokenomicsData?.tvl_usd || 0,
+          tvlValue: tokenomicsData?.tvl_value || 0,
           tvlFormatted: tokenomicsData?.tvl_formatted || 'N/A',
           tvlChange24h: tokenomicsData?.tvl_change_24h || 0,
-          supplyCap: tokenomicsData?.supply_cap ? String(tokenomicsData.supply_cap) : 'N/A',
-          supplyCapValue: tokenomicsData?.supply_cap || 0,
-          supplyCapFormatted: tokenomicsData?.supply_cap ? formatCurrency(tokenomicsData.supply_cap) : 'N/A',
-          supplyCapExists: tokenomicsData?.supply_cap ? true : false,
+          supplyCap: tokenomicsData?.supply_cap_value ? String(tokenomicsData.supply_cap_value) : 'N/A',
+          supplyCapValue: tokenomicsData?.supply_cap_value || 0,
+          supplyCapFormatted: tokenomicsData?.supply_cap_formatted || 'N/A',
+          supplyCapExists: tokenomicsData?.supply_cap_exists ? true : false,
           burnMechanism: tokenomicsData?.burn_mechanism !== undefined
             ? tokenomicsData.burn_mechanism ? 'Yes' : 'No'
             : 'N/A',

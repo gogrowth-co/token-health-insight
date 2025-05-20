@@ -1,46 +1,28 @@
-
-import { AlertTriangle, Wifi, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 
 interface ErrorStateProps {
-  connectionError: boolean;
-  onRetry: () => Promise<void>;
+  error: Error;
+  isConnectionError?: boolean;
+  refetch?: () => Promise<void>;
+  title?: string;  // Add the title property
 }
 
-export const ErrorState: React.FC<ErrorStateProps> = ({ connectionError, onRetry }) => {
+export const ErrorState = ({ error, isConnectionError, refetch, title }: ErrorStateProps) => {
   return (
-    <Alert variant="destructive" className="mb-4">
-      <AlertTriangle className="h-4 w-4" />
-      <AlertTitle className="flex items-center">
-        {connectionError ? (
-          <>
-            <Wifi className="mr-2 h-4 w-4" />
-            Connection Error
-          </>
-        ) : (
-          <>
-            <AlertTriangle className="mr-2 h-4 w-4" />
-            Data Fetch Error
-          </>
-        )}
-      </AlertTitle>
-      <AlertDescription className="flex flex-col space-y-2">
-        <p>
-          {connectionError 
-            ? "We're having trouble connecting to our servers. Please check your internet connection." 
-            : "We're having trouble loading some metrics data. This might be due to API rate limits or temporary service issues."}
-        </p>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="self-start flex items-center gap-1"
-          onClick={() => onRetry()} 
-        >
-          <RefreshCw className="h-4 w-4 mr-1" /> 
-          Try Again
+    <div className="flex flex-col items-center justify-center p-4 rounded-md bg-red-50 border border-red-200">
+      <AlertTriangle className="h-8 w-8 text-red-500 mb-2" />
+      <h3 className="text-lg font-semibold text-red-700 mb-1">{title || "Error"}</h3>
+      <p className="text-sm text-red-600 mb-2">
+        {isConnectionError
+          ? "Could not connect to server. Please check your internet connection."
+          : error.message || "An unexpected error occurred."}
+      </p>
+      {refetch && (
+        <Button variant="outline" size="sm" onClick={refetch}>
+          Retry
         </Button>
-      </AlertDescription>
-    </Alert>
+      )}
+    </div>
   );
 };
