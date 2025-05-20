@@ -1,10 +1,11 @@
-import { FileCode, AlertCircle, Github, Calendar, Info, Code, Users } from "lucide-react";
+
+import { Code, GitCommit, GitFork, Clock } from "lucide-react";
+import { formatTimeAgo } from "../supabase/functions/_shared/formatters";
 import { TokenMetrics } from "@/hooks/useTokenMetrics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface DevelopmentMetricsSectionProps {
   metrics: TokenMetrics | undefined;
@@ -18,46 +19,57 @@ export const DevelopmentMetricsSection = ({
   error
 }: DevelopmentMetricsSectionProps) => {
   // Development score calculation
-  const developmentScore = metrics?.developmentScore ?? 70;
+  const developmentScore = metrics?.developmentScore || 50;
   
-  // Helper function to determine the status icon and color
-  const getStatusInfo = (value?: string, type?: string) => {
+  // Helper function to determine the development status icon and color
+  const getDevelopmentStatus = (value?: string | number, type?: string) => {
     if (!value || value === "N/A" || value === "Unknown") {
-      return { icon: <AlertCircle className="h-5 w-5 text-gray-400" />, color: "text-gray-400 bg-gray-100" };
+      return { icon: <Code className="h-5 w-5 text-gray-400" />, color: "text-gray-400 bg-gray-100" };
     }
     
-    // GitHub activity status
-    if (type === "githubActivity") {
-      return { icon: <Github className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
+    if (type === "commits") {
+      const commits = typeof value === 'number' ? value : parseInt(value, 10);
+      if (commits > 100) {
+        return { icon: <GitCommit className="h-5 w-5 text-green-500" />, color: "text-green-500 bg-green-50" };
+      } else if (commits > 20) {
+        return { icon: <GitCommit className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
+      } else {
+        return { icon: <GitCommit className="h-5 w-5 text-yellow-500" />, color: "text-yellow-500 bg-yellow-50" };
+      }
     }
     
-    // Last commit date status
-    if (type === "lastCommitDate") {
-      return { icon: <Calendar className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
+    if (type === "contributors") {
+      const contributors = typeof value === 'number' ? value : parseInt(value, 10);
+      if (contributors > 10) {
+        return { icon: <GitFork className="h-5 w-5 text-green-500" />, color: "text-green-500 bg-green-50" };
+      } else if (contributors > 3) {
+        return { icon: <GitFork className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
+      } else {
+        return { icon: <GitFork className="h-5 w-5 text-yellow-500" />, color: "text-yellow-500 bg-yellow-50" };
+      }
     }
     
-    // Commit frequency status
-    if (type === "commitFrequency") {
-      return { icon: <FileCode className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
+    if (type === "lastCommit") {
+      try {
+        const date = new Date(value as string);
+        const daysSinceLastCommit = Math.floor((new Date().getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (daysSinceLastCommit <= 7) {
+          return { icon: <Clock className="h-5 w-5 text-green-500" />, color: "text-green-500 bg-green-50" };
+        } else if (daysSinceLastCommit <= 30) {
+          return { icon: <Clock className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
+        } else if (daysSinceLastCommit <= 90) {
+          return { icon: <Clock className="h-5 w-5 text-yellow-500" />, color: "text-yellow-500 bg-yellow-50" };
+        } else {
+          return { icon: <Clock className="h-5 w-5 text-red-500" />, color: "text-red-500 bg-red-50" };
+        }
+      } catch (e) {
+        return { icon: <Clock className="h-5 w-5 text-gray-500" />, color: "text-gray-500 bg-gray-100" };
+      }
     }
     
-    // Roadmap progress status
-    if (type === "roadmapProgress") {
-      return { icon: <Info className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
-    }
-    
-    // Contributors count status
-    if (type === "contributorsCount") {
-      return { icon: <Users className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
-    }
-    
-    // Open source status
-    if (type === "openSource") {
-      return { icon: <Code className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
-    }
-    
-    // Default return for "Coming Soon" or other values
-    return { icon: <FileCode className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
+    // Default
+    return { icon: <Code className="h-5 w-5 text-blue-500" />, color: "text-blue-500 bg-blue-50" };
   };
   
   // Function to get color based on development score
@@ -67,24 +79,17 @@ export const DevelopmentMetricsSection = ({
     if (score >= 40) return "bg-yellow-500";
     return "bg-red-500";
   };
-  
-  // Helper for tooltip content
-  const getTooltipContent = (type: string) => {
-    switch (type) {
-      case "githubActivity":
-        return "Code repository activity";
-      case "lastCommitDate":
-        return "Most recent code commit";
-      case "commitFrequency":
-        return "Regular code contributions";
-      case "roadmapProgress":
-        return "Development progress on roadmap";
-      case "contributorsCount":
-        return "Number of active code contributors";
-      case "openSource":
-        return "Open source status";
-      default:
-        return "No information available";
+
+  // Format last commit date
+  const formatLastCommit = (dateString?: string) => {
+    if (!dateString || dateString === 'N/A') {
+      return 'N/A';
+    }
+    
+    try {
+      return formatTimeAgo(dateString);
+    } catch (e) {
+      return 'Invalid date';
     }
   };
 
@@ -131,29 +136,72 @@ export const DevelopmentMetricsSection = ({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo("Coming Soon", "githubActivity").icon}
+              <Code className="h-5 w-5 text-blue-500" />
               GitHub Activity
             </CardTitle>
             <CardDescription className="text-xs">
-              Code repository activity
+              Overall activity level on GitHub repository
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "githubActivity").color}`}>
-                    Coming Soon
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{getTooltipContent("githubActivity")}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <p className="text-xs mt-2 text-gray-500">
-              GitHub activity data will be available in a future update.
-            </p>
+            <Badge className="text-blue-500 bg-blue-50">
+              {metrics?.githubActivity || "N/A"}
+            </Badge>
+            {!metrics?.githubActivity && (
+              <p className="text-xs mt-2 text-gray-500">
+                Repository activity data currently unavailable.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+        
+        {/* GitHub Commits */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              {getDevelopmentStatus(metrics?.githubCommits, "commits").icon}
+              GitHub Commits
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Number of commits in the last 30 days
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Badge className={`${getDevelopmentStatus(metrics?.githubCommits, "commits").color}`}>
+              {metrics?.githubCommits || "N/A"}
+            </Badge>
+            {metrics?.githubCommits && metrics.githubCommits > 0 && (
+              <p className="text-xs mt-2 text-gray-500">
+                {metrics.githubCommits > 100 ? "Very active development" : 
+                 metrics.githubCommits > 20 ? "Moderately active development" : 
+                 "Lower activity level"}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+        
+        {/* GitHub Contributors */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              {getDevelopmentStatus(metrics?.githubContributors, "contributors").icon}
+              GitHub Contributors
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Number of developers contributing to the project
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Badge className={`${getDevelopmentStatus(metrics?.githubContributors, "contributors").color}`}>
+              {metrics?.githubContributors || "N/A"}
+            </Badge>
+            {metrics?.githubContributors && metrics.githubContributors > 0 && (
+              <p className="text-xs mt-2 text-gray-500">
+                {metrics.githubContributors > 10 ? "Large developer community" : 
+                 metrics.githubContributors > 3 ? "Growing developer community" : 
+                 "Small development team"}
+              </p>
+            )}
           </CardContent>
         </Card>
         
@@ -161,134 +209,22 @@ export const DevelopmentMetricsSection = ({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo("Coming Soon", "lastCommitDate").icon}
-              Last Commit Date
+              {getDevelopmentStatus(metrics?.lastCommitDate, "lastCommit").icon}
+              Last Commit
             </CardTitle>
             <CardDescription className="text-xs">
-              Most recent code commit
+              Most recent code update on GitHub
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "lastCommitDate").color}`}>
-                    Coming Soon
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{getTooltipContent("lastCommitDate")}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </CardContent>
-        </Card>
-        
-        {/* Commit Frequency */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo("Coming Soon", "commitFrequency").icon}
-              Commit Frequency
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Regular code contributions
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "commitFrequency").color}`}>
-                    Coming Soon
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{getTooltipContent("commitFrequency")}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </CardContent>
-        </Card>
-        
-        {/* Roadmap Progress */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo("Coming Soon", "roadmapProgress").icon}
-              Roadmap Progress
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Development progress on roadmap
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "roadmapProgress").color}`}>
-                    Coming Soon
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{getTooltipContent("roadmapProgress")}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </CardContent>
-        </Card>
-        
-        {/* Contributors Count */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo("Coming Soon", "contributorsCount").icon}
-              Contributors Count
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Number of active code contributors
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "contributorsCount").color}`}>
-                    Coming Soon
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{getTooltipContent("contributorsCount")}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </CardContent>
-        </Card>
-        
-        {/* Open Source */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo("Coming Soon", "openSource").icon}
-              Open Source
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Open source status
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo("Coming Soon", "openSource").color}`}>
-                    Coming Soon
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{getTooltipContent("openSource")}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Badge className={`${getDevelopmentStatus(metrics?.lastCommitDate, "lastCommit").color}`}>
+              {formatLastCommit(metrics?.lastCommitDate)}
+            </Badge>
+            {metrics?.lastCommitDate && metrics.lastCommitDate !== 'N/A' && (
+              <p className="text-xs mt-2 text-gray-500">
+                Last update: {new Date(metrics.lastCommitDate).toLocaleDateString()}
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
