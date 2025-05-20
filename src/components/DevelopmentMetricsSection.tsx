@@ -94,6 +94,19 @@ export const DevelopmentMetricsSection = ({
       return 'Invalid date';
     }
   };
+  
+  // Format date for display
+  const formatDate = (dateString?: string) => {
+    if (isDataMissing(dateString)) {
+      return 'N/A';
+    }
+    
+    try {
+      return new Date(dateString as string).toLocaleDateString();
+    } catch (e) {
+      return 'N/A';
+    }
+  };
 
   if (isLoading) {
     return (
@@ -260,13 +273,7 @@ export const DevelopmentMetricsSection = ({
             </TooltipProvider>
             {!isDataMissing(metrics?.lastCommitDate) && (
               <p className="text-xs mt-2 text-gray-500">
-                Last update: {
-                  try {
-                    new Date(metrics?.lastCommitDate as string).toLocaleDateString()
-                  } catch {
-                    'N/A'
-                  }
-                }
+                Last update: {formatDate(metrics?.lastCommitDate)}
               </p>
             )}
           </CardContent>
