@@ -2,6 +2,7 @@
 import { CategoryCard } from "@/components/CategoryCard";
 import { ShieldCheck, TrendingUp, CircleDot, Users, FileCode } from "lucide-react";
 import { TokenMetrics } from "@/hooks/useTokenMetrics";
+import { withFallback } from "@/utils/dataHelpers";
 
 interface CategoriesOverviewProps {
   tokenMetrics?: TokenMetrics;
@@ -18,10 +19,10 @@ export const CategoriesOverview = ({ tokenMetrics, onViewDetails }: CategoriesOv
           icon={<ShieldCheck className="text-white" />} 
           description="Contract and protocol security analysis" 
           metrics={[
-            `Ownership Renounced: ${tokenMetrics?.ownershipRenounced || "N/A"}`,
-            `Freeze Authority: ${tokenMetrics?.freezeAuthority || "N/A"}`,
-            "Code Audit: Coming Soon", 
-            "Multi-Sig Wallet: Coming Soon"
+            `Ownership Renounced: ${withFallback(tokenMetrics?.ownershipRenounced)}`,
+            `Freeze Authority: ${withFallback(tokenMetrics?.freezeAuthority)}`,
+            `Code Audit: ${withFallback(tokenMetrics?.codeAudit)}`, 
+            `Multi-Sig Wallet: ${withFallback(tokenMetrics?.multiSigWallet)}`
           ]} 
           color="bg-green-500" 
           score={tokenMetrics?.securityScore || 50} 
@@ -33,13 +34,13 @@ export const CategoriesOverview = ({ tokenMetrics, onViewDetails }: CategoriesOv
           icon={<TrendingUp className="text-white" />} 
           description="Market depth and trading analysis" 
           metrics={[
-            `Liquidity Lock: ${tokenMetrics?.liquidityLock || "N/A"}`,
-            `Market Cap: ${tokenMetrics?.marketCap || "N/A"}`,
-            `Top Holders: ${tokenMetrics?.topHoldersPercentage || "N/A"}`,
-            "DEX Depth: Coming Soon"
+            `Liquidity Lock: ${withFallback(tokenMetrics?.liquidityLock)}`,
+            `Market Cap: ${withFallback(tokenMetrics?.marketCapFormatted)}`,
+            `Top Holders: ${withFallback(tokenMetrics?.topHoldersPercentage)}`,
+            `DEX Depth: ${withFallback(tokenMetrics?.dexDepth)}`
           ]} 
           color="bg-blue-500" 
-          score={75} 
+          score={tokenMetrics?.liquidityScore || 65} 
           onViewDetails={() => onViewDetails("liquidity")}
         />
         
@@ -48,13 +49,13 @@ export const CategoriesOverview = ({ tokenMetrics, onViewDetails }: CategoriesOv
           icon={<CircleDot className="text-white" />} 
           description="Supply and distribution analysis" 
           metrics={[
-            `TVL: ${tokenMetrics?.tvl || "N/A"}`,
-            "Supply Cap: Coming Soon",
-            "Token Distribution: Coming Soon",
-            "Burn Mechanism: Coming Soon"
+            `TVL: ${withFallback(tokenMetrics?.tvl)}`,
+            `Supply Cap: ${withFallback(tokenMetrics?.supplyCap)}`,
+            `Token Distribution: ${withFallback(tokenMetrics?.tokenDistributionRating)}`,
+            `Burn Mechanism: ${withFallback(tokenMetrics?.burnMechanism)}`
           ]} 
           color="bg-purple-500" 
-          score={65} 
+          score={tokenMetrics?.tokenomicsScore || 65} 
           onViewDetails={() => onViewDetails("tokenomics")}
         />
         
@@ -63,13 +64,13 @@ export const CategoriesOverview = ({ tokenMetrics, onViewDetails }: CategoriesOv
           icon={<Users className="text-white" />} 
           description="Social and community engagement" 
           metrics={[
-            "Social Followers: Coming Soon",
-            "Verified Account: Coming Soon",
-            "Growth Rate: Coming Soon",
-            "Active Channels: Coming Soon"
+            `Social Followers: ${withFallback(tokenMetrics?.socialFollowers)}`,
+            `Verified Account: ${withFallback(tokenMetrics?.verifiedAccount)}`,
+            `Growth Rate: ${withFallback(tokenMetrics?.growthRate)}`,
+            `Active Channels: ${withFallback(tokenMetrics?.activeChannels)}`
           ]} 
           color="bg-orange-500" 
-          score={70} 
+          score={tokenMetrics?.communityScore || 70} 
           onViewDetails={() => onViewDetails("community")}
         />
         
@@ -78,13 +79,13 @@ export const CategoriesOverview = ({ tokenMetrics, onViewDetails }: CategoriesOv
           icon={<FileCode className="text-white" />} 
           description="Development activity and roadmap progress" 
           metrics={[
-            "GitHub Activity: Coming Soon",
-            "Last Commit: Coming Soon",
-            "Commit Frequency: Coming Soon",
-            "Contributors: Coming Soon"
+            `GitHub Activity: ${withFallback(tokenMetrics?.githubActivity)}`,
+            `Last Commit: ${withFallback(tokenMetrics?.lastCommitDate)}`,
+            `Commits: ${withFallback(tokenMetrics?.githubCommits)}`,
+            `Contributors: ${withFallback(tokenMetrics?.githubContributors)}`
           ]} 
           color="bg-teal-500" 
-          score={60} 
+          score={tokenMetrics?.developmentScore || 60} 
           onViewDetails={() => onViewDetails("development")}
         />
       </div>

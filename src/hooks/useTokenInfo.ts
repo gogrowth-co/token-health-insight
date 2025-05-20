@@ -57,14 +57,14 @@ export const useTokenInfo = (tokenIdentifier?: string | null, forceRefresh: bool
         throw new Error('Token identifier is required');
       }
 
-      console.log(`[useTokenInfo] Calling edge function for token: ${normalizedToken}`);
+      console.log(`[useTokenInfo] Checking cache for token: ${normalizedToken}`);
 
       // First, try to get data from token_data_cache table
       const { data: cacheData, error: cacheError } = await supabase
         .from('token_data_cache')
         .select('*')
         .or(`token_name.eq.${normalizedToken},token_symbol.ilike.${normalizedToken},coingecko_id.eq.${normalizedToken},token_address.eq.${normalizedToken}`)
-        .single();
+        .maybeSingle();
 
       // If data exists in cache and we're not forcing a refresh, use it
       if (!forceRefresh && cacheData && !cacheError) {
@@ -126,8 +126,7 @@ export const useTokenInfo = (tokenIdentifier?: string | null, forceRefresh: bool
               twitter_handle: data.links?.twitter_screen_name || data.twitter,
               github_url: data.links?.github,
               launch_date: data.genesis_date,
-              logo_url: data.image,
-              updated_at: new Date().toISOString()
+              logo_url: data.image
             }, {
               onConflict: 'token_address'
             });

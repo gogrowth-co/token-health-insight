@@ -38,7 +38,7 @@ export interface TokenMetrics {
   communityScore?: number;
   developmentScore?: number;
   
-  // Security metrics
+  // Security metrics (from token_security_cache)
   ownershipRenounced?: string;
   ownershipRenouncedValue?: boolean;
   freezeAuthority?: string;
@@ -46,7 +46,7 @@ export interface TokenMetrics {
   multiSigWallet?: string;
   bugBounty?: string;
   
-  // Liquidity metrics
+  // Liquidity metrics (from token_liquidity_cache)
   liquidityLock?: string;
   liquidityLockDays?: number;
   cexListings?: string;
@@ -58,7 +58,7 @@ export interface TokenMetrics {
   tradingVolumeFormatted?: string;
   tradingVolumeChange24h?: number;
   
-  // Tokenomics metrics
+  // Tokenomics metrics (from token_tokenomics_cache)
   tvl?: string;
   tvlValue?: number;
   tvlFormatted?: string;
@@ -76,7 +76,7 @@ export interface TokenMetrics {
   treasurySizeFormatted?: string;
   treasurySizeValue?: number;
   
-  // Community metrics
+  // Community metrics (from token_community_cache)
   socialFollowers?: string;
   socialFollowersCount?: number;
   socialFollowersChange?: number;
@@ -88,7 +88,7 @@ export interface TokenMetrics {
   activeChannelsCount?: number;
   teamVisibility?: string;
   
-  // Development metrics
+  // Development metrics (from token_development_cache)
   githubActivity?: string;
   githubCommits?: number;
   githubContributors?: number;
@@ -98,10 +98,15 @@ export interface TokenMetrics {
   topHolders?: TopHolderEntry[];
   topHoldersPercentage?: string;
   topHoldersValue?: number;
-  topHoldersTrend?: string;
+  topHoldersTrend?: "up" | "down" | string;
   
   // Audit status
   auditStatus?: string;
+  
+  // Scan metadata
+  scanId?: string;
+  isProScan?: boolean;
+  freeScansRemaining?: number;
   
   // Cache metadata
   fromCache?: boolean;
@@ -145,211 +150,259 @@ export const useTokenMetrics = (
         
         console.log(`Using data for metrics: Contract=${contractAddress}, Twitter=${twitterHandle}, GitHub=${githubRepo}, Blockchain=${blockchain}`);
         
-        // Fetch metrics from our edge function
-        const { data, error } = await supabase.functions.invoke('get-token-metrics', {
-          body: { 
-            token: normalizedToken,
-            address: contractAddress,
-            twitter: twitterHandle,
-            github: githubRepo,
-            blockchain: blockchain,
-            forceRefresh: forceRefresh,
-            includeHolders: true, // Make sure to request detailed holders data
-            includeSecurity: true, // Request security data
-            includeLiquidity: true, // Request liquidity data
-            sources: {
-              marketCap: 'coingecko',
-              tvl: 'coingecko',
-              auditStatus: 'etherscan',
-              topHolders: 'goplus',
-              liquidityLock: 'etherscan',
-              security: 'goplus',
-              liquidity: 'geckoterminal'
-            }
-          }
-        });
-
-        if (error) {
-          console.error('Error fetching token metrics:', error);
-          throw new Error(`Failed to fetch token metrics: ${error.message}`);
-        }
-
-        if (data.error) {
-          console.error('API error fetching token metrics:', data.error);
-          throw new Error(data.error);
-        }
-
-        console.log(`Successfully fetched metrics for ${normalizedToken}:`, data.metrics);
+        // First check if the user has pro access
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        const userId = userData.user?.id;
+        let isProScan = false;
+        let freeScansRemaining = 0;
         
-        // If we have market cap from tokenInfo but not from metrics, use it
-        if (tokenInfo?.market_cap && (!data.metrics.marketCapValue || data.metrics.marketCapValue === 0)) {
-          data.metrics.marketCapValue = tokenInfo.market_cap;
-          data.metrics.marketCapFormatted = formatCurrency(tokenInfo.market_cap);
-        }
-
-        // If we have price from tokenInfo but not from metrics, use it
-        if (tokenInfo?.current_price && (!data.metrics.price || data.metrics.price === 0)) {
-          data.metrics.price = tokenInfo.current_price;
-        }
-
-        // If we have price change from tokenInfo but not from metrics, use it
-        if (tokenInfo?.price_change_percentage_24h && (!data.metrics.priceChange24h || data.metrics.priceChange24h === 0)) {
-          data.metrics.priceChange24h = tokenInfo.price_change_percentage_24h;
-        }
-        
-        // Add information about whether data came from cache
-        if (data.socialFollowersFromCache !== undefined) {
-          data.metrics.socialFollowersFromCache = data.socialFollowersFromCache;
-        }
-
-        // Override socialFollowers with "Coming Soon" since we're not using that feature yet
-        data.metrics.socialFollowers = "Coming Soon";
-        data.metrics.socialFollowersCount = 0;
-        data.metrics.socialFollowersChange = 0;
-        
-        // Process ownership renounced status from security data
-        if (data.securityData && contractAddress) {
-          console.log("Processing security data for ownership renounced status:", data.securityData);
-          
-          // Handle ownership renounced status
-          if (data.securityData.is_open_source === false) {
-            // If code isn't open source, we can't verify ownership status reliably
-            data.metrics.ownershipRenounced = "Unknown";
+        if (userId) {
+          // Check subscription status
+          const { data: subscription, error: subError } = await supabase
+            .from('subscribers')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
+            
+          if (subscription && !subError) {
+            freeScansRemaining = subscription.scan_limit - subscription.scan_count;
+            isProScan = subscription.plan === 'pro' || freeScansRemaining > 0;
           } else {
-            // Check if owner_address is null or empty, which often indicates renounced ownership
-            if (!data.securityData.owner_address || 
-                data.securityData.owner_address === "0x0000000000000000000000000000000000000000" || 
-                data.securityData.owner_type === "no_owner") {
-              data.metrics.ownershipRenounced = "Yes";
-            } else {
-              data.metrics.ownershipRenounced = "No";
-            }
+            // If no subscription record, user is on free plan with default scans
+            freeScansRemaining = 3; // Default free scan limit
+            isProScan = freeScansRemaining > 0;
           }
           
-          // Handle freeze authority - use the enhanced logic from the edge function
-          if (data.securityData.is_blacklisted === "1" || data.securityData.has_blacklist === "1") {
-            data.metrics.freezeAuthority = "Yes";
-          } else if (data.securityData.is_whitelisted === "1") {
-            data.metrics.freezeAuthority = "Yes";
-          } else if (data.securityData.can_take_back_ownership === "1") {
-            data.metrics.freezeAuthority = "Yes";
-          } else if (data.securityData.has_mint_function === "1") {
-            data.metrics.freezeAuthority = "Yes";
-          } else if (data.securityData.is_proxy === "1") {
-            data.metrics.freezeAuthority = "Possible";
-          } else if (data.securityData.is_open_source === true || data.securityData.is_open_source === "1") {
-            data.metrics.freezeAuthority = "No";
-          } else {
-            data.metrics.freezeAuthority = "N/A";
-          }
-        } else {
-          data.metrics.ownershipRenounced = "N/A";
-          data.metrics.freezeAuthority = "N/A";
-        }
-        
-        // Set default values for security metrics that are not yet implemented
-        data.metrics.codeAudit = "Coming Soon";
-        data.metrics.multiSigWallet = "Coming Soon";
-        data.metrics.bugBounty = "Coming Soon";
-        
-        // Calculate a simple security score based on the available metrics
-        let securityScore = 50; // Base score
-        
-        // Adjust security score based on ownership renounced
-        if (data.metrics.ownershipRenounced === "Yes") {
-          securityScore += 20;
-        } else if (data.metrics.ownershipRenounced === "No") {
-          securityScore -= 5;
-        }
-        
-        // Adjust security score based on freeze authority
-        if (data.metrics.freezeAuthority === "No") {
-          securityScore += 15;
-        } else if (data.metrics.freezeAuthority === "Yes") {
-          securityScore -= 10;
-        } else if (data.metrics.freezeAuthority === "Possible") {
-          securityScore -= 5;
-        }
-        
-        data.metrics.securityScore = securityScore;
-        
-        // Set default values for liquidity metrics if they don't exist
-        if (!data.metrics.dexDepth) {
-          data.metrics.dexDepth = "Coming Soon";
-        }
-        
-        if (!data.metrics.cexListings) {
-          data.metrics.cexListings = "Coming Soon";
-        }
-        
-        // Calculate a simple liquidity score based on available metrics
-        let liquidityScore = 65; // Base score
-        
-        // Adjust liquidity score based on market cap
-        if (data.metrics.marketCapValue > 1000000000) { // > $1B
-          liquidityScore += 15;
-        } else if (data.metrics.marketCapValue > 100000000) { // > $100M
-          liquidityScore += 10;
-        } else if (data.metrics.marketCapValue > 10000000) { // > $10M
-          liquidityScore += 5;
-        } else if (data.metrics.marketCapValue < 1000000) { // < $1M
-          liquidityScore -= 10;
-        }
-        
-        // Adjust liquidity score based on liquidity lock
-        if (data.metrics.liquidityLockDays > 180) {
-          liquidityScore += 10;
-        } else if (data.metrics.liquidityLockDays > 30) {
-          liquidityScore += 5;
-        } else if (data.metrics.liquidityLock === "Not Found" || data.metrics.liquidityLock === "Unlocked") {
-          liquidityScore -= 15;
-        }
-        
-        // Adjust liquidity score based on holder distribution
-        if (data.metrics.topHoldersValue > 0) {
-          if (data.metrics.topHoldersValue > 80) {
-            liquidityScore -= 15; // Concentrated holders (risky)
-          } else if (data.metrics.topHoldersValue < 40) {
-            liquidityScore += 10; // Well distributed
+          // Record this scan
+          if (contractAddress) {
+            const { data: scanData, error: scanError } = await supabase
+              .from('token_scans')
+              .insert({
+                user_id: userId,
+                token_address: contractAddress,
+                pro_scan: isProScan,
+                token_id: normalizedToken,
+                token_symbol: tokenInfo?.symbol || tokenMetadata?.symbol || '',
+                token_name: tokenInfo?.name || tokenMetadata?.name || ''
+              })
+              .select()
+              .single();
+              
+            if (scanError) {
+              console.warn('Error recording scan:', scanError);
+            } else if (scanData) {
+              console.log('Scan recorded with ID:', scanData.id);
+              
+              // Update scan count if this is a pro scan
+              if (isProScan) {
+                await supabase
+                  .from('subscribers')
+                  .upsert({
+                    user_id: userId,
+                    scan_count: subscription ? subscription.scan_count + 1 : 1
+                  }, {
+                    onConflict: 'user_id'
+                  });
+              }
+            }
           }
         }
         
-        data.metrics.liquidityScore = liquidityScore;
+        // Fetch security metrics
+        const { data: securityData, error: securityError } = await supabase
+          .from('token_security_cache')
+          .select('*')
+          .eq('token_address', contractAddress)
+          .order('last_updated', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+          
+        // Fetch liquidity metrics  
+        const { data: liquidityData, error: liquidityError } = await supabase
+          .from('token_liquidity_cache')
+          .select('*')
+          .eq('token_address', contractAddress)
+          .order('last_updated', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+          
+        // Fetch tokenomics metrics
+        const { data: tokenomicsData, error: tokenomicsError } = await supabase
+          .from('token_tokenomics_cache')
+          .select('*')
+          .eq('token_address', contractAddress)
+          .order('last_updated', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+          
+        // Fetch community metrics
+        const { data: communityData, error: communityError } = await supabase
+          .from('token_community_cache')
+          .select('*')
+          .eq('token_address', contractAddress)
+          .order('last_updated', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+          
+        // Fetch development metrics
+        const { data: developmentData, error: developmentError } = await supabase
+          .from('token_development_cache')
+          .select('*')
+          .eq('token_address', contractAddress)
+          .order('last_updated', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+          
+        // Fetch top holders
+        const { data: holdersData, error: holdersError } = await supabase
+          .from('token_holders_cache')
+          .select('*')
+          .eq('token_address', contractAddress)
+          .maybeSingle();
+          
+        // Combine all metrics
+        const metrics: TokenMetrics = {
+          tokenId: normalizedToken,
+          contract_address: contractAddress,
+          name: tokenInfo?.name || tokenMetadata?.name,
+          symbol: tokenInfo?.symbol || tokenMetadata?.symbol,
+          logo: tokenInfo?.image || tokenMetadata?.logo,
+          blockchain: blockchain,
+          twitter: twitterHandle,
+          github: githubRepo,
+          
+          // Market data
+          price: tokenInfo?.current_price,
+          priceChange24h: tokenInfo?.price_change_percentage_24h,
+          marketCapValue: tokenInfo?.market_cap || 0,
+          marketCapFormatted: tokenInfo?.market_cap ? formatCurrency(tokenInfo.market_cap) : 'N/A',
+          marketCapChange24h: tokenInfo?.price_change_percentage_24h || 0,
+          
+          // Scan metadata
+          isProScan,
+          freeScansRemaining,
+          
+          // Security metrics
+          securityScore: securityData?.security_score || 50,
+          ownershipRenounced: securityData?.ownership_renounced !== undefined 
+            ? securityData.ownership_renounced ? 'Yes' : 'No'
+            : 'N/A',
+          freezeAuthority: securityData?.freeze_authority !== undefined
+            ? securityData.freeze_authority ? 'Yes' : 'No'
+            : 'N/A',
+          codeAudit: securityData?.code_audit || 'N/A',
+          multiSigWallet: securityData?.multi_sig_wallet || 'N/A',
+          bugBounty: securityData?.bug_bounty || 'N/A',
+          
+          // Liquidity metrics
+          liquidityScore: liquidityData?.liquidity_score || 65,
+          liquidityLock: liquidityData?.liquidity_locked_days 
+            ? `${liquidityData.liquidity_locked_days} days` 
+            : 'N/A',
+          liquidityLockDays: liquidityData?.liquidity_locked_days || 0,
+          cexListings: liquidityData?.cex_listings 
+            ? `${liquidityData.cex_listings} exchanges` 
+            : 'N/A',
+          dexDepth: liquidityData?.dex_depth || 'N/A',
+          dexDepthValue: liquidityData?.dex_depth_value || 0,
+          holderDistribution: liquidityData?.holder_distribution || 'N/A',
+          holderDistributionValue: liquidityData?.holder_distribution_value || 0,
+          tradingVolume24h: liquidityData?.trading_volume_24h || 0,
+          tradingVolumeFormatted: liquidityData?.trading_volume_formatted || 'N/A',
+          tradingVolumeChange24h: liquidityData?.trading_volume_change_24h || 0,
+          
+          // Tokenomics metrics
+          tokenomicsScore: tokenomicsData?.tokenomics_score || 65,
+          tvl: tokenomicsData?.tvl_formatted || 'N/A',
+          tvlValue: tokenomicsData?.tvl_usd || 0,
+          tvlFormatted: tokenomicsData?.tvl_formatted || 'N/A',
+          tvlChange24h: tokenomicsData?.tvl_change_24h || 0,
+          supplyCap: tokenomicsData?.supply_cap ? String(tokenomicsData.supply_cap) : 'N/A',
+          supplyCapValue: tokenomicsData?.supply_cap || 0,
+          supplyCapFormatted: tokenomicsData?.supply_cap ? formatCurrency(tokenomicsData.supply_cap) : 'N/A',
+          supplyCapExists: tokenomicsData?.supply_cap ? true : false,
+          burnMechanism: tokenomicsData?.burn_mechanism !== undefined
+            ? tokenomicsData.burn_mechanism ? 'Yes' : 'No'
+            : 'N/A',
+          tokenDistribution: tokenomicsData?.vesting_schedule || 'N/A',
+          tokenDistributionFormatted: tokenomicsData?.distribution_score || 'N/A',
+          tokenDistributionValue: tokenomicsData?.distribution_score ? 1 : 0,
+          tokenDistributionRating: tokenomicsData?.distribution_score || 'N/A',
+          treasurySize: tokenomicsData?.treasury_usd ? String(tokenomicsData.treasury_usd) : 'N/A',
+          treasurySizeFormatted: tokenomicsData?.treasury_usd ? formatCurrency(tokenomicsData.treasury_usd) : 'N/A',
+          treasurySizeValue: tokenomicsData?.treasury_usd || 0,
+          
+          // Community metrics
+          communityScore: communityData?.community_score || 85,
+          socialFollowers: communityData?.social_followers || 'N/A',
+          socialFollowersCount: communityData?.social_followers_count || 0,
+          socialFollowersChange: communityData?.social_followers_change || 0,
+          verifiedAccount: communityData?.verified_account || 'N/A',
+          growthRate: communityData?.growth_rate || 'N/A',
+          growthRateValue: communityData?.growth_rate_value || 0,
+          activeChannels: communityData?.active_channels || 'N/A',
+          activeChannelsCount: communityData?.active_channels_count || 0,
+          teamVisibility: communityData?.team_visibility || 'N/A',
+          
+          // Development metrics
+          developmentScore: developmentData?.development_score || 50,
+          githubActivity: developmentData?.github_activity || 'N/A',
+          githubCommits: developmentData?.github_commits || 0,
+          githubContributors: developmentData?.github_contributors || 0,
+          lastCommitDate: developmentData?.last_commit_date || 'N/A',
+          
+          // Top holders
+          topHoldersPercentage: holdersData?.percentage || 'N/A',
+          topHoldersValue: holdersData?.value || 0,
+          topHoldersTrend: holdersData?.trend as "up" | "down" | string || 'N/A',
+        };
         
-        return data.metrics as TokenMetrics;
+        console.log('Combined metrics:', metrics);
+        
+        return metrics;
       } catch (error) {
         console.error('Exception fetching token metrics:', error);
         
         // Create a minimal metrics object with data from tokenInfo if available
         if (tokenInfo) {
           const fallbackMetrics: Partial<TokenMetrics> = {
+            tokenId: normalizedToken,
+            name: tokenInfo.name,
+            symbol: tokenInfo.symbol,
+            blockchain: tokenInfo.blockchain || 'ethereum',
+            contract_address: tokenInfo.contract_address,
             marketCapFormatted: tokenInfo.market_cap ? formatCurrency(tokenInfo.market_cap) : 'N/A',
             marketCapValue: tokenInfo.market_cap || 0,
             marketCapChange24h: tokenInfo.price_change_percentage_24h || 0,
             price: tokenInfo.current_price || 0,
             priceChange24h: tokenInfo.price_change_percentage_24h || 0,
+            
+            // Default scores
+            securityScore: 50,
+            liquidityScore: 65,
+            tokenomicsScore: 65,
+            communityScore: 85,
+            developmentScore: 50,
+            
+            // Default N/A values
             liquidityLock: 'N/A',
             liquidityLockDays: 0,
             topHoldersPercentage: 'N/A',
             topHoldersValue: 0,
-            topHoldersTrend: null,
+            topHoldersTrend: 'N/A',
             tvl: 'N/A',
             tvlValue: 0,
             tvlChange24h: 0,
             auditStatus: 'N/A',
-            socialFollowers: 'Coming Soon',
+            socialFollowers: 'N/A',
             socialFollowersCount: 0,
             socialFollowersChange: 0,
             socialFollowersFromCache: false,
             ownershipRenounced: 'N/A',
             freezeAuthority: 'N/A',
-            codeAudit: 'Coming Soon',
-            multiSigWallet: 'Coming Soon',
-            bugBounty: 'Coming Soon',
-            securityScore: 50,
-            liquidityScore: 65,
-            dexDepth: 'Coming Soon',
-            cexListings: 'Coming Soon',
+            codeAudit: 'N/A',
+            multiSigWallet: 'N/A',
+            bugBounty: 'N/A',
             topHolders: []
           };
           

@@ -1,6 +1,7 @@
 
 import { TokenInfo } from "@/hooks/useTokenInfo";
 import { TokenMetrics } from "@/hooks/useTokenMetrics";
+import { withFallback } from "@/utils/dataHelpers";
 
 export function useHealthScore(tokenMetrics?: TokenMetrics, tokenInfo?: TokenInfo | null) {
   // Function to calculate health score based on actual token metrics
@@ -31,7 +32,7 @@ export function useHealthScore(tokenMetrics?: TokenMetrics, tokenInfo?: TokenInf
       }
       
       // Audit status - verified is better
-      if (tokenMetrics.auditStatus === "Verified") {
+      if (withFallback(tokenMetrics.auditStatus) === "Verified") {
         score += 5;
       }
       
@@ -55,13 +56,13 @@ export function useHealthScore(tokenMetrics?: TokenMetrics, tokenInfo?: TokenInf
       }
       
       // Security metrics
-      if (tokenMetrics.ownershipRenounced === "Yes") {
+      if (withFallback(tokenMetrics.ownershipRenounced) === "Yes") {
         score += 10;
       }
       
-      if (tokenMetrics.freezeAuthority === "No") {
+      if (withFallback(tokenMetrics.freezeAuthority) === "No") {
         score += 5;
-      } else if (tokenMetrics.freezeAuthority === "Yes") {
+      } else if (withFallback(tokenMetrics.freezeAuthority) === "Yes") {
         score -= 5;
       }
       

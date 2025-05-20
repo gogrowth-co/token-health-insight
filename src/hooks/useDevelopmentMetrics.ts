@@ -36,14 +36,14 @@ export const useDevelopmentMetrics = (
           .from('token_development_cache')
           .select('*')
           .eq('token_address', contractAddress)
-          .single();
+          .maybeSingle();
         
         // If data exists and we're not forcing a refresh, return it
         if (!forceRefresh && devData && !devError) {
           console.log(`Found development cache for ${contractAddress}`);
           
           return {
-            githubActivity: devData.is_open_source ? 'Active' : 'Unknown',
+            githubActivity: devData.github_activity || 'N/A',
             githubCommits: devData.github_commits || 0,
             githubContributors: devData.github_contributors || 0,
             lastCommitDate: devData.last_commit_date ? devData.last_commit_date : 'N/A',
@@ -52,7 +52,7 @@ export const useDevelopmentMetrics = (
           };
         }
 
-        // If we're forcing a refresh or no cache exists, fetch fresh data from API
+        // If we're forcing a refresh or no cache exists, fetch fresh data
         const githubRepo = tokenInfo?.links?.github || '';
         
         console.log(`Fetching fresh development data for ${normalizedToken || contractAddress}, github=${githubRepo}`);

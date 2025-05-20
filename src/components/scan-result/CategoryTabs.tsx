@@ -61,6 +61,10 @@ export const CategoryTabs = ({
     }, 100);
   };
 
+  // Check if user has pro access, otherwise blur detailed sections
+  const hasProAccess = tokenMetrics?.isProScan || false;
+  const freeScansRemaining = tokenMetrics?.freeScansRemaining || 0;
+
   return (
     <Tabs value={activeTab} onValueChange={onValueChange} className="mb-8">
       {/* Overview Tab */}
@@ -72,54 +76,62 @@ export const CategoryTabs = ({
         />
         
         {/* Pro CTA */}
-        <ProUpgradeCTA />
+        <ProUpgradeCTA 
+          isBlurred={false}
+          freeScansRemaining={freeScansRemaining}
+        />
       </TabsContent>
       
       {/* Tab content container with ref for scrolling */}
       <div ref={tabsContentRef}>
         {/* Security Tab */}
-        <TabsContent value="security">
+        <TabsContent value="security" className="relative">
           <SecurityMetricsSection
             metrics={tokenMetrics}
             isLoading={metricsLoading}
             error={metricsError as Error | null}
           />
+          {!hasProAccess && <ProUpgradeCTA isBlurred={true} />}
         </TabsContent>
         
         {/* Liquidity Tab */}
-        <TabsContent value="liquidity">
+        <TabsContent value="liquidity" className="relative">
           <LiquidityMetricsSection
             metrics={tokenMetrics}
             isLoading={metricsLoading}
             error={metricsError as Error | null}
           />
+          {!hasProAccess && <ProUpgradeCTA isBlurred={true} />}
         </TabsContent>
         
         {/* Tokenomics Tab */}
-        <TabsContent value="tokenomics">
+        <TabsContent value="tokenomics" className="relative">
           <TokenomicsMetricsSection
             metrics={tokenMetrics}
             isLoading={metricsLoading}
             error={metricsError as Error | null}
           />
+          {!hasProAccess && <ProUpgradeCTA isBlurred={true} />}
         </TabsContent>
         
         {/* Community Tab */}
-        <TabsContent value="community">
+        <TabsContent value="community" className="relative">
           <CommunityMetricsSection
             metrics={tokenMetrics}
             isLoading={metricsLoading}
             error={metricsError as Error | null}
           />
+          {!hasProAccess && <ProUpgradeCTA isBlurred={true} />}
         </TabsContent>
         
         {/* Development Tab */}
-        <TabsContent value="development">
+        <TabsContent value="development" className="relative">
           <DevelopmentMetricsSection
             metrics={tokenMetrics}
             isLoading={metricsLoading}
             error={metricsError as Error | null}
           />
+          {!hasProAccess && <ProUpgradeCTA isBlurred={true} />}
         </TabsContent>
       </div>
     </Tabs>

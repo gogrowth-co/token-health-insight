@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { withFallback, isDataMissing, getTooltipText } from "@/utils/dataHelpers";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface DevelopmentMetricsSectionProps {
   metrics: TokenMetrics | undefined;
@@ -23,12 +25,12 @@ export const DevelopmentMetricsSection = ({
   
   // Helper function to determine the development status icon and color
   const getDevelopmentStatus = (value?: string | number, type?: string) => {
-    if (!value || value === "N/A" || value === "Unknown") {
+    if (isDataMissing(value)) {
       return { icon: <Code className="h-5 w-5 text-gray-400" />, color: "text-gray-400 bg-gray-100" };
     }
     
     if (type === "commits") {
-      const commits = typeof value === 'number' ? value : parseInt(value, 10);
+      const commits = typeof value === 'number' ? value : parseInt(String(value), 10);
       if (commits > 100) {
         return { icon: <GitCommit className="h-5 w-5 text-green-500" />, color: "text-green-500 bg-green-50" };
       } else if (commits > 20) {
@@ -39,7 +41,7 @@ export const DevelopmentMetricsSection = ({
     }
     
     if (type === "contributors") {
-      const contributors = typeof value === 'number' ? value : parseInt(value, 10);
+      const contributors = typeof value === 'number' ? value : parseInt(String(value), 10);
       if (contributors > 10) {
         return { icon: <GitFork className="h-5 w-5 text-green-500" />, color: "text-green-500 bg-green-50" };
       } else if (contributors > 3) {
@@ -82,12 +84,12 @@ export const DevelopmentMetricsSection = ({
 
   // Format last commit date
   const formatLastCommit = (dateString?: string) => {
-    if (!dateString || dateString === 'N/A') {
+    if (isDataMissing(dateString)) {
       return 'N/A';
     }
     
     try {
-      return formatTimeAgo(dateString);
+      return formatTimeAgo(String(dateString));
     } catch (e) {
       return 'Invalid date';
     }
@@ -144,10 +146,19 @@ export const DevelopmentMetricsSection = ({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Badge className="text-blue-500 bg-blue-50">
-              {metrics?.githubActivity || "N/A"}
-            </Badge>
-            {!metrics?.githubActivity && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge className="text-blue-500 bg-blue-50">
+                    {withFallback(metrics?.githubActivity)}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{getTooltipText(metrics?.githubActivity)}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {isDataMissing(metrics?.githubActivity) && (
               <p className="text-xs mt-2 text-gray-500">
                 Repository activity data currently unavailable.
               </p>
@@ -167,13 +178,22 @@ export const DevelopmentMetricsSection = ({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Badge className={`${getDevelopmentStatus(metrics?.githubCommits, "commits").color}`}>
-              {metrics?.githubCommits || "N/A"}
-            </Badge>
-            {metrics?.githubCommits && metrics.githubCommits > 0 && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge className={`${getDevelopmentStatus(metrics?.githubCommits, "commits").color}`}>
+                    {withFallback(metrics?.githubCommits)}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{getTooltipText(metrics?.githubCommits)}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {!isDataMissing(metrics?.githubCommits) && metrics?.githubCommits as number > 0 && (
               <p className="text-xs mt-2 text-gray-500">
-                {metrics.githubCommits > 100 ? "Very active development" : 
-                 metrics.githubCommits > 20 ? "Moderately active development" : 
+                {(metrics?.githubCommits as number) > 100 ? "Very active development" : 
+                 (metrics?.githubCommits as number) > 20 ? "Moderately active development" : 
                  "Lower activity level"}
               </p>
             )}
@@ -192,13 +212,22 @@ export const DevelopmentMetricsSection = ({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Badge className={`${getDevelopmentStatus(metrics?.githubContributors, "contributors").color}`}>
-              {metrics?.githubContributors || "N/A"}
-            </Badge>
-            {metrics?.githubContributors && metrics.githubContributors > 0 && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge className={`${getDevelopmentStatus(metrics?.githubContributors, "contributors").color}`}>
+                    {withFallback(metrics?.githubContributors)}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{getTooltipText(metrics?.githubContributors)}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {!isDataMissing(metrics?.githubContributors) && metrics?.githubContributors as number > 0 && (
               <p className="text-xs mt-2 text-gray-500">
-                {metrics.githubContributors > 10 ? "Large developer community" : 
-                 metrics.githubContributors > 3 ? "Growing developer community" : 
+                {(metrics?.githubContributors as number) > 10 ? "Large developer community" : 
+                 (metrics?.githubContributors as number) > 3 ? "Growing developer community" : 
                  "Small development team"}
               </p>
             )}
@@ -217,12 +246,27 @@ export const DevelopmentMetricsSection = ({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Badge className={`${getDevelopmentStatus(metrics?.lastCommitDate, "lastCommit").color}`}>
-              {formatLastCommit(metrics?.lastCommitDate)}
-            </Badge>
-            {metrics?.lastCommitDate && metrics.lastCommitDate !== 'N/A' && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge className={`${getDevelopmentStatus(metrics?.lastCommitDate, "lastCommit").color}`}>
+                    {formatLastCommit(metrics?.lastCommitDate)}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{getTooltipText(metrics?.lastCommitDate)}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {!isDataMissing(metrics?.lastCommitDate) && (
               <p className="text-xs mt-2 text-gray-500">
-                Last update: {new Date(metrics.lastCommitDate).toLocaleDateString()}
+                Last update: {
+                  try {
+                    new Date(metrics?.lastCommitDate as string).toLocaleDateString()
+                  } catch {
+                    'N/A'
+                  }
+                }
               </p>
             )}
           </CardContent>
