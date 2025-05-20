@@ -105,6 +105,57 @@ export type Database = {
         }
         Relationships: []
       }
+      token_community_cache: {
+        Row: {
+          active_channels: string | null
+          active_channels_count: number | null
+          community_score: number | null
+          created_at: string
+          growth_rate: string | null
+          growth_rate_value: number | null
+          id: string
+          last_updated: string
+          social_followers: string | null
+          social_followers_change: number | null
+          social_followers_count: number | null
+          team_visibility: string | null
+          token_id: string
+          verified_account: string | null
+        }
+        Insert: {
+          active_channels?: string | null
+          active_channels_count?: number | null
+          community_score?: number | null
+          created_at?: string
+          growth_rate?: string | null
+          growth_rate_value?: number | null
+          id?: string
+          last_updated?: string
+          social_followers?: string | null
+          social_followers_change?: number | null
+          social_followers_count?: number | null
+          team_visibility?: string | null
+          token_id: string
+          verified_account?: string | null
+        }
+        Update: {
+          active_channels?: string | null
+          active_channels_count?: number | null
+          community_score?: number | null
+          created_at?: string
+          growth_rate?: string | null
+          growth_rate_value?: number | null
+          id?: string
+          last_updated?: string
+          social_followers?: string | null
+          social_followers_change?: number | null
+          social_followers_count?: number | null
+          team_visibility?: string | null
+          token_id?: string
+          verified_account?: string | null
+        }
+        Relationships: []
+      }
       token_data_cache: {
         Row: {
           data: Json
@@ -122,6 +173,42 @@ export type Database = {
           data?: Json
           expires_at?: string
           last_updated?: string | null
+          token_id?: string
+        }
+        Relationships: []
+      }
+      token_development_cache: {
+        Row: {
+          created_at: string
+          development_score: number | null
+          github_activity: string | null
+          github_commits: number | null
+          github_contributors: number | null
+          id: string
+          last_commit_date: string | null
+          last_updated: string
+          token_id: string
+        }
+        Insert: {
+          created_at?: string
+          development_score?: number | null
+          github_activity?: string | null
+          github_commits?: number | null
+          github_contributors?: number | null
+          id?: string
+          last_commit_date?: string | null
+          last_updated?: string
+          token_id: string
+        }
+        Update: {
+          created_at?: string
+          development_score?: number | null
+          github_activity?: string | null
+          github_commits?: number | null
+          github_contributors?: number | null
+          id?: string
+          last_commit_date?: string | null
+          last_updated?: string
           token_id?: string
         }
         Relationships: []
@@ -153,6 +240,60 @@ export type Database = {
           token_address?: string
           trend?: string | null
           value?: number
+        }
+        Relationships: []
+      }
+      token_liquidity_cache: {
+        Row: {
+          cex_listings: string | null
+          created_at: string
+          dex_depth: string | null
+          dex_depth_value: number | null
+          holder_distribution: string | null
+          holder_distribution_value: number | null
+          id: string
+          last_updated: string
+          liquidity_lock: string | null
+          liquidity_lock_days: number | null
+          liquidity_score: number | null
+          token_id: string
+          trading_volume_24h: number | null
+          trading_volume_change_24h: number | null
+          trading_volume_formatted: string | null
+        }
+        Insert: {
+          cex_listings?: string | null
+          created_at?: string
+          dex_depth?: string | null
+          dex_depth_value?: number | null
+          holder_distribution?: string | null
+          holder_distribution_value?: number | null
+          id?: string
+          last_updated?: string
+          liquidity_lock?: string | null
+          liquidity_lock_days?: number | null
+          liquidity_score?: number | null
+          token_id: string
+          trading_volume_24h?: number | null
+          trading_volume_change_24h?: number | null
+          trading_volume_formatted?: string | null
+        }
+        Update: {
+          cex_listings?: string | null
+          created_at?: string
+          dex_depth?: string | null
+          dex_depth_value?: number | null
+          holder_distribution?: string | null
+          holder_distribution_value?: number | null
+          id?: string
+          last_updated?: string
+          liquidity_lock?: string | null
+          liquidity_lock_days?: number | null
+          liquidity_score?: number | null
+          token_id?: string
+          trading_volume_24h?: number | null
+          trading_volume_change_24h?: number | null
+          trading_volume_formatted?: string | null
         }
         Relationships: []
       }
@@ -216,6 +357,45 @@ export type Database = {
           token_name?: string | null
           token_symbol?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      token_security_cache: {
+        Row: {
+          bug_bounty: string | null
+          code_audit: string | null
+          created_at: string
+          freeze_authority: string | null
+          id: string
+          last_updated: string
+          multi_sig_wallet: string | null
+          ownership_renounced: string | null
+          security_score: number | null
+          token_id: string
+        }
+        Insert: {
+          bug_bounty?: string | null
+          code_audit?: string | null
+          created_at?: string
+          freeze_authority?: string | null
+          id?: string
+          last_updated?: string
+          multi_sig_wallet?: string | null
+          ownership_renounced?: string | null
+          security_score?: number | null
+          token_id: string
+        }
+        Update: {
+          bug_bounty?: string | null
+          code_audit?: string | null
+          created_at?: string
+          freeze_authority?: string | null
+          id?: string
+          last_updated?: string
+          multi_sig_wallet?: string | null
+          ownership_renounced?: string | null
+          security_score?: number | null
+          token_id?: string
         }
         Relationships: []
       }

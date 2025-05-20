@@ -2,6 +2,11 @@
 import { useEffect, useState } from "react";
 import { TokenInfo } from "@/hooks/useTokenInfo";
 import { useTokenMetrics, TokenMetadata } from "@/hooks/useTokenMetrics";
+import { useTokenomics } from "@/hooks/useTokenonomics";
+import { useSecurityMetrics } from "@/hooks/useSecurityMetrics";
+import { useLiquidityMetrics } from "@/hooks/useLiquidityMetrics";
+import { useCommunityMetrics } from "@/hooks/useCommunityMetrics";
+import { useDevelopmentMetrics } from "@/hooks/useDevelopmentMetrics";
 import { MetricsGrid } from "./metrics/MetricsGrid";
 import { useMetricsRefresh } from "@/hooks/useMetricsRefresh";
 
@@ -67,6 +72,71 @@ export const KeyMetricsGrid = ({
     tokenMetadataForHook
   );
 
+  // Fetch tokenomics data
+  const {
+    data: tokenomicsData,
+    isLoading: tokenomicsLoading,
+    error: tokenomicsError,
+    refetch: refetchTokenomics
+  } = useTokenomics(
+    effectiveTokenId,
+    token,
+    refreshTrigger,
+    forceRefresh
+  );
+
+  // Fetch security data
+  const {
+    data: securityData,
+    isLoading: securityLoading,
+    error: securityError,
+    refetch: refetchSecurity
+  } = useSecurityMetrics(
+    effectiveTokenId,
+    token,
+    refreshTrigger,
+    forceRefresh
+  );
+
+  // Fetch liquidity data
+  const {
+    data: liquidityData,
+    isLoading: liquidityLoading,
+    error: liquidityError,
+    refetch: refetchLiquidity
+  } = useLiquidityMetrics(
+    effectiveTokenId,
+    token,
+    refreshTrigger,
+    forceRefresh
+  );
+
+  // Fetch community data
+  const {
+    data: communityData,
+    isLoading: communityLoading,
+    error: communityError,
+    refetch: refetchCommunity
+  } = useCommunityMetrics(
+    effectiveTokenId,
+    token,
+    refreshTrigger,
+    forceRefresh
+  );
+
+  // Fetch development data
+  const {
+    data: developmentData,
+    isLoading: developmentLoading,
+    error: developmentError,
+    refetch: refetchDevelopment
+  } = useDevelopmentMetrics(
+    effectiveTokenId,
+    token,
+    refreshTrigger,
+    forceRefresh
+  );
+
   // Use our custom hook for refresh functionality
   const { 
     isRefreshing, 
@@ -77,7 +147,15 @@ export const KeyMetricsGrid = ({
     async () => {
       setForceRefresh(true);
       try {
-        await refetch();
+        // Refetch all data in parallel
+        await Promise.all([
+          refetch(),
+          refetchTokenomics(),
+          refetchSecurity(),
+          refetchLiquidity(),
+          refetchCommunity(),
+          refetchDevelopment()
+        ]);
       } finally {
         setForceRefresh(false);
       }
@@ -86,7 +164,8 @@ export const KeyMetricsGrid = ({
   );
 
   // Check if we're loading or have an error
-  const showSkeletons = isLoading || metricsLoading;
+  const showSkeletons = isLoading || metricsLoading || tokenomicsLoading || 
+    securityLoading || liquidityLoading || communityLoading || developmentLoading;
 
   // Check if we have a connection error
   useEffect(() => {
@@ -102,15 +181,33 @@ export const KeyMetricsGrid = ({
   const handleRefetchWrapper = async () => {
     setForceRefresh(true);
     try {
-      await refetch();
+      // Refetch all data in parallel
+      await Promise.all([
+        refetch(),
+        refetchTokenomics(),
+        refetchSecurity(),
+        refetchLiquidity(),
+        refetchCommunity(),
+        refetchDevelopment()
+      ]);
     } finally {
       setForceRefresh(false);
     }
   };
 
+  // Combine all metrics into one object for MetricsGrid
+  const combinedMetrics = {
+    ...metrics,
+    tokenomics: tokenomicsData,
+    security: securityData,
+    liquidity: liquidityData,
+    community: communityData,
+    development: developmentData
+  };
+
   return (
     <MetricsGrid
-      metrics={metrics}
+      metrics={combinedMetrics}
       showSkeletons={showSkeletons}
       isError={isError}
       connectionError={connectionError}
