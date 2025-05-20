@@ -1,6 +1,6 @@
 
 import { Code, GitCommit, GitFork, Clock } from "lucide-react";
-import { formatTimeAgo } from "../supabase/functions/_shared/formatters";
+import { formatTimeAgo } from "../utils/formatters";
 import { TokenMetrics } from "@/hooks/useTokenMetrics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

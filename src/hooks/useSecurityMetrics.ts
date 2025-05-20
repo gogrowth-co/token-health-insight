@@ -21,45 +21,45 @@ export const useSecurityMetrics = (
   forceRefresh: boolean = false
 ) => {
   const normalizedToken = tokenIdentifier?.replace(/^\$/, '').toLowerCase() || '';
+  const contractAddress = tokenInfo?.contract_address || '';
   
   return useQuery({
-    queryKey: ['securityMetrics', normalizedToken, refreshTrigger, forceRefresh],
+    queryKey: ['securityMetrics', normalizedToken, contractAddress, refreshTrigger, forceRefresh],
     queryFn: async (): Promise<SecurityData> => {
-      if (!normalizedToken) {
-        throw new Error('Token identifier is required');
+      if (!normalizedToken && !contractAddress) {
+        throw new Error('Token identifier or contract address is required');
       }
 
-      console.log(`Fetching security metrics for ${normalizedToken} (refresh: ${refreshTrigger}, force: ${forceRefresh})`);
+      console.log(`Fetching security metrics for ${normalizedToken || contractAddress} (refresh: ${refreshTrigger}, force: ${forceRefresh})`);
       
       try {
         // First try to get data from security cache table
         const { data: securityData, error: securityError } = await supabase
           .from('token_security_cache')
           .select('*')
-          .eq('token_id', normalizedToken)
+          .eq('token_address', contractAddress)
           .single();
         
         // If data exists and we're not forcing a refresh, return it
         if (!forceRefresh && securityData && !securityError) {
-          console.log(`Found security cache for ${normalizedToken}`);
+          console.log(`Found security cache for ${contractAddress}`);
           
           return {
-            ownershipRenounced: securityData.ownership_renounced || 'N/A',
-            ownershipRenouncedValue: securityData.ownership_renounced === 'Yes',
-            freezeAuthority: securityData.freeze_authority || 'N/A',
+            ownershipRenounced: securityData.ownership_renounced ? 'Yes' : 'No',
+            ownershipRenouncedValue: !!securityData.ownership_renounced,
+            freezeAuthority: securityData.freeze_authority ? 'Yes' : 'No',
             codeAudit: securityData.code_audit || 'Coming Soon',
-            multiSigWallet: securityData.multi_sig_wallet || 'Coming Soon',
-            bugBounty: securityData.bug_bounty || 'Coming Soon',
-            securityScore: securityData.security_score || 50,
+            multiSigWallet: securityData.multisig_status || 'Coming Soon',
+            bugBounty: securityData.bug_bounty_status || 'Coming Soon',
+            securityScore: securityData.score || 50,
             fromCache: true
           };
         }
 
         // If we're forcing a refresh or no cache exists, fetch fresh data from API
-        const contractAddress = tokenInfo?.contract_address || '';
         const blockchain = tokenInfo?.blockchain || 'eth';
         
-        console.log(`Fetching fresh security data for ${normalizedToken}, contract=${contractAddress}, blockchain=${blockchain}`);
+        console.log(`Fetching fresh security data for ${normalizedToken || contractAddress}, contract=${contractAddress}, blockchain=${blockchain}`);
         
         // Fetch security data from our edge function
         const { data, error } = await supabase.functions.invoke('get-token-metrics', {
@@ -83,7 +83,7 @@ export const useSecurityMetrics = (
           throw new Error(data.error);
         }
 
-        console.log(`Successfully fetched security for ${normalizedToken}`);
+        console.log(`Successfully fetched security for ${normalizedToken || contractAddress}`);
         
         // Extract security data
         const metrics = data.metrics || {};
@@ -116,7 +116,7 @@ export const useSecurityMetrics = (
         return fallbackData;
       }
     },
-    enabled: !!normalizedToken,
+    enabled: !!normalizedToken || !!contractAddress,
     staleTime: forceRefresh ? 0 : 5 * 60 * 1000, // 0 if force refresh, otherwise 5 minutes
     gcTime: 15 * 60 * 1000, // 15 minutes
     retry: 2

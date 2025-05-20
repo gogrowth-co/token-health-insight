@@ -1,4 +1,3 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { TokenInfo } from './useTokenInfo';
@@ -12,65 +11,83 @@ export interface TopHolderEntry {
 }
 
 export interface TokenMetrics {
-  marketCap: string;
-  marketCapValue: number;
-  marketCapChange24h: number;
-  currentPrice: number;
-  priceChange24h: number;
-  liquidityLock: string;
-  liquidityLockDays: number;
-  topHoldersPercentage: string;
-  topHoldersValue: number;
-  topHoldersTrend: 'up' | 'down' | null;
-  topHolders?: TopHolderEntry[];
-  tvl: string;
-  tvlValue: number;
-  tvlChange24h: number;
-  auditStatus: string;
-  socialFollowers: string;
-  socialFollowersCount: number;
-  socialFollowersChange: number;
-  socialFollowersFromCache?: boolean; 
-  githubActivity?: string;
-  githubCommits?: number;
-  fromCache?: boolean;
+  // Token Identification
+  tokenId?: string;
+  name?: string;
+  symbol?: string;
+  logo?: string;
+  contract_address?: string;
+  blockchain?: string;
+  twitter?: string;
+  github?: string;
+  
+  // Market data
+  price?: number;
+  priceChange24h?: number;
+  marketCap?: number;
+  marketCapFormatted?: string;
+  
+  // Scores
+  overallScore?: number;
+  securityScore?: number;
+  liquidityScore?: number;
+  tokenomicsScore?: number;
+  communityScore?: number;
+  developmentScore?: number;
   
   // Security metrics
   ownershipRenounced?: string;
+  ownershipRenouncedValue?: boolean;
   freezeAuthority?: string;
   codeAudit?: string;
   multiSigWallet?: string;
   bugBounty?: string;
-  securityScore?: number;
   
   // Liquidity metrics
-  liquidityScore?: number;
+  liquidityLock?: string;
+  liquidityLockDays?: number;
+  cexListings?: string;
   dexDepth?: string;
   dexDepthValue?: number;
-  cexListings?: string;
+  holderDistribution?: string;
+  holderDistributionValue?: number;
+  tradingVolume24h?: number;
+  tradingVolumeFormatted?: string;
+  tradingVolumeChange24h?: number;
   
   // Tokenomics metrics
-  tokenomicsScore?: number;
-  supplyCap?: string;
+  tvlValue?: number;
+  tvlFormatted?: string;
+  tvlChange24h?: number;
   supplyCapValue?: number;
+  supplyCapFormatted?: string;
   supplyCapExists?: boolean;
-  tokenDistribution?: string;
+  burnMechanism?: string;
+  tokenDistributionFormatted?: string;
   tokenDistributionValue?: number;
   tokenDistributionRating?: string;
-  treasurySize?: string;
+  treasurySizeFormatted?: string;
   treasurySizeValue?: number;
-  burnMechanism?: string;
-  tokenomicsAnalysis?: {
-    tvl_usd: number;
-    supply_cap: number;
-    token_distribution_rating: string;
-    treasury_estimate: number | null;
-    burn_mechanism: string;
-  };
   
-  // Additional section scores
-  communityScore?: number;
-  developmentScore?: number;
+  // Community metrics
+  socialFollowers?: string;
+  socialFollowersCount?: number;
+  socialFollowersChange?: number;
+  verifiedAccount?: string;
+  growthRate?: string;
+  growthRateValue?: number;
+  activeChannels?: string;
+  activeChannelsCount?: number;
+  teamVisibility?: string;
+  
+  // Development metrics
+  githubActivity?: string;
+  githubCommits?: number;
+  githubContributors?: number;
+  lastCommitDate?: string;
+  
+  // Cache metadata
+  fromCache?: boolean;
 }
 
 export interface TokenMetadata {
@@ -150,12 +167,12 @@ export const useTokenMetrics = (
         // If we have market cap from tokenInfo but not from metrics, use it
         if (tokenInfo?.market_cap && (!data.metrics.marketCapValue || data.metrics.marketCapValue === 0)) {
           data.metrics.marketCapValue = tokenInfo.market_cap;
-          data.metrics.marketCap = formatCurrency(tokenInfo.market_cap);
+          data.metrics.marketCapFormatted = formatCurrency(tokenInfo.market_cap);
         }
 
         // If we have price from tokenInfo but not from metrics, use it
-        if (tokenInfo?.current_price && (!data.metrics.currentPrice || data.metrics.currentPrice === 0)) {
-          data.metrics.currentPrice = tokenInfo.current_price;
+        if (tokenInfo?.current_price && (!data.metrics.price || data.metrics.price === 0)) {
+          data.metrics.price = tokenInfo.current_price;
         }
 
         // If we have price change from tokenInfo but not from metrics, use it
@@ -289,10 +306,10 @@ export const useTokenMetrics = (
         // Create a minimal metrics object with data from tokenInfo if available
         if (tokenInfo) {
           const fallbackMetrics: Partial<TokenMetrics> = {
-            marketCap: tokenInfo.market_cap ? formatCurrency(tokenInfo.market_cap) : 'N/A',
+            marketCapFormatted: tokenInfo.market_cap ? formatCurrency(tokenInfo.market_cap) : 'N/A',
             marketCapValue: tokenInfo.market_cap || 0,
             marketCapChange24h: tokenInfo.price_change_percentage_24h || 0,
-            currentPrice: tokenInfo.current_price || 0,
+            price: tokenInfo.current_price || 0,
             priceChange24h: tokenInfo.price_change_percentage_24h || 0,
             liquidityLock: 'N/A',
             liquidityLockDays: 0,

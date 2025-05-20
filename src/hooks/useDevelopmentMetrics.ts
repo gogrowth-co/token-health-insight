@@ -19,34 +19,35 @@ export const useDevelopmentMetrics = (
   forceRefresh: boolean = false
 ) => {
   const normalizedToken = tokenIdentifier?.replace(/^\$/, '').toLowerCase() || '';
+  const contractAddress = tokenInfo?.contract_address || '';
   
   return useQuery({
     queryKey: ['developmentMetrics', normalizedToken, refreshTrigger, forceRefresh],
     queryFn: async (): Promise<DevelopmentData> => {
-      if (!normalizedToken) {
-        throw new Error('Token identifier is required');
+      if (!normalizedToken && !contractAddress) {
+        throw new Error('Token identifier or contract address is required');
       }
 
-      console.log(`Fetching development metrics for ${normalizedToken} (refresh: ${refreshTrigger}, force: ${forceRefresh})`);
+      console.log(`Fetching development metrics for ${normalizedToken || contractAddress} (refresh: ${refreshTrigger}, force: ${forceRefresh})`);
       
       try {
-        // First try to get data from development cache table
+        // First try to get data from token_development_cache table
         const { data: devData, error: devError } = await supabase
           .from('token_development_cache')
           .select('*')
-          .eq('token_id', normalizedToken)
+          .eq('token_address', contractAddress)
           .single();
         
         // If data exists and we're not forcing a refresh, return it
         if (!forceRefresh && devData && !devError) {
-          console.log(`Found development cache for ${normalizedToken}`);
+          console.log(`Found development cache for ${contractAddress}`);
           
           return {
-            githubActivity: devData.github_activity || 'N/A',
-            githubCommits: devData.github_commits || 0,
-            githubContributors: devData.github_contributors || 0,
-            lastCommitDate: devData.last_commit_date || 'N/A',
-            developmentScore: devData.development_score || 50,
+            githubActivity: devData.is_open_source ? 'Active' : 'Unknown',
+            githubCommits: devData.commits_30d || 0,
+            githubContributors: devData.contributors_count || 0,
+            lastCommitDate: devData.last_commit ? devData.last_commit : 'N/A',
+            developmentScore: devData.score || 50,
             fromCache: true
           };
         }
@@ -54,12 +55,13 @@ export const useDevelopmentMetrics = (
         // If we're forcing a refresh or no cache exists, fetch fresh data from API
         const githubRepo = tokenInfo?.links?.github || '';
         
-        console.log(`Fetching fresh development data for ${normalizedToken}, github=${githubRepo}`);
+        console.log(`Fetching fresh development data for ${normalizedToken || contractAddress}, github=${githubRepo}`);
         
         // Fetch development data from our edge function
         const { data, error } = await supabase.functions.invoke('get-token-metrics', {
           body: { 
             token: normalizedToken,
+            address: contractAddress,
             github: githubRepo,
             forceRefresh: forceRefresh,
             includeDevelopment: true,
@@ -77,7 +79,7 @@ export const useDevelopmentMetrics = (
           throw new Error(data.error);
         }
 
-        console.log(`Successfully fetched development metrics for ${normalizedToken}`);
+        console.log(`Successfully fetched development metrics for ${normalizedToken || contractAddress}`);
         
         // Extract development data
         const metrics = data.metrics || {};
@@ -106,7 +108,7 @@ export const useDevelopmentMetrics = (
         return fallbackData;
       }
     },
-    enabled: !!normalizedToken && !!tokenInfo?.links?.github,
+    enabled: !!normalizedToken || !!contractAddress,
     staleTime: forceRefresh ? 0 : 5 * 60 * 1000, // 0 if force refresh, otherwise 5 minutes
     gcTime: 15 * 60 * 1000, // 15 minutes
     retry: 2
