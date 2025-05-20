@@ -1,3 +1,4 @@
+
 import { CircleDot } from "lucide-react";
 import { TokenMetrics } from "@/hooks/useTokenMetrics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -160,7 +161,6 @@ export const TokenomicsMetricsSection = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  {/* Change references to use tokenDistributionRating instead of tokenDistributionFormatted */}
                   <Badge className={`${getMetricStatus(metrics?.tokenDistributionRating)}`}>
                     {withFallback(metrics?.tokenDistributionRating)}
                   </Badge>
@@ -229,7 +229,6 @@ export const TokenomicsMetricsSection = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  {/* Change references to use treasurySizeFormatted from metrics only when available */}
                   <Badge className={`${getMetricStatus(metrics?.treasurySize)}`}>
                     {metrics?.treasurySizeFormatted || withFallback(metrics?.treasurySize)}
                   </Badge>

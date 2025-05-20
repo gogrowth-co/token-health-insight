@@ -1,3 +1,4 @@
+
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { TokenInfo } from './useTokenInfo';
@@ -121,6 +122,74 @@ export interface TokenMetadata {
   github?: string;
 }
 
+// Define narrower types for database results to avoid excessive type instantiation
+interface SecurityCacheData {
+  security_score?: number;
+  ownership_renounced?: string;
+  freeze_authority?: string;
+  code_audit?: string;
+  multi_sig_wallet?: string;
+  bug_bounty?: string;
+}
+
+interface LiquidityCacheData {
+  liquidity_score?: number;
+  liquidity_lock?: string;
+  liquidity_lock_days?: number;
+  cex_listings?: string;
+  dex_depth?: string;
+  dex_depth_value?: number;
+  holder_distribution?: string;
+  holder_distribution_value?: number;
+  trading_volume_24h?: number;
+  trading_volume_formatted?: string;
+  trading_volume_change_24h?: number;
+}
+
+interface TokenomicsCacheData {
+  tokenomics_score?: number;
+  tvl_formatted?: string;
+  tvl_value?: number;
+  tvl_change_24h?: number;
+  supply_cap_value?: number;
+  supply_cap_formatted?: string;
+  supply_cap_exists?: boolean;
+  burn_mechanism?: string;
+  token_distribution?: string;
+  token_distribution_formatted?: string;
+  token_distribution_rating?: string;
+  token_distribution_value?: number;
+  treasury_size?: number;
+  treasury_size_formatted?: string;
+}
+
+interface CommunityCacheData {
+  community_score?: number;
+  social_followers?: string;
+  social_followers_count?: number;
+  social_followers_change?: number;
+  verified_account?: string;
+  growth_rate?: string;
+  growth_rate_value?: number;
+  active_channels?: string;
+  active_channels_count?: number;
+  team_visibility?: string;
+}
+
+interface DevelopmentCacheData {
+  development_score?: number;
+  github_activity?: string;
+  github_commits?: number;
+  github_contributors?: number;
+  last_commit_date?: string;
+}
+
+interface HoldersCacheData {
+  percentage?: string;
+  value?: number;
+  trend?: string;
+}
+
 export const useTokenMetrics = (
   tokenIdentifier?: string | null,
   tokenInfo?: TokenInfo | null,
@@ -161,7 +230,7 @@ export const useTokenMetrics = (
             .from('subscribers')
             .select('*')
             .eq('user_id', userId)
-            .single();
+            .maybeSingle();
             
           if (subscription && !subError) {
             freeScansRemaining = subscription.scan_limit - subscription.scan_count;
@@ -193,7 +262,6 @@ export const useTokenMetrics = (
               
               // Update scan count if this is a pro scan
               if (isProScan && subscription) {
-                const userEmail = subscription.email;
                 await supabase
                   .from('subscribers')
                   .update({
@@ -205,7 +273,7 @@ export const useTokenMetrics = (
           }
         }
         
-        // Fetch security metrics
+        // Fetch security metrics - Use typed query results
         const { data: securityData, error: securityError } = await supabase
           .from('token_security_cache')
           .select('*')
@@ -257,6 +325,14 @@ export const useTokenMetrics = (
           .eq('token_address', contractAddress)
           .maybeSingle();
           
+        // Cast to our specific types to avoid TypeScript errors
+        const secData = securityData as SecurityCacheData | null;
+        const liqData = liquidityData as LiquidityCacheData | null;
+        const tokenData = tokenomicsData as TokenomicsCacheData | null;
+        const commData = communityData as CommunityCacheData | null;
+        const devData = developmentData as DevelopmentCacheData | null;
+        const holderData = holdersData as HoldersCacheData | null;
+          
         // Combine all metrics
         const metrics: TokenMetrics = {
           tokenId: normalizedToken,
@@ -280,77 +356,77 @@ export const useTokenMetrics = (
           freeScansRemaining,
           
           // Security metrics
-          securityScore: securityData?.security_score || 50,
-          ownershipRenounced: securityData?.ownership_renounced !== undefined 
-            ? securityData.ownership_renounced ? 'Yes' : 'No'
+          securityScore: secData?.security_score || 50,
+          ownershipRenounced: secData?.ownership_renounced !== undefined 
+            ? secData.ownership_renounced ? 'Yes' : 'No'
             : 'N/A',
-          freezeAuthority: securityData?.freeze_authority !== undefined
-            ? securityData.freeze_authority ? 'Yes' : 'No'
+          freezeAuthority: secData?.freeze_authority !== undefined
+            ? secData.freeze_authority ? 'Yes' : 'No'
             : 'N/A',
-          codeAudit: securityData?.code_audit || 'N/A',
-          multiSigWallet: securityData?.multi_sig_wallet || 'N/A',
-          bugBounty: securityData?.bug_bounty || 'N/A',
+          codeAudit: secData?.code_audit || 'N/A',
+          multiSigWallet: secData?.multi_sig_wallet || 'N/A',
+          bugBounty: secData?.bug_bounty || 'N/A',
           
           // Liquidity metrics
-          liquidityLock: liquidityData?.liquidity_lock_days 
-            ? `${liquidityData.liquidity_lock_days} days` 
+          liquidityLock: liqData?.liquidity_lock_days 
+            ? `${liqData.liquidity_lock_days} days` 
             : 'N/A',
-          liquidityLockDays: liquidityData?.liquidity_lock_days || 0,
-          cexListings: liquidityData?.cex_listings 
-            ? `${liquidityData.cex_listings} exchanges` 
+          liquidityLockDays: liqData?.liquidity_lock_days || 0,
+          cexListings: liqData?.cex_listings 
+            ? `${liqData.cex_listings} exchanges` 
             : 'N/A',
-          dexDepth: liquidityData?.dex_depth || 'N/A',
-          dexDepthValue: liquidityData?.dex_depth_value || 0,
-          holderDistribution: liquidityData?.holder_distribution || 'N/A',
-          holderDistributionValue: liquidityData?.holder_distribution_value || 0,
-          tradingVolume24h: liquidityData?.trading_volume_24h || 0,
-          tradingVolumeFormatted: liquidityData?.trading_volume_formatted || 'N/A',
-          tradingVolumeChange24h: liquidityData?.trading_volume_change_24h || 0,
+          dexDepth: liqData?.dex_depth || 'N/A',
+          dexDepthValue: liqData?.dex_depth_value || 0,
+          holderDistribution: liqData?.holder_distribution || 'N/A',
+          holderDistributionValue: liqData?.holder_distribution_value || 0,
+          tradingVolume24h: liqData?.trading_volume_24h || 0,
+          tradingVolumeFormatted: liqData?.trading_volume_formatted || 'N/A',
+          tradingVolumeChange24h: liqData?.trading_volume_change_24h || 0,
           
           // Tokenomics metrics
-          tokenomicsScore: tokenomicsData?.tokenomics_score || 65,
-          tvl: tokenomicsData?.tvl_formatted || 'N/A',
-          tvlValue: tokenomicsData?.tvl_value || 0,
-          tvlFormatted: tokenomicsData?.tvl_formatted || 'N/A',
-          tvlChange24h: tokenomicsData?.tvl_change_24h || 0,
-          supplyCap: tokenomicsData?.supply_cap_value ? String(tokenomicsData.supply_cap_value) : 'N/A',
-          supplyCapValue: tokenomicsData?.supply_cap_value || 0,
-          supplyCapFormatted: tokenomicsData?.supply_cap_formatted || 'N/A',
-          supplyCapExists: tokenomicsData?.supply_cap_exists ? true : false,
-          burnMechanism: tokenomicsData?.burn_mechanism !== undefined
-            ? tokenomicsData.burn_mechanism ? 'Yes' : 'No'
+          tokenomicsScore: tokenData?.tokenomics_score || 65,
+          tvl: tokenData?.tvl_formatted || 'N/A',
+          tvlValue: tokenData?.tvl_value || 0,
+          tvlFormatted: tokenData?.tvl_formatted || 'N/A',
+          tvlChange24h: tokenData?.tvl_change_24h || 0,
+          supplyCap: tokenData?.supply_cap_value ? String(tokenData.supply_cap_value) : 'N/A',
+          supplyCapValue: tokenData?.supply_cap_value || 0,
+          supplyCapFormatted: tokenData?.supply_cap_formatted || 'N/A',
+          supplyCapExists: tokenData?.supply_cap_exists ? true : false,
+          burnMechanism: tokenData?.burn_mechanism !== undefined
+            ? tokenData.burn_mechanism ? 'Yes' : 'No'
             : 'N/A',
-          tokenDistribution: tokenomicsData?.vesting_schedule || 'N/A',
-          tokenDistributionFormatted: tokenomicsData?.distribution_score || 'N/A',
-          tokenDistributionValue: tokenomicsData?.distribution_score ? 1 : 0,
-          tokenDistributionRating: tokenomicsData?.distribution_score || 'N/A',
-          treasurySize: tokenomicsData?.treasury_usd ? String(tokenomicsData.treasury_usd) : 'N/A',
-          treasurySizeFormatted: tokenomicsData?.treasury_usd ? formatCurrency(tokenomicsData.treasury_usd) : 'N/A',
-          treasurySizeValue: tokenomicsData?.treasury_usd || 0,
+          tokenDistribution: tokenData?.token_distribution || 'N/A',
+          tokenDistributionFormatted: tokenData?.token_distribution_formatted || 'N/A',
+          tokenDistributionValue: tokenData?.token_distribution_value ? 1 : 0,
+          tokenDistributionRating: tokenData?.token_distribution_rating || 'N/A',
+          treasurySize: tokenData?.treasury_size ? String(tokenData.treasury_size) : 'N/A',
+          treasurySizeFormatted: tokenData?.treasury_size_formatted || 'N/A',
+          treasurySizeValue: tokenData?.treasury_size || 0,
           
           // Community metrics
-          communityScore: communityData?.community_score || 85,
-          socialFollowers: communityData?.social_followers || 'N/A',
-          socialFollowersCount: communityData?.social_followers_count || 0,
-          socialFollowersChange: communityData?.social_followers_change || 0,
-          verifiedAccount: communityData?.verified_account || 'N/A',
-          growthRate: communityData?.growth_rate || 'N/A',
-          growthRateValue: communityData?.growth_rate_value || 0,
-          activeChannels: communityData?.active_channels || 'N/A',
-          activeChannelsCount: communityData?.active_channels_count || 0,
-          teamVisibility: communityData?.team_visibility || 'N/A',
+          communityScore: commData?.community_score || 85,
+          socialFollowers: commData?.social_followers || 'N/A',
+          socialFollowersCount: commData?.social_followers_count || 0,
+          socialFollowersChange: commData?.social_followers_change || 0,
+          verifiedAccount: commData?.verified_account || 'N/A',
+          growthRate: commData?.growth_rate || 'N/A',
+          growthRateValue: commData?.growth_rate_value || 0,
+          activeChannels: commData?.active_channels || 'N/A',
+          activeChannelsCount: commData?.active_channels_count || 0,
+          teamVisibility: commData?.team_visibility || 'N/A',
           
           // Development metrics
-          developmentScore: developmentData?.development_score || 50,
-          githubActivity: developmentData?.github_activity || 'N/A',
-          githubCommits: developmentData?.github_commits || 0,
-          githubContributors: developmentData?.github_contributors || 0,
-          lastCommitDate: developmentData?.last_commit_date || 'N/A',
+          developmentScore: devData?.development_score || 50,
+          githubActivity: devData?.github_activity || 'N/A',
+          githubCommits: devData?.github_commits || 0,
+          githubContributors: devData?.github_contributors || 0,
+          lastCommitDate: devData?.last_commit_date || 'N/A',
           
           // Top holders
-          topHoldersPercentage: holdersData?.percentage || 'N/A',
-          topHoldersValue: holdersData?.value || 0,
-          topHoldersTrend: holdersData?.trend as "up" | "down" | string || 'N/A',
+          topHoldersPercentage: holderData?.percentage || 'N/A',
+          topHoldersValue: holderData?.value || 0,
+          topHoldersTrend: holderData?.trend as "up" | "down" | string || 'N/A',
         };
         
         console.log('Combined metrics:', metrics);

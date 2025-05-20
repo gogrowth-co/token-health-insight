@@ -44,6 +44,28 @@ export interface TokenInfo {
   twitter?: string; // Add twitter property to fix the error
 }
 
+// Define a type for the token cache data to ensure type safety
+interface TokenCacheData {
+  id?: string;
+  name?: string;
+  symbol?: string;
+  token_address?: string;
+  contract_address?: string;
+  chain?: string;
+  blockchain?: string;
+  description?: string;
+  website_url?: string;
+  homepage?: string;
+  twitter_handle?: string;
+  twitter?: string;
+  github_url?: string;
+  github?: string;
+  launch_date?: string;
+  genesis_date?: string;
+  logo_url?: string;
+  image?: string;
+}
+
 export const useTokenInfo = (tokenIdentifier?: string | null, forceRefresh: boolean = false) => {
   // Basic client-side normalization that mirrors the edge function logic
   const normalizedToken = tokenIdentifier?.trim() || '';
@@ -71,7 +93,7 @@ export const useTokenInfo = (tokenIdentifier?: string | null, forceRefresh: bool
         console.log(`[useTokenInfo] Found data in token_data_cache for: ${normalizedToken}`);
         
         // Access token data from the data JSON field
-        const tokenData = cacheData.data;
+        const tokenData = cacheData.data as TokenCacheData;
         
         return {
           id: tokenData.id || normalizedToken,

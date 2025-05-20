@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
 
@@ -5,7 +6,7 @@ interface ErrorStateProps {
   error: Error;
   isConnectionError?: boolean;
   refetch?: () => Promise<void>;
-  title?: string;  // Add the title property
+  title?: string;  // We're adding the title property
 }
 
 export const ErrorState = ({ error, isConnectionError, refetch, title }: ErrorStateProps) => {
