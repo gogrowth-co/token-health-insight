@@ -1,3 +1,4 @@
+
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { TokenInfo } from './useTokenInfo';
@@ -24,8 +25,10 @@ export interface TokenMetrics {
   // Market data
   price?: number;
   priceChange24h?: number;
-  marketCap?: number;
+  marketCap?: string;
+  marketCapValue?: number;
   marketCapFormatted?: string;
+  marketCapChange24h?: number;
   
   // Scores
   overallScore?: number;
@@ -56,16 +59,20 @@ export interface TokenMetrics {
   tradingVolumeChange24h?: number;
   
   // Tokenomics metrics
+  tvl?: string;
   tvlValue?: number;
   tvlFormatted?: string;
   tvlChange24h?: number;
+  supplyCap?: string;
   supplyCapValue?: number;
   supplyCapFormatted?: string;
   supplyCapExists?: boolean;
   burnMechanism?: string;
+  tokenDistribution?: string;
   tokenDistributionFormatted?: string;
   tokenDistributionValue?: number;
   tokenDistributionRating?: string;
+  treasurySize?: string;
   treasurySizeFormatted?: string;
   treasurySizeValue?: number;
   
@@ -73,6 +80,7 @@ export interface TokenMetrics {
   socialFollowers?: string;
   socialFollowersCount?: number;
   socialFollowersChange?: number;
+  socialFollowersFromCache?: boolean;
   verifiedAccount?: string;
   growthRate?: string;
   growthRateValue?: number;
@@ -85,6 +93,15 @@ export interface TokenMetrics {
   githubCommits?: number;
   githubContributors?: number;
   lastCommitDate?: string;
+  
+  // Top holders data
+  topHolders?: TopHolderEntry[];
+  topHoldersPercentage?: string;
+  topHoldersValue?: number;
+  topHoldersTrend?: string;
+  
+  // Audit status
+  auditStatus?: string;
   
   // Cache metadata
   fromCache?: boolean;

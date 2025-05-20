@@ -44,10 +44,10 @@ export const useDevelopmentMetrics = (
           
           return {
             githubActivity: devData.is_open_source ? 'Active' : 'Unknown',
-            githubCommits: devData.commits_30d || 0,
-            githubContributors: devData.contributors_count || 0,
-            lastCommitDate: devData.last_commit ? devData.last_commit : 'N/A',
-            developmentScore: devData.score || 50,
+            githubCommits: devData.github_commits || 0,
+            githubContributors: devData.github_contributors || 0,
+            lastCommitDate: devData.last_commit_date ? devData.last_commit_date : 'N/A',
+            developmentScore: devData.development_score || 50,
             fromCache: true
           };
         }

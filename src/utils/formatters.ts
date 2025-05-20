@@ -82,3 +82,31 @@ export const formatPercentage = (value: number, fractionDigits = 2): string => {
     maximumFractionDigits: fractionDigits
   }).format(value / 100);
 };
+
+/**
+ * Format a string or number value to the appropriate format
+ * @param value The value to format
+ * @param type The type of formatting to apply
+ * @returns Formatted string
+ */
+export const formatValue = (value: string | number, type: 'currency' | 'percentage' | 'compact' = 'compact'): string => {
+  if (typeof value === 'string') {
+    // Try to parse the string as a number
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) {
+      return value; // Return the original string if it's not a number
+    }
+    value = numValue;
+  }
+
+  switch (type) {
+    case 'currency':
+      return formatCurrency(value);
+    case 'percentage':
+      return formatPercentage(value);
+    case 'compact':
+      return formatCompactNumber(value);
+    default:
+      return String(value);
+  }
+};

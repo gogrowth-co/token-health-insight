@@ -1,12 +1,26 @@
-
 import { CircleDot, AlertCircle, DollarSign, BarChart, Infinity, PieChart, TrendingUp } from "lucide-react";
 import { TokenMetrics } from "@/hooks/useTokenMetrics";
-import { TokenomicsData } from "@/hooks/useTokenonomics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+export interface TokenomicsData {
+  tvl?: string;
+  tvlValue?: number;
+  tvlChange24h?: number;
+  supplyCap?: string;
+  supplyCapValue?: number;
+  supplyCapExists?: boolean;
+  burnMechanism?: string;
+  tokenDistribution?: string;
+  tokenDistributionValue?: number;
+  tokenDistributionRating?: string;
+  treasurySize?: string;
+  treasurySizeValue?: number;
+  tokenomicsScore?: number;
+}
 
 interface TokenomicsMetricsSectionProps {
   metrics?: TokenomicsData | TokenMetrics;
@@ -139,7 +153,7 @@ export const TokenomicsMetricsSection = ({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo(metrics?.tvl, "tvl").icon}
+              {getStatusInfo(metrics?.tvl || "N/A", "tvl").icon}
               TVL
             </CardTitle>
             <CardDescription className="text-xs">
@@ -150,7 +164,7 @@ export const TokenomicsMetricsSection = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className={`${getStatusInfo(metrics?.tvl, "tvl").color}`}>
+                  <Badge className={`${getStatusInfo(metrics?.tvl || "N/A", "tvl").color}`}>
                     {metrics?.tvl || "N/A"}
                   </Badge>
                 </TooltipTrigger>
@@ -173,7 +187,7 @@ export const TokenomicsMetricsSection = ({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo(metrics?.supplyCap, "supplyCap").icon}
+              {getStatusInfo(metrics?.supplyCap || "Coming Soon", "supplyCap").icon}
               Supply Cap
             </CardTitle>
             <CardDescription className="text-xs">
@@ -205,7 +219,7 @@ export const TokenomicsMetricsSection = ({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo(metrics?.tokenDistribution, "tokenDistribution").icon}
+              {getStatusInfo(metrics?.tokenDistributionFormatted || "Coming Soon", "tokenDistribution").icon}
               Token Distribution
             </CardTitle>
             <CardDescription className="text-xs">
@@ -239,7 +253,7 @@ export const TokenomicsMetricsSection = ({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo(metrics?.treasurySize, "treasurySize").icon}
+              {getStatusInfo(metrics?.treasurySizeFormatted || "Coming Soon", "treasurySize").icon}
               Treasury Size
             </CardTitle>
             <CardDescription className="text-xs">
@@ -269,7 +283,7 @@ export const TokenomicsMetricsSection = ({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium flex items-center gap-2">
-              {getStatusInfo(metrics?.burnMechanism, "burnMechanism").icon}
+              {getStatusInfo(metrics?.burnMechanism || "Coming Soon", "burnMechanism").icon}
               Burn Mechanism
             </CardTitle>
             <CardDescription className="text-xs">

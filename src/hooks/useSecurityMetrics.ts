@@ -49,9 +49,9 @@ export const useSecurityMetrics = (
             ownershipRenouncedValue: !!securityData.ownership_renounced,
             freezeAuthority: securityData.freeze_authority ? 'Yes' : 'No',
             codeAudit: securityData.code_audit || 'Coming Soon',
-            multiSigWallet: securityData.multisig_status || 'Coming Soon',
-            bugBounty: securityData.bug_bounty_status || 'Coming Soon',
-            securityScore: securityData.score || 50,
+            multiSigWallet: securityData.multi_sig_wallet || 'Coming Soon',
+            bugBounty: securityData.bug_bounty || 'Coming Soon',
+            securityScore: securityData.security_score || 50,
             fromCache: true
           };
         }

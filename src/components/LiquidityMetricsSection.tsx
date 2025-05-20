@@ -94,7 +94,7 @@ export const LiquidityMetricsSection = ({
       return "N/A";
     }
     
-    if (metrics.marketCapChange24h) {
+    if (metrics.marketCapChange24h !== undefined) {
       const changeClass = metrics.marketCapChange24h > 0 ? "text-green-500" : "text-red-500";
       const changePrefix = metrics.marketCapChange24h > 0 ? "+" : "";
       return (
@@ -138,7 +138,7 @@ export const LiquidityMetricsSection = ({
       return "N/A";
     }
     
-    if (metrics.liquidityLockDays > 0) {
+    if (metrics.liquidityLockDays && metrics.liquidityLockDays > 0) {
       return `Yes (${metrics.liquidityLockDays} days)`;
     }
     

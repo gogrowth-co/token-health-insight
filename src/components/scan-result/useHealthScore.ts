@@ -13,18 +13,20 @@ export function useHealthScore(tokenMetrics?: TokenMetrics, tokenInfo?: TokenInf
     // Adjust score based on available metrics from tokenMetrics
     if (tokenMetrics) {
       // Market cap - higher is better
-      if (tokenMetrics.marketCapValue > 1000000000) { // > $1B
+      const marketCapValue = tokenMetrics.marketCapValue || 0;
+      if (marketCapValue > 1000000000) { // > $1B
         score += 15;
-      } else if (tokenMetrics.marketCapValue > 100000000) { // > $100M
+      } else if (marketCapValue > 100000000) { // > $100M
         score += 10;
-      } else if (tokenMetrics.marketCapValue > 10000000) { // > $10M
+      } else if (marketCapValue > 10000000) { // > $10M
         score += 5;
       }
       
       // TVL - higher is better
-      if (tokenMetrics.tvlValue > 100000000) { // > $100M
+      const tvlValue = tokenMetrics.tvlValue || 0;
+      if (tvlValue > 100000000) { // > $100M
         score += 10;
-      } else if (tokenMetrics.tvlValue > 10000000) { // > $10M
+      } else if (tvlValue > 10000000) { // > $10M
         score += 5;
       }
       
@@ -34,20 +36,21 @@ export function useHealthScore(tokenMetrics?: TokenMetrics, tokenInfo?: TokenInf
       }
       
       // Liquidity lock - longer is better
-      if (tokenMetrics.liquidityLockDays > 180) {
+      if (tokenMetrics.liquidityLockDays && tokenMetrics.liquidityLockDays > 180) {
         score += 10;
-      } else if (tokenMetrics.liquidityLockDays > 30) {
+      } else if (tokenMetrics.liquidityLockDays && tokenMetrics.liquidityLockDays > 30) {
         score += 5;
       }
       
       // Top holders - less concentration is better
-      if (tokenMetrics.topHoldersValue < 30) {
+      const topHoldersValue = tokenMetrics.topHoldersValue || 0;
+      if (topHoldersValue < 30) {
         score += 10;
-      } else if (tokenMetrics.topHoldersValue < 50) {
+      } else if (topHoldersValue < 50) {
         score += 5;
-      } else if (tokenMetrics.topHoldersValue > 80) {
+      } else if (topHoldersValue > 80) {
         score -= 10;
-      } else if (tokenMetrics.topHoldersValue > 60) {
+      } else if (topHoldersValue > 60) {
         score -= 5;
       }
       
