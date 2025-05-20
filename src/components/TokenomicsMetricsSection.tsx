@@ -1,6 +1,7 @@
 
 import { CircleDot, AlertCircle, DollarSign, BarChart, Infinity, PieChart, TrendingUp } from "lucide-react";
 import { TokenMetrics } from "@/hooks/useTokenMetrics";
+import { TokenomicsData } from "@/hooks/useTokenonomics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface TokenomicsMetricsSectionProps {
-  metrics: TokenMetrics | undefined;
+  metrics?: TokenomicsData | TokenMetrics;
   isLoading: boolean;
   error: Error | null;
 }
@@ -39,7 +40,7 @@ export const TokenomicsMetricsSection = ({
 
     // Token Distribution status
     if (type === "tokenDistribution") {
-      const rating = metrics?.tokenDistributionRating;
+      const rating = 'tokenDistributionRating' in metrics ? metrics.tokenDistributionRating : undefined;
       if (rating === "Good") {
         return { icon: <PieChart className="h-5 w-5 text-green-500" />, color: "text-green-500 bg-green-50" };
       } else if (rating === "Moderate") {
@@ -158,7 +159,7 @@ export const TokenomicsMetricsSection = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            {metrics?.tvlChange24h ? (
+            {'tvlChange24h' in metrics && metrics.tvlChange24h ? (
               <div className="mt-2">
                 <span className={`text-xs ${metrics.tvlChange24h > 0 ? 'text-green-500' : 'text-red-500'}`}>
                   {metrics.tvlChange24h > 0 ? '+' : ''}{metrics.tvlChange24h.toFixed(2)}% (24h)
@@ -192,7 +193,7 @@ export const TokenomicsMetricsSection = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            {metrics?.supplyCapExists === false && (
+            {'supplyCapExists' in metrics && metrics.supplyCapExists === false && (
               <p className="text-xs mt-2 text-gray-500">
                 No supply cap found for this token.
               </p>
@@ -224,7 +225,7 @@ export const TokenomicsMetricsSection = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            {metrics?.tokenDistributionRating && metrics.tokenDistributionRating !== "N/A" && (
+            {'tokenDistributionRating' in metrics && metrics.tokenDistributionRating !== "N/A" && (
               <p className="text-xs mt-2 text-gray-500">
                 {metrics.tokenDistributionRating === "Good" ? "Well distributed among holders" : 
                  metrics.tokenDistributionRating === "Poor" ? "Highly concentrated among top holders" :
@@ -288,12 +289,12 @@ export const TokenomicsMetricsSection = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            {metrics?.burnMechanism === "Yes" && (
+            {'burnMechanism' in metrics && metrics.burnMechanism === "Yes" && (
               <p className="text-xs mt-2 text-gray-500">
                 This token has a verifiable burn mechanism.
               </p>
             )}
-            {metrics?.burnMechanism === "No" && (
+            {'burnMechanism' in metrics && metrics.burnMechanism === "No" && (
               <p className="text-xs mt-2 text-gray-500">
                 No burn mechanism detected in contract.
               </p>

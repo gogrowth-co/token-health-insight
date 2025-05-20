@@ -219,6 +219,66 @@ export type Database = {
         }
         Relationships: []
       }
+      token_tokenomics_cache: {
+        Row: {
+          burn_mechanism: string | null
+          created_at: string
+          id: string
+          last_updated: string
+          supply_cap_exists: boolean | null
+          supply_cap_formatted: string | null
+          supply_cap_value: number | null
+          token_distribution_formatted: string | null
+          token_distribution_rating: string | null
+          token_distribution_value: number | null
+          token_id: string
+          tokenomics_score: number | null
+          treasury_size_formatted: string | null
+          treasury_size_value: number | null
+          tvl_change_24h: number | null
+          tvl_formatted: string | null
+          tvl_value: number | null
+        }
+        Insert: {
+          burn_mechanism?: string | null
+          created_at?: string
+          id?: string
+          last_updated?: string
+          supply_cap_exists?: boolean | null
+          supply_cap_formatted?: string | null
+          supply_cap_value?: number | null
+          token_distribution_formatted?: string | null
+          token_distribution_rating?: string | null
+          token_distribution_value?: number | null
+          token_id: string
+          tokenomics_score?: number | null
+          treasury_size_formatted?: string | null
+          treasury_size_value?: number | null
+          tvl_change_24h?: number | null
+          tvl_formatted?: string | null
+          tvl_value?: number | null
+        }
+        Update: {
+          burn_mechanism?: string | null
+          created_at?: string
+          id?: string
+          last_updated?: string
+          supply_cap_exists?: boolean | null
+          supply_cap_formatted?: string | null
+          supply_cap_value?: number | null
+          token_distribution_formatted?: string | null
+          token_distribution_rating?: string | null
+          token_distribution_value?: number | null
+          token_id?: string
+          tokenomics_score?: number | null
+          treasury_size_formatted?: string | null
+          treasury_size_value?: number | null
+          tvl_change_24h?: number | null
+          tvl_formatted?: string | null
+          tvl_value?: number | null
+        }
+        Relationships: []
+      }
       twitter_profile_cache: {
         Row: {
           fetched_at: string

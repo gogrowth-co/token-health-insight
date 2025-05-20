@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { corsHeaders } from "../_shared/cors.ts";
+import { formatCurrency, formatNumber } from "../_shared/formatters.ts";
 
 // Create a Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
@@ -475,72 +476,6 @@ async function getBurnMechanism(network: string, tokenAddress: string) {
   } catch (error) {
     console.error('Error fetching burn mechanism data:', error);
     return { burnMechanism: "N/A" };
-  }
-}
-
-// Helper function to format numbers nicely
-function formatNumber(value: number): string {
-  if (!value && value !== 0) return "N/A";
-  
-  if (value >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(2)}B`;
-  } else if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(2)}M`;
-  } else if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(2)}K`;
-  } else {
-    return value.toFixed(2);
-  }
-}
-
-// Helper function to ensure token_holders_cache table exists
-async function ensureTokenHoldersCacheExists() {
-  try {
-    console.log('Checking if token_holders_cache table exists');
-    const { error } = await supabase
-      .from('token_holders_cache')
-      .select('count')
-      .limit(1);
-    
-    if (error && error.message.includes('relation "token_holders_cache" does not exist')) {
-      console.log('Creating token_holders_cache table via RPC');
-      await supabase.rpc('create_token_holders_cache_table');
-      
-      // Extend the table schema to include holders_data column
-      const { error: alterError } = await supabase.rpc('alter_token_holders_cache_add_holders_data');
-      if (alterError) {
-        console.error('Error adding holders_data column:', alterError);
-        // If the RPC doesn't exist, create the function
-        await supabase.rpc('create_alter_token_holders_cache_function');
-        // Try again
-        await supabase.rpc('alter_token_holders_cache_add_holders_data');
-      }
-      
-      console.log('Token holders cache table created with holders_data column');
-    } else if (error) {
-      console.error('Error checking token_holders_cache table:', error);
-      throw error;
-    } else {
-      console.log('Token holders cache table exists');
-      
-      // Check if holders_data column exists
-      try {
-        const { error: queryError } = await supabase
-          .from('token_holders_cache')
-          .select('holders_data')
-          .limit(1);
-          
-        if (queryError && queryError.message.includes('column "holders_data" does not exist')) {
-          console.log('Adding holders_data column to token_holders_cache table');
-          await supabase.rpc('alter_token_holders_cache_add_holders_data');
-        }
-      } catch (columnError) {
-        console.error('Error checking for holders_data column:', columnError);
-      }
-    }
-  } catch (error) {
-    console.error('Error in ensureTokenHoldersCacheExists:', error);
-    throw error;
   }
 }
 
@@ -1123,3 +1058,213 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// Helper function to ensure token_holders_cache table exists
+async function ensureTokenHoldersCacheExists() {
+  try {
+    console.log('Checking if token_holders_cache table exists');
+    const { error } = await supabase
+      .from('token_holders_cache')
+      .select('count')
+      .limit(1);
+    
+    if (error && error.message.includes('relation "token_holders_cache" does not exist')) {
+      console.log('Creating token_holders_cache table via RPC');
+      await supabase.rpc('create_token_holders_cache_table');
+      
+      // Extend the table schema to include holders_data column
+      const { error: alterError } = await supabase.rpc('alter_token_holders_cache_add_holders_data');
+      if (alterError) {
+        console.error('Error adding holders_data column:', alterError);
+        // If the RPC doesn't exist, create the function
+        await supabase.rpc('create_alter_token_holders_cache_function');
+        // Try again
+        await supabase.rpc('alter_token_holders_cache_add_holders_data');
+      }
+      
+      console.log('Token holders cache table created with holders_data column');
+    } else if (error) {
+      console.error('Error checking token_holders_cache table:', error);
+      throw error;
+    } else {
+      console.log('Token holders cache table exists');
+      
+      // Check if holders_data column exists
+      try {
+        const { error: queryError } = await supabase
+          .from('token_holders_cache')
+          .select('holders_data')
+          .limit(1);
+          
+        if (queryError && queryError.message.includes('column "holders_data" does not exist')) {
+          console.log('Adding holders_data column to token_holders_cache table');
+          await supabase.rpc('alter_token_holders_cache_add_holders_data');
+        }
+      } catch (columnError) {
+        console.error('Error checking for holders_data column:', columnError);
+      }
+    }
+  } catch (error) {
+    console.error('Error in ensureTokenHoldersCacheExists:', error);
+    throw error;
+  }
+}
+
+// Helper function to get contract verification status
+async function getContractVerificationStatus(network: string, contractAddress: string) {
+  if (!contractAddress) {
+    console.log('No contract address provided for verification status');
+    return { verificationStatus: "N/A" };
+  }
+  
+  try {
+    console.log(`Getting verification status for ${contractAddress} on network ${network}`);
+    
+    // Use Etherscan API to get contract verification status
+    const url = `https://api.etherscan.io/api?module=contract&action=getsourcecode&address=${contractAddress}`;
+    console.log(`Fetching verification status from Etherscan: ${url}`);
+    
+    const response = await fetchWithRetry(url, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    }, 3, 1000);
+    
+    if (!response.ok) {
+      console.error(`Etherscan API error: ${response.status}`);
+      return { verificationStatus: "N/A" };
+    }
+    
+    const data = await response.json();
+    console.log('Etherscan API response received');
+    
+    if (data.code !== 1 || !data.result || !data.result.source_code) {
+      console.log('No verification status found');
+      return { verificationStatus: "N/A" };
+    }
+    
+    // Extract verification status
+    const verificationStatus = data.result.source_code ? "Verified" : "Unverified";
+    console.log(`Verification status for ${contractAddress}: ${verificationStatus}`);
+    
+    return { verificationStatus };
+  } catch (error) {
+    console.error('Error fetching verification status:', error);
+    return { verificationStatus: "N/A" };
+  }
+}
+
+// Helper function to get top holders data
+async function getTopHoldersData(network: string, contractAddress: string) {
+  if (!contractAddress) {
+    console.log('No contract address provided for top holders data');
+    return { topHolders: [], topHoldersPercentage: "N/A", topHoldersValue: 0, topHoldersTrend: null };
+  }
+  
+  try {
+    console.log(`Getting top holders data for ${contractAddress} on network ${network}`);
+    
+    // Use Etherscan API to get top holders data
+    const url = `https://api.etherscan.io/api?module=token&action=getTopHolders&contractAddress=${contractAddress}`;
+    console.log(`Fetching top holders data from Etherscan: ${url}`);
+    
+    const response = await fetchWithRetry(url, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    }, 3, 1000);
+    
+    if (!response.ok) {
+      console.error(`Etherscan API error: ${response.status}`);
+      return { topHolders: [], topHoldersPercentage: "N/A", topHoldersValue: 0, topHoldersTrend: null };
+    }
+    
+    const data = await response.json();
+    console.log('Etherscan API response received');
+    
+    if (data.code !== 1 || !data.result || !data.result.top_holders) {
+      console.log('No top holders data found');
+      return { topHolders: [], topHoldersPercentage: "N/A", topHoldersValue: 0, topHoldersTrend: null };
+    }
+    
+    // Extract top holders data
+    const topHolders = data.result.top_holders;
+    const topHoldersPercentage = topHolders.length > 0 ? topHolders[0].percentage : "N/A";
+    const topHoldersValue = topHolders.length > 0 ? topHolders[0].value : 0;
+    const topHoldersTrend = topHolders.length > 0 ? topHolders[0].trend : null;
+    
+    console.log(`Top holders data for ${contractAddress}: ${topHoldersPercentage}, ${topHoldersValue}, ${topHoldersTrend}`);
+    
+    return { topHolders, topHoldersPercentage, topHoldersValue, topHoldersTrend };
+  } catch (error) {
+    console.error('Error fetching top holders data:', error);
+    return { topHolders: [], topHoldersPercentage: "N/A", topHoldersValue: 0, topHoldersTrend: null };
+  }
+}
+
+// Helper function to get liquidity lock info
+async function getLiquidityLockInfo(network: string, contractAddress: string) {
+  if (!contractAddress) {
+    console.log('No contract address provided for liquidity lock info');
+    return { liquidityLock: "N/A", liquidityLockDays: 0 };
+  }
+  
+  try {
+    console.log(`Getting liquidity lock info for ${contractAddress} on network ${network}`);
+    
+    // Use Etherscan API to get liquidity lock info
+    const url = `https://api.etherscan.io/api?module=token&action=getLiquidityLock&contractAddress=${contractAddress}`;
+    console.log(`Fetching liquidity lock info from Etherscan: ${url}`);
+    
+    const response = await fetchWithRetry(url, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    }, 3, 1000);
+    
+    if (!response.ok) {
+      console.error(`Etherscan API error: ${response.status}`);
+      return { liquidityLock: "N/A", liquidityLockDays: 0 };
+    }
+    
+    const data = await response.json();
+    console.log('Etherscan API response received');
+    
+    if (data.code !== 1 || !data.result || !data.result.liquidity_lock) {
+      console.log('No liquidity lock info found');
+      return { liquidityLock: "N/A", liquidityLockDays: 0 };
+    }
+    
+    // Extract liquidity lock info
+    const liquidityLock = data.result.liquidity_lock;
+    const liquidityLockDays = data.result.liquidity_lock_days;
+    
+    console.log(`Liquidity lock info for ${contractAddress}: ${liquidityLock}, ${liquidityLockDays}`);
+    
+    return { liquidityLock, liquidityLockDays };
+  } catch (error) {
+    console.error('Error fetching liquidity lock info:', error);
+    return { liquidityLock: "N/A", liquidityLockDays: 0 };
+  }
+}
+
+// Helper function to get chain ID for the network
+function getChainIdForNetwork(network: string): string | null {
+  const networkMap: Record<string, string> = {
+    'eth': 'eth', 
+    'ethereum': 'eth',
+    'bsc': 'bsc', 
+    'binance-smart-chain': 'bsc',
+    'polygon': 'polygon', 
+    'polygon-pos': 'polygon',
+    'avalanche': 'avalanche',
+    'arbitrum': 'arbitrum', 
+    'arbitrum-one': 'arbitrum',
+    'optimism': 'optimism', 
+    'optimistic-ethereum': 'optimism',
+    'fantom': 'fantom',
+    'base': 'base'
+  };
+  
+  return networkMap[network.toLowerCase()] || null;
+}
