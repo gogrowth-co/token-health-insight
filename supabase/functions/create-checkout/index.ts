@@ -53,7 +53,10 @@ serve(async (req) => {
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
     
     // Check if user is already a Stripe customer
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    const customers = await stripe.customers.list({
+      email: user.email,
+      limit: 1
+    });
     let customerId;
     
     if (customers.data.length > 0) {

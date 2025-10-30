@@ -35,7 +35,7 @@ export const useSecurityMetrics = (
         // First try to get data from token_security_cache table
         const { data: secData, error: secError } = await supabase
           .from('token_security_cache')
-          .select('*')
+          .select('token_id, token_address, ownership_renounced, freeze_authority, code_audit, multi_sig_wallet, bug_bounty, security_score, last_updated')
           .eq('token_id', contractAddress || normalizedToken)
           .maybeSingle();
           

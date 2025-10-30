@@ -228,7 +228,7 @@ export const useTokenMetrics = (
           // Check subscription status
           const { data: subscription, error: subError } = await supabase
             .from('subscribers')
-            .select('*')
+            .select('user_id, subscription_tier, scan_count, scan_limit, scan_reset_date')
             .eq('user_id', userId)
             .maybeSingle();
             
@@ -273,55 +273,55 @@ export const useTokenMetrics = (
           }
         }
         
-        // Fetch security metrics - Use typed query results
+        // Fetch security metrics - Use typed query results with specific columns
         const { data: securityData, error: securityError } = await supabase
           .from('token_security_cache')
-          .select('*')
+          .select('token_address, data, last_updated, expires_at')
           .eq('token_address', contractAddress)
           .order('last_updated', { ascending: false })
           .limit(1)
           .maybeSingle();
-          
-        // Fetch liquidity metrics  
+
+        // Fetch liquidity metrics
         const { data: liquidityData, error: liquidityError } = await supabase
           .from('token_liquidity_cache')
-          .select('*')
+          .select('token_address, data, last_updated, expires_at')
           .eq('token_address', contractAddress)
           .order('last_updated', { ascending: false })
           .limit(1)
           .maybeSingle();
-          
+
         // Fetch tokenomics metrics
         const { data: tokenomicsData, error: tokenomicsError } = await supabase
           .from('token_tokenomics_cache')
-          .select('*')
+          .select('token_address, data, last_updated, expires_at')
           .eq('token_address', contractAddress)
           .order('last_updated', { ascending: false })
           .limit(1)
           .maybeSingle();
-          
+
         // Fetch community metrics
         const { data: communityData, error: communityError } = await supabase
           .from('token_community_cache')
-          .select('*')
+          .select('token_address, data, last_updated, expires_at')
           .eq('token_address', contractAddress)
           .order('last_updated', { ascending: false })
           .limit(1)
           .maybeSingle();
-          
+
         // Fetch development metrics
         const { data: developmentData, error: developmentError } = await supabase
           .from('token_development_cache')
-          .select('*')
+          .select('token_address, data, last_updated, expires_at')
           .eq('token_address', contractAddress)
           .order('last_updated', { ascending: false })
           .limit(1)
           .maybeSingle();
-          
+
         // Fetch top holders
         const { data: holdersData, error: holdersError } = await supabase
           .from('token_holders_cache')
-          .select('*')
+          .select('token_address, data, last_updated')
           .eq('token_address', contractAddress)
           .maybeSingle();
           

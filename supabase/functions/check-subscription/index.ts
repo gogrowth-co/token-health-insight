@@ -82,7 +82,10 @@ serve(async (req) => {
 
     // Initialize Stripe
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    const customers = await stripe.customers.list({
+      email: user.email,
+      limit: 1
+    });
     
     if (customers.data.length === 0) {
       logStep("No customer found, updating unsubscribed state");
@@ -118,12 +121,20 @@ serve(async (req) => {
     const customerId = customers.data[0].id;
     logStep("Found Stripe customer", { customerId });
 
+    // Fetch active subscriptions with pagination handling
     const subscriptions = await stripe.subscriptions.list({
       customer: customerId,
       status: "active",
+      limit: 100, // Explicit limit to ensure we get all subscriptions
       expand: ["data.items.data.price"],
     });
-    
+
+    // Note: For most users, pagination won't be needed as they'll have 1-2 subscriptions max
+    // If has_more is true, additional pages exist, but for this use case it's unlikely
+    if (subscriptions.has_more) {
+      logStep("Warning: User has more than 100 subscriptions, pagination needed");
+    }
+
     const hasActiveSub = subscriptions.data.length > 0;
     let subscriptionTier = "Free";
     let subscriptionEnd = null;

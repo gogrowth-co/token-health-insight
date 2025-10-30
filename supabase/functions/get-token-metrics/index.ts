@@ -196,7 +196,17 @@ async function getTVL(tokenId: string, network: string, tokenAddress: string) {
 // New function to get TVL from GeckoTerminal as a fallback
 async function getTVLFromGeckoTerminal(network: string, tokenAddress: string) {
   if (!tokenAddress) {
-    return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0 };
+    return {
+      tvl: "N/A",
+      tvlValue: 0,
+      tvlChange24h: 0,
+      volume24h: "N/A",
+      volume24hValue: 0,
+      transactions24h: "N/A",
+      transactions24hValue: 0,
+      poolCount: 0,
+      poolDetails: []
+    };
   }
   
   try {
@@ -204,7 +214,17 @@ async function getTVLFromGeckoTerminal(network: string, tokenAddress: string) {
     const geckoNetwork = mapNetworkToGeckoTerminal(network);
     if (!geckoNetwork) {
       console.log(`Unsupported network for GeckoTerminal TVL fallback: ${network}`);
-      return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0 };
+      return {
+        tvl: "N/A",
+        tvlValue: 0,
+        tvlChange24h: 0,
+        volume24h: "N/A",
+        volume24hValue: 0,
+        transactions24h: "N/A",
+        transactions24hValue: 0,
+        poolCount: 0,
+        poolDetails: []
+      };
     }
     
     // Fetch pools data from GeckoTerminal API
@@ -219,39 +239,123 @@ async function getTVLFromGeckoTerminal(network: string, tokenAddress: string) {
     
     if (!response.ok) {
       console.error(`GeckoTerminal API error: ${response.status}`);
-      return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0 };
+      return {
+        tvl: "N/A",
+        tvlValue: 0,
+        tvlChange24h: 0,
+        volume24h: "N/A",
+        volume24hValue: 0,
+        transactions24h: "N/A",
+        transactions24hValue: 0,
+        poolCount: 0,
+        poolDetails: []
+      };
     }
-    
+
     const data = await response.json();
     console.log('GeckoTerminal API response received for TVL fallback');
-    
+
     if (!data.data || data.data.length === 0) {
       console.log('No pools found in GeckoTerminal');
-      return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0 };
+      return {
+        tvl: "N/A",
+        tvlValue: 0,
+        tvlChange24h: 0,
+        volume24h: "N/A",
+        volume24hValue: 0,
+        transactions24h: "N/A",
+        transactions24hValue: 0,
+        poolCount: 0,
+        poolDetails: []
+      };
     }
     
-    // Calculate total liquidity across all pools as a TVL approximation
+    // Calculate total liquidity and extract additional pool metrics
     let totalLiquidity = 0;
-    
+    let totalVolume24h = 0;
+    let totalTransactions24h = 0;
+    let avgPriceChange24h = 0;
+    let poolCount = 0;
+    const poolDetails = [];
+
     for (const pool of data.data) {
-      if (pool.attributes && pool.attributes.reserve_in_usd) {
-        const poolLiquidity = parseFloat(pool.attributes.reserve_in_usd);
-        if (!isNaN(poolLiquidity)) {
-          totalLiquidity += poolLiquidity;
+      if (pool.attributes) {
+        // Extract liquidity
+        if (pool.attributes.reserve_in_usd) {
+          const poolLiquidity = parseFloat(pool.attributes.reserve_in_usd);
+          if (!isNaN(poolLiquidity)) {
+            totalLiquidity += poolLiquidity;
+          }
         }
+
+        // Extract volume (24h)
+        if (pool.attributes.volume_usd?.h24) {
+          const volume24h = parseFloat(pool.attributes.volume_usd.h24);
+          if (!isNaN(volume24h)) {
+            totalVolume24h += volume24h;
+          }
+        }
+
+        // Extract transactions (24h)
+        if (pool.attributes.transactions?.h24?.buys && pool.attributes.transactions?.h24?.sells) {
+          const buys = parseInt(pool.attributes.transactions.h24.buys);
+          const sells = parseInt(pool.attributes.transactions.h24.sells);
+          if (!isNaN(buys) && !isNaN(sells)) {
+            totalTransactions24h += (buys + sells);
+          }
+        }
+
+        // Extract price change percentage (24h)
+        if (pool.attributes.price_change_percentage?.h24) {
+          const priceChange = parseFloat(pool.attributes.price_change_percentage.h24);
+          if (!isNaN(priceChange)) {
+            avgPriceChange24h += priceChange;
+            poolCount++;
+          }
+        }
+
+        // Store individual pool details
+        poolDetails.push({
+          name: pool.attributes.name || 'Unknown Pool',
+          liquidity: pool.attributes.reserve_in_usd || 0,
+          volume24h: pool.attributes.volume_usd?.h24 || 0,
+          priceChange24h: pool.attributes.price_change_percentage?.h24 || 0,
+          poolCreatedAt: pool.attributes.pool_created_at || null
+        });
       }
     }
-    
-    console.log(`Calculated TVL from GeckoTerminal pools: $${totalLiquidity.toFixed(2)}`);
-    
+
+    // Calculate average price change
+    if (poolCount > 0) {
+      avgPriceChange24h = avgPriceChange24h / poolCount;
+    }
+
+    console.log(`GeckoTerminal data - TVL: $${totalLiquidity.toFixed(2)}, Volume 24h: $${totalVolume24h.toFixed(2)}, Transactions 24h: ${totalTransactions24h}, Avg Price Change: ${avgPriceChange24h.toFixed(2)}%`);
+
     return {
       tvl: totalLiquidity > 0 ? formatCurrency(totalLiquidity) : "N/A",
       tvlValue: totalLiquidity,
-      tvlChange24h: 0 // GeckoTerminal doesn't provide change data
+      tvlChange24h: avgPriceChange24h,
+      volume24h: totalVolume24h > 0 ? formatCurrency(totalVolume24h) : "N/A",
+      volume24hValue: totalVolume24h,
+      transactions24h: totalTransactions24h > 0 ? formatNumber(totalTransactions24h) : "N/A",
+      transactions24hValue: totalTransactions24h,
+      poolCount: data.data.length,
+      poolDetails
     };
   } catch (error) {
     console.error('Error fetching TVL data from GeckoTerminal:', error);
-    return { tvl: "N/A", tvlValue: 0, tvlChange24h: 0 };
+    return {
+      tvl: "N/A",
+      tvlValue: 0,
+      tvlChange24h: 0,
+      volume24h: "N/A",
+      volume24hValue: 0,
+      transactions24h: "N/A",
+      transactions24hValue: 0,
+      poolCount: 0,
+      poolDetails: []
+    };
   }
 }
 
@@ -309,10 +413,14 @@ async function getSupplyCap(tokenId: string) {
 async function getTokenDistribution(network: string, tokenAddress: string) {
   if (!tokenAddress) {
     console.log('No token address provided for token distribution data');
-    return { 
+    return {
       tokenDistribution: "N/A",
       tokenDistributionValue: 0,
-      tokenDistributionRating: "N/A"
+      tokenDistributionRating: "N/A",
+      holderCount: null,
+      lpHolderCount: null,
+      creatorAddress: null,
+      tradingCooldown: null
     };
   }
   
@@ -323,10 +431,14 @@ async function getTokenDistribution(network: string, tokenAddress: string) {
     const chainId = getChainIdForNetwork(network);
     if (!chainId) {
       console.log(`Unsupported network for token distribution data: ${network}`);
-      return { 
+      return {
         tokenDistribution: "N/A",
         tokenDistributionValue: 0,
-        tokenDistributionRating: "N/A"
+        tokenDistributionRating: "N/A",
+        holderCount: null,
+        lpHolderCount: null,
+        creatorAddress: null,
+        tradingCooldown: null
       };
     }
     
@@ -349,10 +461,14 @@ async function getTokenDistribution(network: string, tokenAddress: string) {
     
     if (!response.ok) {
       console.error(`GoPlus API error: ${response.status}`);
-      return { 
+      return {
         tokenDistribution: "N/A",
-        tokenDistributionValue: 0, 
-        tokenDistributionRating: "N/A"
+        tokenDistributionValue: 0,
+        tokenDistributionRating: "N/A",
+        holderCount: null,
+        lpHolderCount: null,
+        creatorAddress: null,
+        tradingCooldown: null
       };
     }
     
@@ -361,20 +477,32 @@ async function getTokenDistribution(network: string, tokenAddress: string) {
     
     if (data.code !== 1 || !data.result || !data.result[tokenAddress.toLowerCase()]) {
       console.log('No token distribution data found');
-      return { 
+      return {
         tokenDistribution: "N/A",
         tokenDistributionValue: 0,
-        tokenDistributionRating: "N/A"
+        tokenDistributionRating: "N/A",
+        holderCount: null,
+        lpHolderCount: null,
+        creatorAddress: null,
+        tradingCooldown: null
       };
     }
     
-    // Get top10_holder_ratio if available
+    // Get top10_holder_ratio and additional holder data
     const securityData = data.result[tokenAddress.toLowerCase()];
-    
+
+    // Extract additional GoPlus fields
+    const holderCount = securityData.holder_count || null;
+    const lpHolderCount = securityData.lp_holder_count || null;
+    const creatorAddress = securityData.creator_address || null;
+    const tradingCooldown = securityData.trading_cooldown || null;
+
+    console.log(`Additional GoPlus data - Holders: ${holderCount}, LP Holders: ${lpHolderCount}, Creator: ${creatorAddress}`);
+
     if (securityData.top10_holders_ratio) {
       const holderRatio = parseFloat(securityData.top10_holders_ratio);
       console.log(`Found top10 holder ratio: ${holderRatio}%`);
-      
+
       // Determine rating based on criteria
       let rating = "N/A";
       if (holderRatio < 40) {
@@ -384,26 +512,38 @@ async function getTokenDistribution(network: string, tokenAddress: string) {
       } else {
         rating = "Poor";
       }
-      
+
       return {
         tokenDistribution: `${holderRatio.toFixed(1)}%`,
         tokenDistributionValue: holderRatio,
-        tokenDistributionRating: rating
+        tokenDistributionRating: rating,
+        holderCount,
+        lpHolderCount,
+        creatorAddress,
+        tradingCooldown
       };
     }
-    
+
     console.log('No top10 holder ratio found');
-    return { 
+    return {
       tokenDistribution: "N/A",
       tokenDistributionValue: 0,
-      tokenDistributionRating: "N/A"
+      tokenDistributionRating: "N/A",
+      holderCount,
+      lpHolderCount,
+      creatorAddress,
+      tradingCooldown
     };
   } catch (error) {
     console.error('Error fetching token distribution data:', error);
-    return { 
+    return {
       tokenDistribution: "N/A",
       tokenDistributionValue: 0,
-      tokenDistributionRating: "N/A"
+      tokenDistributionRating: "N/A",
+      holderCount: null,
+      lpHolderCount: null,
+      creatorAddress: null,
+      tradingCooldown: null
     };
   }
 }

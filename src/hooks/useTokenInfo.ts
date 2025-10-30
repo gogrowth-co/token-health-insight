@@ -84,7 +84,7 @@ export const useTokenInfo = (tokenIdentifier?: string | null, forceRefresh: bool
       // First, try to get data from token_data_cache table
       const { data: cacheData, error: cacheError } = await supabase
         .from('token_data_cache')
-        .select('*')
+        .select('token_id, data, expires_at, last_updated')
         .eq('token_id', normalizedToken)
         .maybeSingle();
 
