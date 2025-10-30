@@ -2,11 +2,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@12.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.32.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { createErrorResponse, logInfo } from "../_shared/errorHandler.ts";
 
 // Helper logging function for enhanced debugging
 const logStep = (step: string, details?: any) => {
@@ -21,6 +18,10 @@ const PRICE_TIER_MAP: Record<string, string> = {
 };
 
 serve(async (req) => {
+  // Get CORS headers with origin validation
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -190,11 +191,7 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERROR in check-subscription", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    // Use secure error handling that sanitizes sensitive information
+    return createErrorResponse(error, 'check-subscription', 500, corsHeaders);
   }
 });
